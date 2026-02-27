@@ -1,0 +1,31 @@
+name: Test Grammar
+
+on:
+  push:
+    paths:
+      - "governance/hls.yaml"
+      - "governance/templates/dictionary.json"
+      - "hlf/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test-grammar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Build parser
+        run: bash scripts/build/parser-build.sh
+      - name: Run grammar roundtrip tests
+        run: uv run pytest tests/test_grammar_roundtrip.py -v

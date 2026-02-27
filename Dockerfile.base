@@ -1,0 +1,11 @@
+FROM python:3.12-slim AS base
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl ca-certificates git openssl && rm -rf /var/lib/apt/lists/*
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+RUN useradd -l -u 1000 -m -s /usr/sbin/nologin builder
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --no-dev --frozen
+COPY . .
+USER builder
+ENTRYPOINT ["bash", "-c", "trap 'python -c \"from agents.core.main import quarantine_dump; quarantine_dump()\"' SIGUSR1; exec \"$@\"", "--"]

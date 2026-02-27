@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "copilot/**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  ensure-no-sandbox-in-prod:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check OLLAMA_ALLOW_OPENCLAW not in production compose
+        run: |
+          if grep -q "OLLAMA_ALLOW_OPENCLAW=1" docker-compose.yml; then
+            echo "ERROR: OLLAMA_ALLOW_OPENCLAW=1 found in docker-compose.yml" >&2
+            exit 1
+          fi
+          echo "OK: Production compose is clean"
+
+  lint-and-test:
+    needs: ensure-no-sandbox-in-prod
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv sync --frozen
+      - name: Run HLF token lint
+        run: uv run python scripts/hlf_token_lint.py
+      - name: Run pytest
+        run: uv run pytest tests/ -v
+
+  validate-models:
+    needs: ensure-no-sandbox-in-prod
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate settings.json model whitelists
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+          with open("config/settings.json") as f:
+              settings = json.load(f)
+          allowed = settings.get("ollama_allowed_models", {})
+          required_tiers = ["hearth", "forge", "sovereign"]
+          errors = []
+          for tier in required_tiers:
+              if tier not in allowed:
+                  errors.append(f"Missing tier '{tier}' in ollama_allowed_models")
+              elif not isinstance(allowed[tier], list) or len(allowed[tier]) == 0:
+                  errors.append(f"Tier '{tier}' model list is empty")
+          if errors:
+              for err in errors:
+                  print(f"ERROR: {err}", file=sys.stderr)
+              sys.exit(1)
+          print("All tiers validated:", list(allowed.keys()))
+          EOF

@@ -1,0 +1,27 @@
+version: "0.2.0"
+tokens:
+  LBRACK: "["
+  RBRACK: "]"
+  TERMINATOR: "Ω"
+  ARROW: "->"
+  COLON: ":"
+  COMMA: ","
+  ASSIGN: "="
+  DOLLAR_L: "${"
+  RBRACE: "}"
+  STRING: /\"([^\"\\]|\\.)*\"/
+  NUMBER: /-?\d+(\.\d+)?/
+  BOOL: /true|false/
+  LIST: /\[([^\]]*)\]/
+  MAP: /\{([^}]*)\}/
+  IDENT: /[A-Za-z_][A-Za-z0-9_]*/
+rules:
+  program: "statement+ TERMINATOR"
+  statement: "tag_stmt | set_stmt | function_stmt | result_stmt"
+  tag_stmt: "LBRACK TAG RBRACK arglist"
+  set_stmt: "LBRACK 'SET' RBRACK IDENT ASSIGN literal"
+  function_stmt: "LBRACK 'FUNCTION' RBRACK IDENT arglist"
+  result_stmt: "LBRACK 'RESULT' RBRACK arglist"
+  arglist: "literal (COMMA literal)* | EMPTY"
+  literal: "STRING | NUMBER | BOOL | LIST | MAP | DOLLAR_L IDENT RBRACE"
+  TAG: "/[A-Z_]+/"

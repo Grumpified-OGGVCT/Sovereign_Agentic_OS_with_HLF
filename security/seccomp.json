@@ -1,0 +1,72 @@
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "architectures": ["SCMP_ARCH_X86_64", "SCMP_ARCH_AARCH64"],
+  "syscalls": [
+    {
+      "names": [
+        "read", "write", "open", "close", "stat", "fstat", "mmap", "mprotect",
+        "munmap", "brk", "socket", "connect", "sendto", "recvfrom", "bind",
+        "listen", "accept", "clone", "fork", "execve", "exit", "exit_group",
+        "fcntl", "openat", "futex", "epoll_create", "epoll_create1",
+        "epoll_ctl", "epoll_wait", "epoll_pwait", "getrandom", "pipe2", "dup",
+        "dup2", "dup3", "lseek", "pread64", "pwrite64", "readv", "writev",
+        "access", "pipe", "select", "sched_yield", "mremap", "msync",
+        "mincore", "madvise", "shmget", "shmat", "shmctl", "lstat", "poll",
+        "lseek", "ioctl", "sendmsg", "recvmsg", "shutdown", "getsockname",
+        "getpeername", "socketpair", "setsockopt", "getsockopt", "wait4",
+        "kill", "uname", "semget", "semop", "semctl", "shmdt", "msgget",
+        "msgsnd", "msgrcv", "msgctl", "getdents", "getdents64", "getcwd",
+        "chdir", "rename", "mkdir", "rmdir", "creat", "link", "unlink",
+        "symlink", "readlink", "chmod", "fchmod", "chown", "fchown", "lchown",
+        "umask", "gettimeofday", "getrlimit", "getrusage", "sysinfo",
+        "times", "getuid", "getgid", "setuid", "setgid", "geteuid", "getegid",
+        "setpgid", "getppid", "getpgrp", "setsid", "setreuid", "setregid",
+        "getgroups", "setgroups", "setresuid", "getresuid", "setresgid",
+        "getresgid", "getpgid", "setfsuid", "setfsgid", "getsid", "capget",
+        "capset", "rt_sigaction", "rt_sigprocmask", "rt_sigreturn",
+        "rt_sigpending", "rt_sigtimedwait", "rt_sigqueueinfo",
+        "rt_sigsuspend", "sigaltstack", "utime", "mknod", "uselib",
+        "personality", "ustat", "statfs", "fstatfs", "sysfs", "getpriority",
+        "setpriority", "prctl", "arch_prctl", "setitimer", "getitimer",
+        "tkill", "time", "futex", "sched_setaffinity", "sched_getaffinity",
+        "set_thread_area", "io_setup", "io_destroy", "io_getevents",
+        "io_submit", "io_cancel", "lookup_dcookie", "timer_create",
+        "timer_settime", "timer_gettime", "timer_getoverrun", "timer_delete",
+        "clock_settime", "clock_gettime", "clock_getres", "clock_nanosleep",
+        "tgkill", "utimes", "set_mempolicy", "get_mempolicy", "mq_open",
+        "mq_unlink", "mq_timedsend", "mq_timedreceive", "mq_notify",
+        "mq_getsetattr", "waitid", "add_key", "request_key", "keyctl",
+        "ioprio_set", "ioprio_get", "inotify_init", "inotify_add_watch",
+        "inotify_rm_watch", "migrate_pages", "openat", "mkdirat", "mknodat",
+        "fchownat", "futimesat", "newfstatat", "unlinkat", "renameat",
+        "linkat", "symlinkat", "readlinkat", "fchmodat", "faccessat",
+        "pselect6", "ppoll", "unshare", "set_robust_list", "get_robust_list",
+        "splice", "tee", "sync_file_range", "vmsplice", "move_pages",
+        "utimensat", "epoll_pwait", "signalfd", "timerfd_create",
+        "eventfd", "fallocate", "timerfd_settime", "timerfd_gettime",
+        "accept4", "signalfd4", "eventfd2", "epoll_create1", "dup3",
+        "pipe2", "inotify_init1", "preadv", "pwritev", "rt_tgsigqueueinfo",
+        "perf_event_open", "recvmmsg", "fanotify_init", "fanotify_mark",
+        "prlimit64", "name_to_handle_at", "open_by_handle_at",
+        "clock_adjtime", "syncfs", "sendmmsg", "setns", "getcpu",
+        "process_vm_readv", "process_vm_writev", "kcmp", "finit_module",
+        "sched_setattr", "sched_getattr", "renameat2", "seccomp",
+        "getrandom", "memfd_create", "kexec_file_load", "bpf",
+        "execveat", "userfaultfd", "membarrier", "mlock2", "copy_file_range",
+        "preadv2", "pwritev2", "statx", "rseq", "pidfd_send_signal",
+        "io_uring_setup", "io_uring_enter", "io_uring_register",
+        "open_tree", "move_mount", "fsopen", "fsconfig", "fsmount",
+        "fspick", "pidfd_open", "clone3", "close_range", "openat2",
+        "pidfd_getfd", "faccessat2", "process_madvise"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": [
+        "ptrace", "kexec_load", "mount", "umount2", "pivot_root",
+        "reboot", "sethostname", "init_module", "delete_module", "acct"
+      ],
+      "action": "SCMP_ACT_ERRNO"
+    }
+  ]
+}

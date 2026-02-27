@@ -1,0 +1,118 @@
+version: "3.9"
+networks:
+  sovereign-net:
+    driver: bridge
+    internal: true
+  external-net:
+    driver: bridge
+services:
+  gateway-node:
+    build: { context: ., dockerfile: Dockerfile.base }
+    container_name: gateway-node
+    command: ["python", "-m", "uvicorn", "agents.gateway.bus:app", "--host", "0.0.0.0", "--port", "40404"]
+    ports: ["40404:40404"]
+    networks: [sovereign-net, external-net]
+    environment:
+      - DEPLOYMENT_TIER=${DEPLOYMENT_TIER:-hearth}
+    env_file: .env
+    volumes:
+      - ./config:/app/config:ro
+      - ./governance:/app/governance:ro
+    security_opt: ["seccomp=security/seccomp.json"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:40404/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 4G }
+    depends_on:
+      redis-broker: { condition: service_healthy }
+  agent-executor:
+    build: { context: ., dockerfile: Dockerfile.base }
+    container_name: agent-executor
+    command: ["python", "-m", "agents.core.main"]
+    networks: [sovereign-net]
+    environment:
+      - DEPLOYMENT_TIER=${DEPLOYMENT_TIER:-hearth}
+    env_file: .env
+    volumes:
+      - ./agents/core:/app/agents/core:ro
+      - ./governance:/app/governance:ro
+      - ./data/quarantine_dumps:/app/data/quarantine_dumps
+    security_opt: ["seccomp=security/seccomp.json"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:40405/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 4G }
+    depends_on:
+      gateway-node: { condition: service_healthy }
+  redis-broker:
+    image: redis:7-alpine
+    container_name: redis-broker
+    command: ["redis-server", "/usr/local/etc/redis/redis.conf"]
+    networks: [sovereign-net]
+    volumes:
+      - redis-data:/data
+      - ./config/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  memory-core:
+    build: { context: ., dockerfile: Dockerfile.base }
+    container_name: memory-core
+    command: ["python", "-m", "agents.core.memory_scribe"]
+    networks: [sovereign-net]
+    volumes:
+      - ./data/sqlite:/app/data/sqlite
+      - ./data/cold_archive:/app/data/cold_archive
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:40406/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      redis-broker: { condition: service_healthy }
+  ollama-matrix:
+    image: ollama/ollama:latest
+    container_name: ollama-matrix
+    networks: [sovereign-net, external-net]
+    ports: ["11434:11434"]
+    environment:
+      - OLLAMA_NOAGENT=1
+      - OLLAMA_ALLOWED_MODELS=${OLLAMA_ALLOWED_MODELS:-qwen-7b}
+    volumes:
+      - ollama-models:/root/.ollama
+      - ./config:/app/config:ro
+      - ./scripts/ollama-audit.sh:/usr/local/bin/ollama-audit.sh:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits: { cpus: "4.0", memory: 16G }
+  docker-orchestrator:
+    image: docker:23-dind-rootless
+    container_name: docker-orchestrator
+    networks: [sovereign-net]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./governance:/app/governance:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:40407/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    profiles: [forge, sovereign]
+volumes:
+  redis-data:
+  ollama-models:
