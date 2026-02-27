@@ -24,7 +24,8 @@ def compress_rolling_context(conn: sqlite3.Connection) -> None:
     if not rows:
         return
     combined = " ".join(r[1] for r in rows)
-    summary = combined[:1500]  # truncate to 1500 tokens placeholder
+    # TODO(Phase 5): Replace truncation with proper map-reduce summarization via qwen:7b
+    summary = combined[:1500]  # truncate to ~1500 tokens as placeholder
     conn.execute(
         "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
         "VALUES (?, ?, ?, ?)",

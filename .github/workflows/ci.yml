@@ -6,9 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   ensure-no-sandbox-in-prod:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Check OLLAMA_ALLOW_OPENCLAW not in production compose
@@ -22,6 +27,8 @@ jobs:
   lint-and-test:
     needs: ensure-no-sandbox-in-prod
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.12
@@ -40,6 +47,8 @@ jobs:
   validate-models:
     needs: ensure-no-sandbox-in-prod
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.12

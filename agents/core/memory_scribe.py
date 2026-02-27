@@ -88,22 +88,24 @@ def run() -> None:
         for _stream, entries in messages:
             for entry_id, data in entries:
                 failures = 0
-                try:
-                    payload: dict[str, Any] = json.loads(data.get("data", "{}"))
-                    session_id = payload.get("request_id", "unknown")
-                    blob = json.dumps(payload)
-                    conn.execute(
-                        "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
-                        "VALUES (?, ?, ?, ?)",
-                        (session_id, time.time(), blob, len(blob.split())),
-                    )
-                    conn.commit()
-                    r.xack(stream, group, entry_id)
-                except Exception as exc:
-                    failures += 1
-                    if failures >= 3:
-                        r.xadd(_DLQ_STREAM, {"data": json.dumps({"error": str(exc), "entry": data})})
+                while failures < 3:
+                    try:
+                        payload: dict[str, Any] = json.loads(data.get("data", "{}"))
+                        session_id = payload.get("request_id", "unknown")
+                        blob = json.dumps(payload)
+                        conn.execute(
+                            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
+                            "VALUES (?, ?, ?, ?)",
+                            (session_id, time.time(), blob, len(blob.split())),
+                        )
+                        conn.commit()
                         r.xack(stream, group, entry_id)
+                        break
+                    except Exception as exc:
+                        failures += 1
+                        if failures >= 3:
+                            r.xadd(_DLQ_STREAM, {"data": json.dumps({"error": str(exc), "entry": data})})
+                            r.xack(stream, group, entry_id)
 
 
 if __name__ == "__main__":

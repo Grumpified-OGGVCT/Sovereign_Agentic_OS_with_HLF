@@ -5,6 +5,7 @@ VRAM availability, gas budget, and dynamic model downshifting.
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Any
 
@@ -82,7 +83,10 @@ def check_vram_threshold(model: str, client: httpx.Client | None = None) -> bool
         if not models:
             return True
         total_vram = sum(m.get("size_vram", 0) for m in models)
-        max_vram = max(m.get("size_vram", 0) for m in models) * 5  # rough heuristic
+        # Rough heuristic: estimate max capacity as 5x the largest single model's VRAM.
+        # This accounts for typical GPU headroom. Configurable via VRAM_CAPACITY_MULTIPLIER env var.
+        multiplier = int(os.environ.get("VRAM_CAPACITY_MULTIPLIER", "5"))
+        max_vram = max(m.get("size_vram", 0) for m in models) * multiplier
         if max_vram == 0:
             return True
         return (total_vram / max_vram) < 0.80

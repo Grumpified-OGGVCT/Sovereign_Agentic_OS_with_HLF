@@ -64,7 +64,7 @@ def test_fact_store_insert_with_vector() -> None:
     loaded_vec = json.loads(row[1])
     assert len(loaded_vec) == 768
     assert abs(loaded_vec[0] - 0.1) < 1e-6
-    assert row[2] == pytest.approx(0.95)
+    assert row[2] == pytest.approx(0.95, abs=1e-6)
     conn.close()
 
 
