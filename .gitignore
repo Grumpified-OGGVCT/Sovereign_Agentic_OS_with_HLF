@@ -207,9 +207,11 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Rapid Prototyping Ignores
-governance/
-security/
-observability/
-ci/
-.pre-commit-config.yaml
+# Note: governance/, security/, observability/, ci/ are now tracked.
+# Only ignore runtime-generated data and secrets.
+data/sqlite/*.db
+data/sqlite/*.sqlite3
+data/cold_archive/*.json
+data/cold_archive/*.parquet
+data/quarantine_dumps/*.json
+observability/openllmetry/last_hash.txt

@@ -1,0 +1,33 @@
+version: "1.0.0"
+strategies:
+  - id: "strategy-b"
+    name: "Whitelisted Pure Tools"
+    description: >
+      Strategy B: only SHA-256 verified binary tools are permitted.
+      Tools must be pure (no side effects observable outside their sandbox),
+      gas cost 5-10, available on Tier 2 (forge) and Tier 3 (sovereign) only.
+      All sensitive=true host functions have returns hashed with SHA-256 before Merkle log.
+    requirements:
+      - binary_sha256_verified: true
+      - gas_range: [5, 10]
+      - tiers: ["forge", "sovereign"]
+      - sensitive: true
+    example_functions:
+      - OPENCLAW_SUMMARIZE
+      - WEB_SEARCH
+
+  - id: "strategy-c"
+    name: "Sandbox Docker Compose Profile"
+    description: >
+      Strategy C: tools run inside ephemeral Docker containers with strict resource caps.
+      OLLAMA_ALLOW_OPENCLAW=1 is permitted in development only (CI guard blocks production use).
+      Resource caps: memory=256M, pids_limit=50, network=none.
+    requirements:
+      - profile: "sandbox"
+      - memory_limit: "256M"
+      - pids_limit: 50
+      - network: "none"
+      - ollama_allow_openclaw_dev_only: true
+    ci_guard:
+      check: "grep docker-compose.yml for OLLAMA_ALLOW_OPENCLAW=1"
+      action: "FAIL_CI_IF_FOUND_IN_PROD"

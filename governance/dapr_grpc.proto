@@ -1,0 +1,32 @@
+syntax = "proto3";
+package sovereign.dapr.v1;
+
+service AgentBus {
+  rpc PublishIntent (IntentRequest) returns (IntentResponse);
+  rpc SubscribeIntents (SubscribeRequest) returns (stream IntentEvent);
+}
+
+message IntentRequest {
+  string request_id = 1;
+  string hlf_payload = 2;
+  string deployment_tier = 3;
+  double timestamp = 4;
+}
+
+message IntentResponse {
+  string request_id = 1;
+  string stream_id = 2;
+  bool accepted = 3;
+}
+
+message SubscribeRequest {
+  string consumer_group = 1;
+  string consumer_id = 2;
+}
+
+message IntentEvent {
+  string request_id = 1;
+  string hlf_payload = 2;
+  string ast_json = 3;
+  double timestamp = 4;
+}
