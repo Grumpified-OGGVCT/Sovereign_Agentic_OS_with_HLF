@@ -18,14 +18,16 @@ from hlf.hlfc import compile as hlfc_compile
 from agents.gateway.sentinel_gate import enforce_align
 
 try:
-    from ulid import ULID
+    import ulid as _ulid_module
+
+    def _new_ulid() -> str:
+        return str(_ulid_module.new())
+
 except ImportError:
     import uuid
 
-    class ULID:  # type: ignore[no-redef]
-        @staticmethod
-        def new() -> str:
-            return str(uuid.uuid4())
+    def _new_ulid() -> str:  # type: ignore[misc]
+        return str(uuid.uuid4())
 
 
 class Settings(BaseSettings):
@@ -94,7 +96,7 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
         raise HTTPException(status_code=403, detail=f"ALIGN rule violated: {rule_id}")
 
     # 4. ULID nonce replay protection
-    request_id = str(ULID.new())
+    request_id = _new_ulid()
     nonce_key = f"nonce:{request_id}"
     set_ok = await r.set(nonce_key, "1", nx=True, ex=600)
     if not set_ok:

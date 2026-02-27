@@ -11,7 +11,7 @@ _SPECIAL_LINES = {"Ω", "[HLF-v2]", ""}
 
 
 def validate_hlf(line: str) -> bool:
-    """
+    r"""
     Returns True if *line* is a valid HLF line:
     - Empty / whitespace-only lines
     - Version header [HLF-v2]
