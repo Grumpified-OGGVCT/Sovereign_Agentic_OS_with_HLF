@@ -206,3 +206,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Rapid Prototyping Ignores
+governance/
+security/
+observability/
+ci/
+.pre-commit-config.yaml
