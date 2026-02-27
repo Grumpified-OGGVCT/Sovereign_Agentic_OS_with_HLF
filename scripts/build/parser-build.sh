@@ -6,7 +6,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUTPUT="$REPO_ROOT/hlf/_parser_cache.py"
 
 echo "[parser-build] Building Lark LALR parser from hls.yaml..."
-python3 - <<'EOF'
+uv run python3 - <<'EOF'
 import sys
 sys.path.insert(0, '.')
 from hlf.hlfc import _parser
