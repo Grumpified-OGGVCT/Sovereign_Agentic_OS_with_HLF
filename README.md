@@ -1,8 +1,16 @@
 # Sovereign Agentic OS with HLF
 
-A **Spec-Driven Development (SDD)** project for a Sovereign Agentic OS with a custom DSL called **HLF (Hieroglyphic Logic Framework)**.
+<p align="center">
+  <img src="assets/The Rosetta Stone of Agentic AI Systems.svg" alt="The Rosetta Stone of Agentic AI Systems" width="100%">
+</p>
 
-## Architecture
+A **Spec-Driven Development (SDD)** project for a Sovereign Agentic OS with a custom DSL called **HLF (Hieroglyphic Logic Framework)**. This framework forms a zero-trust, completely isolated orchestration environment designed for robust multi-agent execution at scale.
+
+## 🏗️ Architecture
+
+![Sovereign Agentic Stack Preview](assets/slide_1.png)
+
+*Detailed architectural breakdown of the ACFS and component topology. See the blueprints section below for comprehensive PDF specs.*
 
 ```mermaid
 graph TD
@@ -16,14 +24,16 @@ graph TD
     ASB-->Redis["Redis Broker\n(:6379)"]
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 ```bash
 cp .env.example .env
 bash bootstrap_all_in_one.sh
 ```
 
-## Deployment Tiers
+## 🛡️ Deployment Tiers
+
+The OS adapts configuration, networking privileges, and security boundaries based on the deployment tier:
 
 | Tier | Docker Profile | Gas Bucket | Context Tokens | Description |
 |------|---------------|------------|----------------|-------------|
@@ -31,11 +41,11 @@ bash bootstrap_all_in_one.sh
 | `forge` | forge | 10,000 | 16,384 | Professional / team use |
 | `sovereign` | sovereign | 100,000 | 32,768 | Enterprise / air-gapped |
 
-Set `DEPLOYMENT_TIER` in your `.env` file.
+> **Note**: Set `DEPLOYMENT_TIER` in your `.env` file prior to bootstrap to engage these boundaries.
 
-## HLF Overview
+## 📜 HLF (Hieroglyphic Logic Framework)
 
-HLF (Hieroglyphic Logic Framework) is a structured DSL for expressing agent intents with typed, validated tags.
+**HLF** is a robust, structured DSL for expressing agent intents with typed, validated tags. It replaces ambiguous natural language with deterministic, parseable directives.
 
 ```hlf
 [HLF-v2]
@@ -45,23 +55,30 @@ HLF (Hieroglyphic Logic Framework) is a structured DSL for expressing agent inte
 Ω
 ```
 
-**Rules:**
+**Compiler Rules:**
 - First line must be `[INTENT]`
 - One tag per line — no prose
 - Every message ends with `Ω`
-- Version prefix `[HLF-v2]` required
+- Version prefix `[HLF-v2]` is strictly enforced.
 
-## Security Features
+## 🔏 Security Features & Governance
 
-- **ALIGN Ledger** — immutable governance rules enforced at runtime
-- **Seccomp profile** — custom syscall allowlist for all containers
-- **ULID nonce replay protection** — 600s TTL deduplication
-- **Merkle chain logging** — SHA-256 chained trace IDs
-- **Rate limiting** — 50 RPM token bucket via Redis
-- **Gas budget** — AST node count limits per tier
-- **ACFS confinement** — directory permission enforcement
+- **ALIGN Ledger** — Immutable governance rules enforced at runtime.
+- **Seccomp Profile** — Custom syscall allowlist for all node containers.
+- **ULID Nonce Protection** — 600s TTL replay deduplication.
+- **Merkle Chain Logging** — SHA-256 chained trace IDs for comprehensive state audits.
+- **Rate limiting** — 50 RPM token bucket via Redis.
+- **Gas Budget** — AST node count limits strictly enforced per deployment tier.
+- **ACFS Confinement** — Directory permission enforcement at the kernel level.
 
-## Tech Stack
+## 📚 Official Design Documents & Blueprints
+
+Dive deeper into the comprehensive design documentation that informs the OS specifications:
+- [Genesis Stack Blueprint](assets/Genesis_Stack_Blueprint.pdf)
+- [Sovereign Agentic Stack Architecture](assets/Sovereign_Agentic_Stack.pdf)
+- [Ollama Matrix Sync Pipeline](assets/Ollama_Matrix_Sync.pdf)
+
+## 💻 Tech Stack
 
 | Component | Technology |
 |-----------|-----------|
@@ -71,15 +88,15 @@ HLF (Hieroglyphic Logic Framework) is a structured DSL for expressing agent inte
 | Storage | SQLite (WAL mode) |
 | Containers | Docker Compose |
 | Pub/Sub | Dapr |
-| LLM Backend | Ollama |
+| Backend | Ollama |
 | ML Optimization | DSPy |
-| HLF Parser | Lark LALR(1) |
+| Parser | Lark LALR(1) |
 | Package Manager | uv |
 
-## Development
+## 🛠️ Local Development
 
 ```bash
-uv sync
+uv sync 
 uv run pytest tests/ -v
 uv run hlfc tests/fixtures/hello_world.hlf
 uv run hlflint tests/fixtures/hello_world.hlf
