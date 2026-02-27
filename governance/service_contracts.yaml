@@ -1,0 +1,31 @@
+version: "1.0.0"
+contracts:
+  - service: gateway-node
+    port: 40404
+    endpoints:
+      - path: /api/v1/intent
+        method: POST
+        auth: none
+        rate_limit: 50rpm
+      - path: /health
+        method: GET
+        auth: none
+  - service: agent-executor
+    port: 40405
+    endpoints:
+      - path: /ready
+        method: GET
+        auth: none
+  - service: memory-core
+    port: 40406
+    endpoints:
+      - path: /health
+        method: GET
+        auth: none
+  - service: docker-orchestrator
+    port: 40407
+    endpoints:
+      - path: /health
+        method: GET
+        auth: none
+    profiles: [forge, sovereign]

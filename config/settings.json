@@ -1,0 +1,30 @@
+{
+  "deployment_tier": "hearth",
+  "models": {
+    "primary": "qwen3-vl:32b-cloud",
+    "reasoning": "qwen-max",
+    "summarization": "qwen:7b",
+    "embedding": "nomic-embed-text"
+  },
+  "features": {
+    "enable_mtls": false,
+    "enable_honeypot": false,
+    "enable_air_gap": false,
+    "enable_merkle_logging": false,
+    "enable_dreaming_state": true,
+    "enable_ebpf": false,
+    "enable_tpm": false,
+    "enable_vault": false,
+    "enable_worm": false
+  },
+  "gas_buckets": { "hearth": 1000, "forge": 10000, "sovereign": 100000 },
+  "max_context_tokens": { "hearth": 8192, "forge": 16384, "sovereign": 32768 },
+  "rate_limits": { "external_rpm": 50, "websearch_capacity": 10 },
+  "circuit_breaker": { "timeout_ms": 12000, "dead_man_threshold": 3, "dead_man_window_sec": 300 },
+  "semantic_cache": { "similarity_threshold": 0.99, "ttl_seconds": 3600, "min_confidence": 0.95 },
+  "ollama_allowed_models": {
+    "hearth": ["qwen-7b"],
+    "forge": ["qwen-7b", "glm-5", "minimax-m2.5"],
+    "sovereign": ["kimi-k2.5", "glm-5", "minimax-m2.5", "qwen-3.5", "qwen-7b"]
+  }
+}

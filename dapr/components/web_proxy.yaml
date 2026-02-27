@@ -1,0 +1,10 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: web-proxy
+spec:
+  type: middleware.http.routerchecker
+  version: v1
+  metadata:
+    - name: rule
+      value: "^/web_search"

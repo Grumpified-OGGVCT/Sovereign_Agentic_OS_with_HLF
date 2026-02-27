@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "HLF",
+  "scopeName": "source.hlf",
+  "fileTypes": ["hlf"],
+  "patterns": [
+    { "include": "#version_header" },
+    { "include": "#tag" },
+    { "include": "#terminator" },
+    { "include": "#string" },
+    { "include": "#number" },
+    { "include": "#keyword" },
+    { "include": "#comment" }
+  ],
+  "repository": {
+    "version_header": {
+      "match": "\\[HLF-v\\d+\\]",
+      "name": "keyword.control.hlf"
+    },
+    "tag": {
+      "match": "\\[[A-Z_]+\\]",
+      "name": "entity.name.tag.hlf"
+    },
+    "terminator": {
+      "match": "Ω",
+      "name": "keyword.operator.terminator.hlf"
+    },
+    "string": {
+      "match": "\"([^\"\\\\]|\\\\.)*\"",
+      "name": "string.quoted.double.hlf"
+    },
+    "number": {
+      "match": "-?\\d+(\\.\\d+)?",
+      "name": "constant.numeric.hlf"
+    },
+    "keyword": {
+      "match": "\\b(true|false)\\b",
+      "name": "constant.language.hlf"
+    },
+    "comment": {
+      "match": "#.*$",
+      "name": "comment.line.number-sign.hlf"
+    }
+  }
+}

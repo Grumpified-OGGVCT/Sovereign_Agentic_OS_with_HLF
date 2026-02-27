@@ -1,0 +1,17 @@
+name: ensure-no-sandbox-in-prod
+on:
+  push:
+  pull_request:
+
+jobs:
+  ensure-no-sandbox-in-prod:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check OLLAMA_ALLOW_OPENCLAW not in production compose
+        run: |
+          if grep -q "OLLAMA_ALLOW_OPENCLAW=1" docker-compose.yml; then
+            echo "ERROR: OLLAMA_ALLOW_OPENCLAW=1 found in docker-compose.yml. This is forbidden in production." >&2
+            exit 1
+          fi
+          echo "OK: OLLAMA_ALLOW_OPENCLAW=1 not present in docker-compose.yml"

@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "token_map": {
+    "->": ["cl100k", "sentencepiece", "qwen"],
+    "Ω": ["cl100k", "sentencepiece", "qwen"],
+    "fallback_terminator": "END"
+  },
+  "glyphs": {
+    "Ω": {"name": "Terminal Conclusion", "enforces": "Final stdout state, terminates recursive loops"},
+    "Δ": {"name": "State Diff", "enforces": "Only output delta changes"},
+    "Ж": {"name": "Reasoning Blocker", "enforces": "Logical paradox; route to Arbiter"},
+    "⩕": {"name": "Gas Metric", "enforces": "Max recursive steps before OOM"}
+  },
+  "tags": [
+    { "name": "INTENT", "args": [{"name":"action","type":"string"},{"name":"target","type":"path"}] },
+    { "name": "CONSTRAINT", "args": [{"name":"key","type":"string"},{"name":"value","type":"any"}] },
+    { "name": "EXPECT", "args": [{"name":"outcome","type":"string"}] },
+    { "name": "ACTION", "args": [{"name":"verb","type":"string"},{"name":"args","type":"any","repeat":true}] },
+    { "name": "SET", "args": [{"name":"name","type":"identifier"},{"name":"value","type":"any"}], "immutable": true },
+    { "name": "FUNCTION", "args": [{"name":"name","type":"identifier"},{"name":"args","type":"any","repeat":true}], "pure": true },
+    { "name": "RESULT", "args": [{"name":"code","type":"int"},{"name":"message","type":"string"}], "terminator": true },
+    { "name": "MODULE", "args": [{"name":"name","type":"identifier"}] },
+    { "name": "IMPORT", "args": [{"name":"name","type":"identifier"}] },
+    { "name": "DATA", "args": [{"name":"id","type":"string"}] }
+  ]
+}

@@ -1,0 +1,5 @@
+[HLF-v2]
+[INTENT] greet "world"
+[EXPECT] "Hello, world!"
+[RESULT] code=0 message="ok"
+Ω
