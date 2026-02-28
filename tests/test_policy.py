@@ -17,6 +17,8 @@ def _make_mock_redis(**overrides):
     mock.expire = AsyncMock(return_value=True)
     mock.set = AsyncMock(return_value=overrides.get("set", True))
     mock.xadd = AsyncMock(return_value="1-0")
+    # Global Per-Tier Gas Bucket: eval returns remaining gas (positive = OK, -1 = exhausted)
+    mock.eval = AsyncMock(return_value=overrides.get("gas_eval", 999))
     return mock
 
 
@@ -73,6 +75,18 @@ def test_rate_limit_returns_429() -> None:
         payload = {"hlf": "[HLF-v2]\n[INTENT] greet \"world\"\nΩ\n"}
         resp = client.post("/api/v1/intent", json=payload)
     assert resp.status_code == 429
+
+
+def test_global_gas_bucket_exhausted_returns_429() -> None:
+    """Global per-tier gas bucket exhausted → 429 (gas_eval=-1)."""
+    mock_redis = _make_mock_redis(gas_eval=-1)
+    with patch("agents.gateway.bus.get_redis", new=_fake_get_redis(mock_redis)):
+        from agents.gateway import bus
+        client = TestClient(bus.app, raise_server_exceptions=False)
+        payload = {"hlf": "[HLF-v2]\n[INTENT] greet \"world\"\n[RESULT] code=0 message=\"ok\"\nΩ\n"}
+        resp = client.post("/api/v1/intent", json=payload)
+    assert resp.status_code == 429
+    assert "gas" in resp.json()["detail"].lower()
 
 
 def test_replayed_nonce_returns_409() -> None:

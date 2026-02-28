@@ -30,6 +30,10 @@ def format_hlf(source: str) -> str:
         elif tag == "RESULT":
             args_str = _format_args(node.get("args", []))
             lines.append(f"[RESULT] {args_str}".rstrip())
+        elif tag == "MODULE":
+            lines.append(f"[MODULE] {node['name']}")
+        elif tag == "IMPORT":
+            lines.append(f"[IMPORT] {node['name']}")
         else:
             args_str = _format_args(node.get("args", []))
             lines.append(f"[{tag}] {args_str}".rstrip())

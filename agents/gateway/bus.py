@@ -16,6 +16,7 @@ from pydantic_settings import BaseSettings
 from hlf import validate_hlf_heuristic
 from hlf.hlfc import compile as hlfc_compile
 from agents.gateway.sentinel_gate import enforce_align
+from agents.gateway.router import consume_gas_async, verify_gas_limit, record_intent_activity
 import os
 import httpx
 
@@ -118,6 +119,12 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
     if blocked:
         raise HTTPException(status_code=403, detail=f"ALIGN rule violated: {rule_id}")
 
+    # 4b. Global Per-Tier Gas Bucket (Lua atomic decrement)
+    node_count = len(ast.get("program", []))
+    gas_ok = await consume_gas_async(settings.deployment_tier, node_count, r)
+    if not gas_ok:
+        raise HTTPException(status_code=429, detail="Global gas budget exhausted for this tier")
+
     # 5. ULID nonce replay protection
     request_id = _new_ulid()
     nonce_key = f"nonce:{request_id}"
@@ -144,4 +151,5 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
         # Fallback to direct Redis streams if Dapr fails
         await r.xadd("intents", {"data": json.dumps({"request_id": request_id, "ast": ast})})
 
+    record_intent_activity()
     return IntentResponse(request_id=request_id, timestamp=timestamp, ast=ast, stream_id="dapr-pubsub")

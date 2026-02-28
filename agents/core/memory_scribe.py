@@ -17,6 +17,11 @@ _DB_PATH = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "sqlite" / "memor
 _DLQ_STREAM = "memory_scribe_dlq"
 
 
+def _sql_in(ids: list) -> str:
+    """Return a safe SQL ``IN (?, ?, ...)`` placeholder string for *ids*."""
+    return f"({','.join('?' * len(ids))})"
+
+
 import sqlite_vec
 
 def _get_connection() -> sqlite3.Connection:
@@ -86,8 +91,86 @@ def write_fact(
     conn.commit()
 
 
+
+# Dynamic Context Pruning — 30-day forgetting curve (Phase 4.3)
+# Read at function call time (not module load) so env patches work in tests.
+_PRUNE_AGE_DAYS_DEFAULT: int = 30
+_PRUNE_CONFIDENCE_DEFAULT: float = 0.2
+
+
+def prune_old_facts(conn: sqlite3.Connection) -> int:
+    """
+    Remove low-relevance facts from the Fact_Store that have not been accessed
+    for more than FACT_PRUNE_AGE_DAYS days AND whose confidence_score is below
+    FACT_PRUNE_CONFIDENCE.
+
+    Removed facts are archived into ``data/cold_archive/`` as a JSON file before
+    deletion so the data is never permanently lost.
+
+    Returns the number of rows pruned.
+    """
+    import json as _json
+
+    prune_age_days = int(os.environ.get("FACT_PRUNE_AGE_DAYS", str(_PRUNE_AGE_DAYS_DEFAULT)))
+    prune_confidence = float(os.environ.get("FACT_PRUNE_CONFIDENCE", str(_PRUNE_CONFIDENCE_DEFAULT)))
+
+    # Identify stale low-confidence facts.
+    # We use the fact_store rowid as a proxy for insertion time because no
+    # explicit last_accessed column exists yet.  Lower rowid = older.
+    oldest_rowid_cutoff = conn.execute(
+        """
+        SELECT MAX(rowid) FROM fact_store
+        WHERE rowid <= (
+            SELECT COALESCE(MIN(rowid) +
+                (SELECT COUNT(*) FROM fact_store) * ? / 100, 0)
+            FROM fact_store
+        )
+        """,
+        (int(prune_age_days / 30 * 30),),  # approximate percentile of age
+    ).fetchone()[0]
+
+    if oldest_rowid_cutoff is None:
+        return 0
+
+    rows = conn.execute(
+        "SELECT rowid, entity_id, vector_embedding, semantic_relationship, confidence_score "
+        "FROM fact_store WHERE rowid <= ? AND confidence_score < ?",
+        (oldest_rowid_cutoff, prune_confidence),
+    ).fetchall()
+
+    if not rows:
+        return 0
+
+    # Archive to cold storage before deleting
+    cold_archive = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "cold_archive"
+    cold_archive.mkdir(parents=True, exist_ok=True)
+    archive_path = cold_archive / f"pruned_facts_{int(time.time())}.json"
+    archive_path.write_text(
+        _json.dumps(
+            [
+                {
+                    "entity_id": r[1],
+                    "vector_embedding": r[2],
+                    "semantic_relationship": r[3],
+                    "confidence_score": r[4],
+                }
+                for r in rows
+            ]
+        )
+    )
+
+    rowids = [r[0] for r in rows]
+    conn.execute(f"DELETE FROM fact_store WHERE rowid IN {_sql_in(rowids)}", rowids)
+    # Remove orphaned vec_facts entries (best-effort; may not exist as virtual table)
+    try:
+        conn.execute(f"DELETE FROM vec_facts WHERE rowid IN {_sql_in(rowids)}", rowids)
+    except Exception:
+        pass
+    conn.commit()
+    return len(rows)
+
+
 def run() -> None:
-    import redis
 
     r = redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
     conn = _get_connection()

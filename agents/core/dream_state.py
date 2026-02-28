@@ -42,7 +42,12 @@ def compress_rolling_context(conn: sqlite3.Connection) -> None:
 
 
 def archive_old_traces(conn: sqlite3.Connection) -> None:
-    """Move traces older than 7 days to cold_archive as JSON, delete raw."""
+    """
+    Move traces older than 7 days to cold_archive as highly-compressed Parquet files,
+    then delete the raw rows to prevent disk exhaustion (Phase 4.3 Log Storage Truncator).
+    Falls back to JSON if pyarrow is unavailable.
+    """
+    cold_archive = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "cold_archive"
     cutoff = time.time() - 7 * 86400
     rows = conn.execute(
         "SELECT rowid, session_id, timestamp, fifo_blob FROM rolling_context WHERE timestamp < ?",
@@ -50,11 +55,32 @@ def archive_old_traces(conn: sqlite3.Connection) -> None:
     ).fetchall()
     if not rows:
         return
-    _COLD_ARCHIVE.mkdir(parents=True, exist_ok=True)
-    archive_file = _COLD_ARCHIVE / f"archive_{int(time.time())}.json"
-    archive_file.write_text(json.dumps([{"session_id": r[1], "timestamp": r[2], "blob": r[3]} for r in rows]))
+    cold_archive.mkdir(parents=True, exist_ok=True)
+    ts_tag = int(time.time())
+
+    try:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        table = pa.table(
+            {
+                "session_id": [r[1] for r in rows],
+                "timestamp": [r[2] for r in rows],
+                "fifo_blob": [r[3] for r in rows],
+            }
+        )
+        archive_file = cold_archive / f"archive_{ts_tag}.parquet"
+        pq.write_table(table, str(archive_file), compression="snappy")
+    except ImportError:
+        # Fallback: JSON archive
+        archive_file = cold_archive / f"archive_{ts_tag}.json"
+        archive_file.write_text(
+            json.dumps([{"session_id": r[1], "timestamp": r[2], "blob": r[3]} for r in rows])
+        )
+
     rowids = [r[0] for r in rows]
-    conn.execute(f"DELETE FROM rolling_context WHERE rowid IN ({','.join('?' * len(rowids))})", rowids)
+    placeholders = ",".join("?" * len(rowids))
+    conn.execute(f"DELETE FROM rolling_context WHERE rowid IN ({placeholders})", rowids)
     conn.commit()
 
 
