@@ -49,11 +49,14 @@ jobs:
         run: |
           uv sync
           
+          echo "Waiting for Redis to be ready on localhost:6379..."
+          timeout 30s bash -c 'until printf "" 2>/dev/null >/dev/tcp/localhost/6379; do sleep 1; done' || (echo "Redis wait timed out" && exit 1)
+          
           echo "Starting Agent Executor in background..."
           uv run python -m agents.core.main &
           
-          # Wait for executor to connect to Redis
-          sleep 2
+          # Short wait for executor to initialize its consumer group
+          sleep 3
           
           if [ "${{ github.event_name }}" == "schedule" ]; then
             echo "Running Nightly Dream Cycle..."
@@ -64,7 +67,7 @@ jobs:
           fi
           
           # Allow time for execution to complete before container teardown
-          sleep 8
+          sleep 12
 
       - name: Teardown
         if: always()
