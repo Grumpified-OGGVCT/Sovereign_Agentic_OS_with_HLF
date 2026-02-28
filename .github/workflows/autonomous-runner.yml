@@ -1,0 +1,63 @@
+name: Autonomous Agent Runner
+
+on:
+  schedule:
+    # Run a Dream Cycle and maintenance routine every night at 3 AM UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      intent:
+        description: 'HLF Intent or text command to execute'
+        required: true
+        type: string
+
+jobs:
+  agent-runner:
+    runs-on: ubuntu-latest
+    environment: production # Requires the environment secrets shown in your settings
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.4.x"
+
+      - name: Start Background Services
+        # Start Redis in the background for ASB/Gateway communication
+        run: |
+          docker compose --profile hearth up redis -d
+          
+      - name: Execute Autonomous Agent
+        env:
+          # Injecting all Multi-Provider Secrets from GitHub Environments
+          OPENROUTER_API: ${{ secrets.OPENROUTER_API }}
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          DEEPSEEK_API: ${{ secrets.DEEPSEEK_API }}
+          GEMINI_API: ${{ secrets.GEMINI_API }}
+          GROK_API: ${{ secrets.GROK_API }}
+          OPENAI_API: ${{ secrets.OPENAI_API }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          AGENTSKB_API_KEY: ${{ secrets.AGENTSKB_API_KEY }}
+          
+          # OS Tier Configuration
+          DEPLOYMENT_TIER: "forge"
+          AUTO_RUN: "true"
+        run: |
+          uv sync
+          
+          if [ "${{ github.event_name }}" == "schedule" ]; then
+            echo "Running Nightly Dream Cycle..."
+            uv run python -c "from agents.core.dream_state import run_dream_cycle; run_dream_cycle(manual=True)"
+          else
+            echo "Dispatching Custom Intent..."
+            # Simulating intent dispatch via a direct script call or CLI until CLI is finalized
+            echo "Intent: ${{ inputs.intent }}"
+            # uv run python scripts/dispatch.py "${{ inputs.intent }}"
+          fi
+
+      - name: Teardown
+        if: always()
+        run: docker compose down

@@ -144,6 +144,48 @@ The Sovereign Agentic OS represents a paradigm shift in AI autonomy:
 - **Gas Budget** — AST node count limits strictly enforced per deployment tier.
 - **ACFS Confinement** — Directory permission enforcement at the kernel level.
 
+---
+
+## 🔌 Antigravity MCP Integration
+
+The Sovereign OS is deeply integrated with **Antigravity** (Google DeepMind's agentic IDE assistant) via a custom **Model Context Protocol (MCP)** server.
+
+### Goals & Intentions
+- **Glass-Box IDE Control**: Allow an external expert coding agent (Antigravity) to read the internal state, health, and memory of the OS directly from the IDE without breaking security boundaries.
+- **Autonomous OS Maintenance**: Empower Antigravity to trigger "Dream Mode" cycles, read Six-Hat analysis findings, and suggest architectural improvements based on the OS's own self-reflections.
+- **Regulated Tool Access**: Expose 8 secure tools (e.g., `check_health`, `dispatch_intent`, `query_memory`, `run_dream_cycle`) that allow the IDE agent to operate the OS like a sysadmin, while remaining fully constrained by the ALIGN governed Gateway Bus.
+
+To start the MCP server, select Option 3 in the `run.bat` boot menu, or use `--auto-launch` in the tray manager. 
+
+---
+
+## 🤖 Automated Runners & Multi-Provider Setup
+
+For deploying the Agent OS autonomously in cloud environments (e.g., GitHub Actions), the OS supports dynamic, multi-provider API injection via Environment Secrets.
+
+### Step-by-Step GitHub Setup for Autonomous Agents
+
+1. **Configure Environment Secrets**:
+   In your GitHub repository, navigate to **Settings > Environments > Configure Secrets**. Add your provider keys exactly as follows (see `.github/workflows/autonomous-runner.yml` for usage):
+   - `OPENROUTER_API` (Primary fallback for cloud models)
+   - `OLLAMA_API_KEY` (If using a managed Ollama Cloud endpoint)
+   - `DEEPSEEK_API`
+   - `GEMINI_API`
+   - `GROK_API`
+   - `OPENAI_API`
+   - `PERPLEXITY_API_KEY`
+   - `AGENTSKB_API_KEY`
+
+2. **Automated Runner Execution**:
+   When the system is run headlessly via CI/CD, these keys are injected into the Docker/uv environment. The `MoMA Router` (`agents/gateway/router.py`) will automatically select the cheapest, most capable model available across these providers for the delegated task, strictly abiding by the Gas limit of the tier (defaulting to the `forge` or `sovereign` tier in CI).
+
+3. **Current Provider Integration Status**:
+   - ✅ **Ollama (Local)**: Fully integrated for zero-cost routing.
+   - ✅ **Ollama Cloud / OpenRouter**: Native support via standard OpenAI-compatible endpoints configured in `config/settings.json`.
+   - 🚧 **DeepSeek/Gemini/Grok**: Keys are staged, but explicit routing logic inside the MoMA router is actively being refined to support multi-provider fallback chains natively without external proxies.
+
+*See the `Automated_Runner_Setup_Guide.md` in the docs folder for the exhaustive implementation details and custom action configurations.*
+
 ## 📚 Official Design Documents & Blueprints
 
 Dive deeper into the comprehensive design documentation that informs the OS specifications:
