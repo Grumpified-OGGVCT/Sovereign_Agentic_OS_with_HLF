@@ -172,28 +172,23 @@ def _dapr_file_write(args: list) -> bool:
 
 
 def _dapr_http(name: str, args: list, meta: dict) -> str:
-    """HTTP_GET <url> and WEB_SEARCH <query> — routed through Dapr HTTP proxy."""
+    """HTTP_GET <url> and WEB_SEARCH <query> — network helpers (Dapr optional)."""
     query_or_url = str(args[0]) if args else ""
     dapr_host = os.environ.get("DAPR_HOST", "http://localhost:3500")
 
     if name == "WEB_SEARCH":
-        # Route through the Dapr web_proxy component (with allowlisted domains)
+        # Perform a direct HTTP GET for WEB_SEARCH (caller is responsible for providing a full URL).
         try:
-            resp = httpx.post(
-                f"{dapr_host}/v1.0/bindings/web-proxy",
-                json={"operation": "search", "data": query_or_url},
-                timeout=30.0,
-            )
-            resp.raise_for_status()
-            return resp.text
+            resp = httpx.get(query_or_url, timeout=30.0, follow_redirects=True)
+            return resp.text[:4096]
         except (httpx.RequestError, httpx.HTTPStatusError) as exc:
-            # Dapr unavailable — return structured error (never leak raw exception)
+            # Network unavailable — return structured error (never leak raw exception)
             _logger.log(
                 "WEB_SEARCH_UNAVAILABLE",
                 {"query": query_or_url[:80], "error": str(exc)[:120]},
                 anomaly_score=0.4,
             )
-            return f"WEB_SEARCH_UNAVAILABLE: Dapr proxy not reachable"
+            return "WEB_SEARCH_UNAVAILABLE: upstream search endpoint not reachable"
     else:
         # HTTP_GET — direct httpx call (Dapr proxy is recommended in production)
         try:
