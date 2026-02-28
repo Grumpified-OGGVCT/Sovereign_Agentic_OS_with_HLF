@@ -10,6 +10,8 @@ import sqlite3
 import time
 from pathlib import Path
 
+from agents.core.logger import ALSLogger as _ALSLogger
+
 
 _DB_PATH = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "sqlite" / "memory.db"
 _COLD_ARCHIVE = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "cold_archive"
@@ -71,8 +73,11 @@ def archive_old_traces(conn: sqlite3.Connection) -> None:
         )
         archive_file = cold_archive / f"archive_{ts_tag}.parquet"
         pq.write_table(table, str(archive_file), compression="snappy")
-    except ImportError:
-        # Fallback: JSON archive
+    except Exception:
+        # Fallback: JSON archive (handles ImportError, codec errors, filesystem errors)
+        _ALSLogger(agent_role="dream-state", goal_id="archive").log(
+            "PARQUET_FALLBACK", {"ts": ts_tag}, anomaly_score=0.2
+        )
         archive_file = cold_archive / f"archive_{ts_tag}.json"
         archive_file.write_text(
             json.dumps([{"session_id": r[1], "timestamp": r[2], "blob": r[3]} for r in rows])

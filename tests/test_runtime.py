@@ -14,16 +14,14 @@ Covers:
 from __future__ import annotations
 
 import hashlib
-import json
-import os
 import time
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from hlf.hlfc import compile as hlfc_compile
-from hlf.hlfrun import run as hlfrun, HLFInterpreter
+from hlf.hlfrun import run as hlfrun, HLFInterpreter  # noqa: F401 — class under test
 from hlf.hlfc import HlfRuntimeError
 
 

@@ -12,7 +12,6 @@ Responsibilities:
 """
 from __future__ import annotations
 
-import json
 import os
 import threading
 import time
@@ -131,7 +130,7 @@ def _canary_loop(stop_event: threading.Event) -> None:
     - Fires a synthetic probe every CANARY_PROBE_INTERVAL seconds.
     - Checks for idle system every tick; triggers curiosity scan if idle.
     """
-    from agents.gateway.router import is_system_idle
+    from agents.gateway.router import is_system_idle, get_last_intent_timestamp
 
     last_probe = 0.0
     while not stop_event.is_set():
@@ -149,7 +148,8 @@ def _canary_loop(stop_event: threading.Event) -> None:
                 _logger.log(
                     "IDLE_CURIOSITY_TRIGGERED",
                     {
-                        "idle_sec": int(now - last_probe),
+                        # Use the same last-intent timestamp that is_system_idle() checks
+                        "idle_sec": int(now - get_last_intent_timestamp()),
                         "gaps": gaps[:5],  # include top-5 in trace
                     },
                 )

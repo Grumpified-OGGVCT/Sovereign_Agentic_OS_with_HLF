@@ -43,8 +43,14 @@ local key = KEYS[1]
 local cost = tonumber(ARGV[1])
 local cap  = tonumber(ARGV[2])
 local ttl  = 90000
+-- Guard: reject requests that exceed tier capacity to prevent negative balance
+-- (e.g., misconfiguration or a malformed intent with abnormally large AST)
+if cost > cap then
+    return -1
+end
 local curr = redis.call('GET', key)
 if curr == false then
+    -- Bucket not yet initialised — set to cap-cost and return remaining
     redis.call('SET', key, cap - cost, 'EX', ttl)
     return cap - cost
 end
@@ -65,6 +71,11 @@ def record_intent_activity() -> None:
     """Record that an intent was just processed (for Idle Curiosity tracking)."""
     global _last_intent_ts
     _last_intent_ts = time.time()
+
+
+def get_last_intent_timestamp() -> float:
+    """Return the timestamp of the last recorded intent (for observability/logging)."""
+    return _last_intent_ts
 
 
 def is_system_idle(idle_threshold_sec: int = 3600) -> bool:

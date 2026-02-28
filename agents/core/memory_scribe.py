@@ -10,8 +10,14 @@ import os
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
+try:
+    import sqlite_vec
+except ImportError:
+    sqlite_vec = None  # type: ignore[assignment]
+
+import redis as _redis_module
 
 _DB_PATH = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "sqlite" / "memory.db"
 _DLQ_STREAM = "memory_scribe_dlq"
@@ -22,18 +28,17 @@ def _sql_in(ids: list) -> str:
     return f"({','.join('?' * len(ids))})"
 
 
-import sqlite_vec
-
 def _get_connection() -> sqlite3.Connection:
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(_DB_PATH), check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
     try:
         conn.enable_load_extension(True)
-        sqlite_vec.load(conn)
+        if sqlite_vec is not None:
+            sqlite_vec.load(conn)
         conn.enable_load_extension(False)
     except AttributeError:
-        pass # Depending on python build, extension loading might be restricted
+        pass  # extension loading may be restricted in some Python builds
     return conn
 
 
@@ -172,7 +177,7 @@ def prune_old_facts(conn: sqlite3.Connection) -> int:
 
 def run() -> None:
 
-    r = redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
+    r = _redis_module.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
     conn = _get_connection()
     _init_schema(conn)
 

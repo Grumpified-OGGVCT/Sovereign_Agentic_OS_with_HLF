@@ -12,8 +12,8 @@ Routes [ACTION] tag calls to the backend defined in governance/host_functions.js
 Security guarantees enforced here:
   - Tier enforcement: request is rejected if the caller's tier is not in meta["tier"]
   - ACFS confinement: file paths are normalised against BASE_DIR; path traversal is rejected
-  - Sensitive outputs: SHA-256 hashed before being written to the ALS Merkle log
-    (raw value still returned to the caller — hashing happens in the logger layer)
+  - Sensitive outputs: SHA-256 hashed in the dispatcher before being written to the ALS Merkle log
+    (raw value is still returned to the caller; only the logged representation is hashed)
   - No subprocess calls: binary execution uses the Docker SDK via Dapr container spawn
 """
 from __future__ import annotations
@@ -118,10 +118,14 @@ def _acfs_path(raw: str) -> Path:
     """
     Resolve *raw* against BASE_DIR and verify it stays within the ACFS tree.
     Raises PermissionError on traversal attempts.
+
+    Uses Path.is_relative_to() (Python 3.9+) to avoid the startswith-prefix
+    bypass where BASE_DIR=/tmp/base and target=/tmp/base_evil/... would pass
+    a naive string check.
     """
     base = Path(os.environ.get("BASE_DIR", "/app")).resolve()
     target = (base / raw.lstrip("/")).resolve()
-    if not str(target).startswith(str(base)):
+    if not target.is_relative_to(base):
         raise PermissionError(
             f"ACFS confinement violation: '{raw}' resolves outside BASE_DIR"
         )
