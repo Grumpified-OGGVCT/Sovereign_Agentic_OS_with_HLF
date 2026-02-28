@@ -42,7 +42,25 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-app = FastAPI(title="Sovereign Gateway", version="0.1.0")
+app = FastAPI(
+    title="Sovereign Gateway Bus",
+    version="2.0.0",
+    description=(
+        "Gateway Bus for the Sovereign Agentic OS with HLF.\n\n"
+        "Middleware chain: **Rate Limiter → HLF Linter → ALIGN Enforcer → "
+        "ULID Nonce Replay → Dapr Pub/Sub (Redis fallback)**.\n\n"
+        "All intents pass through the Sentinel Gate for governance enforcement. "
+        "Gas budgets are per-tier (hearth/forge/sovereign) and tracked atomically "
+        "via Redis Lua scripts."
+    ),
+    contact={"name": "Sovereign OS Admin", "url": "https://github.com/sovereign-os"},
+    license_info={"name": "MIT"},
+    openapi_tags=[
+        {"name": "Health", "description": "Service health and readiness probes"},
+        {"name": "Intents", "description": "HLF and natural-language intent dispatch"},
+        {"name": "System", "description": "System state and configuration queries"},
+    ],
+)
 
 _redis: Optional[aioredis.Redis] = None
 
@@ -72,12 +90,38 @@ class IntentResponse(BaseModel):
     stream_id: str
 
 
-@app.get("/health")
+@app.get(
+    "/health",
+    tags=["Health"],
+    summary="Service Health Check",
+    description="Returns the current health status of the Gateway Bus. "
+                "Used by load balancers, MCP servers, and the Streamlit GUI "
+                "to verify the gateway is reachable.",
+    response_description="Health status object with 'ok' or error details.",
+)
 async def health() -> dict:
+    """Check Gateway Bus health. Returns `{"status": "ok"}` when operational."""
     return {"status": "ok"}
 
 
-@app.post("/api/v1/intent", status_code=202)
+@app.post(
+    "/api/v1/intent",
+    status_code=202,
+    tags=["Intents"],
+    summary="Dispatch Intent (HLF or Text)",
+    description=(
+        "Submit an intent for processing through the full middleware chain.\n\n"
+        "**Two modes:**\n"
+        "- **HLF mode**: Provide `hlf` field with an `[HLF-v3]` program. "
+        "Gets compiled, ALIGN-checked, and gas-metered.\n"
+        "- **Text mode**: Provide `text` field with natural language. "
+        "Gets forwarded to Ollama for inference (1 gas unit).\n\n"
+        "**Middleware chain:** rate limiter (50 rpm) → HLF heuristic → "
+        "HLFC compile → ALIGN sentinel → gas budget → ULID nonce → "
+        "Dapr pub/sub (Redis fallback)."
+    ),
+    response_description="Accepted intent with request_id, AST, and stream_id.",
+)
 async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
     global _cb_failures, _CB_RESET_TIME
     
@@ -106,7 +150,7 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
 
     if is_text_mode:
         # Text mode: skip HLF validation — package for Ollama inference pipeline
-        ast: dict = {"version": "0.2.0", "program": [], "text_mode": True}
+        ast: dict = {"version": "0.3.0", "program": [], "text_mode": True}
         # Text-mode intents charge 1 gas unit (LLM inference cost tracked separately)
         gas_charge = 1
     else:
@@ -162,7 +206,7 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
             resp = await client.post(pub_url, json=stream_payload)
             resp.raise_for_status()
             _cb_failures = 0  # reset on success
-    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
         _cb_failures += 1
         _CB_RESET_TIME = time.time() + _CB_TIMEOUT
         # Fallback to direct Redis streams if Dapr is unavailable/returns non-2xx

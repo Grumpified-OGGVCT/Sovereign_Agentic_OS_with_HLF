@@ -17,6 +17,12 @@
     "enable_vault": false,
     "enable_worm": false
   },
+  "dream_mode": {
+    "schedule_hour": 3,
+    "hlf_practice_count": 5,
+    "hats_enabled": ["red", "black", "white", "yellow", "green", "blue"],
+    "analysis_model": "kimi-k2.5:cloud"
+  },
   "gas_buckets": { "hearth": 1000, "forge": 10000, "sovereign": 100000 },
   "max_context_tokens": { "hearth": 8192, "forge": 16384, "sovereign": 32768 },
   "rate_limits": { "external_rpm": 50, "websearch_capacity": 10 },

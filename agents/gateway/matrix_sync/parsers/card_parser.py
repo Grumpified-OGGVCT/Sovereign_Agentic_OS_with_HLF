@@ -28,8 +28,8 @@ def fetch_text(url: str) -> str:
     raise RuntimeError(f"GET failed {url}: {last_err}")
 
 def fetch_card(slug: str, cache_dir: str) -> CardInfo:
-    os.makedirs(cache_dir, exist_ok=True)
     cache_path = os.path.join(cache_dir, f"{slug}.json")
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
     if os.path.exists(cache_path):
         with open(cache_path, "r", encoding="utf-8") as f:
             return CardInfo(**json.load(f))

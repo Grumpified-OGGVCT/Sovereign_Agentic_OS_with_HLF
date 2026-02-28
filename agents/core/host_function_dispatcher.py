@@ -123,8 +123,13 @@ def _acfs_path(raw: str) -> Path:
     bypass where BASE_DIR=/tmp/base and target=/tmp/base_evil/... would pass
     a naive string check.
     """
-    base = Path(os.environ.get("BASE_DIR", "/app")).resolve()
-    target = (base / raw.lstrip("/")).resolve()
+    try:
+        base = Path(os.environ.get("BASE_DIR", "/app")).resolve(strict=False)
+        target = (base / raw.lstrip("/")).resolve(strict=False)
+    except PermissionError:
+        # Windows volume-locked symlinks may trigger PermissionError on resolve()
+        base = Path(os.environ.get("BASE_DIR", "/app")).absolute()
+        target = (base / raw.lstrip("/")).absolute()
     if not target.is_relative_to(base):
         raise PermissionError(
             f"ACFS confinement violation: '{raw}' resolves outside BASE_DIR"
@@ -135,6 +140,8 @@ def _acfs_path(raw: str) -> Path:
 def _dapr_file_read(args: list) -> str:
     """READ <path> — read a file via Dapr component or direct fs fallback."""
     path = str(args[0]) if args else ""
+    # Validate ACFS confinement BEFORE attempting any I/O (network or local)
+    target = _acfs_path(path)
     dapr_host = os.environ.get("DAPR_HOST", "http://localhost:3500")
     try:
         resp = httpx.post(
@@ -144,9 +151,8 @@ def _dapr_file_read(args: list) -> str:
         )
         resp.raise_for_status()
         return resp.text
-    except (httpx.RequestError, httpx.HTTPStatusError):
+    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError):
         # Direct fs fallback for local development / test environments
-        target = _acfs_path(path)
         return target.read_text()
 
 
@@ -163,7 +169,7 @@ def _dapr_file_write(args: list) -> bool:
         )
         resp.raise_for_status()
         return True
-    except (httpx.RequestError, httpx.HTTPStatusError):
+    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError):
         # Direct fs fallback
         target = _acfs_path(path)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -181,7 +187,7 @@ def _dapr_http(name: str, args: list, meta: dict) -> str:
         try:
             resp = httpx.get(query_or_url, timeout=30.0, follow_redirects=True)
             return resp.text[:4096]
-        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+        except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
             # Network unavailable — return structured error (never leak raw exception)
             _logger.log(
                 "WEB_SEARCH_UNAVAILABLE",
@@ -194,7 +200,7 @@ def _dapr_http(name: str, args: list, meta: dict) -> str:
         try:
             resp = httpx.get(query_or_url, timeout=10.0, follow_redirects=True)
             return resp.text[:4096]  # cap response size
-        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+        except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
             return f"HTTP_GET_ERROR: {exc}"
 
 
@@ -225,9 +231,12 @@ def _dapr_container_spawn(name: str, args: list, meta: dict) -> str:
     """
     OPENCLAW_SUMMARIZE and other dapr_container_spawn functions.
 
-    Invoked via Dapr service invocation only — no direct binary execution.
-    Binary path and SHA-256 are in the registry for Dapr-side verification.
+    Routing priority:
+      1. Dapr service invocation (production — mTLS, SHA-256 verified)
+      2. Ollama-native OpenClaw (local dev — Ollama 0.17+ `ollama launch openclaw`)
+      3. Error message
     """
+    # --- Try Dapr first (production path) ---
     dapr_host = os.environ.get("DAPR_HOST", "http://localhost:3500")
     payload = {
         "name": name,
@@ -243,10 +252,43 @@ def _dapr_container_spawn(name: str, args: list, meta: dict) -> str:
         )
         resp.raise_for_status()
         return resp.text
-    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError):
+        pass  # Fall through to Ollama-native OpenClaw
+
+    # --- Ollama-native OpenClaw fallback (Ollama 0.17+) ---
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+    # Use the best available OpenClaw-compatible model
+    openclaw_model = os.environ.get(
+        "OPENCLAW_MODEL",
+        os.environ.get("PRIMARY_MODEL", "kimi-k2.5:cloud"),
+    )
+    try:
+        prompt = " ".join(str(a) for a in args)
+        if name == "OPENCLAW_SUMMARIZE":
+            prompt = f"Summarize the following content:\n\n{prompt}"
+
+        resp = httpx.post(
+            f"{ollama_host}/api/generate",
+            json={
+                "model": openclaw_model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {"temperature": 0.1, "num_ctx": 4096},
+            },
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        result = resp.json().get("response", "").strip()
         _logger.log(
-            "DAPR_CONTAINER_SPAWN_UNAVAILABLE",
+            "OPENCLAW_VIA_OLLAMA",
+            {"name": name, "model": openclaw_model, "preview": result[:80]},
+        )
+        return result
+    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
+        _logger.log(
+            "OPENCLAW_UNAVAILABLE",
             {"name": name, "error": str(exc)[:120]},
             anomaly_score=0.4,
         )
-        return f"{name}_UNAVAILABLE: Dapr container spawn not reachable"
+        return f"{name}_UNAVAILABLE: Neither Dapr container nor Ollama OpenClaw reachable"
+

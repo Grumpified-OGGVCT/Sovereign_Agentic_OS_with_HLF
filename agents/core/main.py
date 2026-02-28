@@ -45,7 +45,7 @@ def _handle_sigusr1(signum: int, frame: object) -> None:
 
 
 if hasattr(signal, "SIGUSR1"):
-    signal.signal(signal.SIGUSR1, _handle_sigusr1)
+    signal.signal(getattr(signal, "SIGUSR1"), _handle_sigusr1)
 
 
 # --------------------------------------------------------------------------- #
@@ -85,7 +85,7 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
         resp.raise_for_status()
         data = resp.json()
         return data.get("response", "").strip()
-    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
         raise RuntimeError(f"Ollama unavailable: {exc}") from exc
 
 

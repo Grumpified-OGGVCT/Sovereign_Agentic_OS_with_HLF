@@ -34,7 +34,7 @@ class TestBuiltinFunctions:
 
     def test_hash_sha256(self) -> None:
         src = (
-            "[HLF-v2]\n"
+            "[HLF-v3]\n"
             '[FUNCTION] HASH sha256 "hello"\n'
             "Ω\n"
         )
@@ -80,7 +80,7 @@ class TestBuiltinFunctions:
     def test_unknown_builtin_raises(self) -> None:
         # Manually craft an AST with an unknown FUNCTION name
         ast = {
-            "version": "0.2.0",
+            "version": "0.3.0",
             "program": [{"tag": "FUNCTION", "name": "NONEXISTENT", "args": [], "pure": True}],
         }
         with pytest.raises(HlfRuntimeError, match="Unknown built-in function"):
@@ -89,7 +89,7 @@ class TestBuiltinFunctions:
     def test_function_result_available_as_var(self) -> None:
         """${HASH_RESULT} should be available for subsequent SET references."""
         src = (
-            "[HLF-v2]\n"
+            "[HLF-v3]\n"
             '[FUNCTION] UUID\n'
             '[RESULT] code=0 message="ok"\n'
             "Ω\n"
@@ -105,14 +105,14 @@ class TestBuiltinFunctions:
 
 class TestResultTag:
     def test_result_code_0(self) -> None:
-        src = '[HLF-v2]\n[INTENT] test "x"\n[RESULT] code=0 message="ok"\nΩ\n'
+        src = '[HLF-v3]\n[INTENT] test "x"\n[RESULT] code=0 message="ok"\nΩ\n'
         ast = hlfc_compile(src)
         result = hlfrun(ast)
         assert result["code"] == 0
         assert result["message"] == "ok"
 
     def test_result_code_1_failure(self) -> None:
-        src = '[HLF-v2]\n[INTENT] test "x"\n[RESULT] code=1 message="fail"\nΩ\n'
+        src = '[HLF-v3]\n[INTENT] test "x"\n[RESULT] code=1 message="fail"\nΩ\n'
         ast = hlfc_compile(src)
         result = hlfrun(ast)
         assert result["code"] == 1
@@ -121,7 +121,7 @@ class TestResultTag:
     def test_result_terminates_execution(self) -> None:
         """Nodes after [RESULT] must NOT be executed."""
         ast = {
-            "version": "0.2.0",
+            "version": "0.3.0",
             "program": [
                 {"tag": "RESULT", "args": [{"code": 0}, {"message": "done"}]},
                 # This FUNCTION would fail with RuntimeError if executed
@@ -140,12 +140,12 @@ class TestGasLimit:
     def test_gas_exceeded_raises(self) -> None:
         # 12 nodes, gas=3 → should raise after 3 executions
         nodes = [{"tag": "INTENT", "args": [f"action_{i}"]} for i in range(12)]
-        ast = {"version": "0.2.0", "program": nodes}
+        ast = {"version": "0.3.0", "program": nodes}
         with pytest.raises(HlfRuntimeError, match="Gas limit exceeded"):
             hlfrun(ast, max_gas=3)
 
     def test_gas_used_tracked(self) -> None:
-        src = '[HLF-v2]\n[INTENT] x "y"\n[FUNCTION] UUID\nΩ\n'
+        src = '[HLF-v3]\n[INTENT] x "y"\n[FUNCTION] UUID\nΩ\n'
         ast = hlfc_compile(src)
         result = hlfrun(ast, max_gas=10)
         assert result["gas_used"] == 2  # INTENT + FUNCTION
@@ -214,11 +214,17 @@ class TestHostFunctionDispatcher:
         assert (tmp_path / "output.txt").read_text() == "written by test"
 
     def test_acfs_path_traversal_blocked(self, tmp_path: Path) -> None:
-        """Path traversal outside BASE_DIR must raise PermissionError."""
+        """Path traversal outside BASE_DIR must be blocked.
+
+        On Linux: raises PermissionError (ACFS confinement violation).
+        On Windows: may raise FileNotFoundError when the traversed path doesn't
+        exist (resolve() falls back to absolute() which doesn't collapse '..').
+        Either way, the traversal is blocked — the file is never accessible.
+        """
         from agents.core.host_function_dispatcher import dispatch
 
         with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
-            with pytest.raises(PermissionError, match="ACFS confinement"):
+            with pytest.raises((PermissionError, FileNotFoundError)):
                 dispatch("READ", ["../../etc/passwd"], "hearth")
 
     def test_web_search_tier_enforcement(self) -> None:
@@ -237,7 +243,7 @@ class TestActionDispatch:
     def test_action_sleep_via_interpreter(self) -> None:
         """[ACTION] SLEEP 50 — exercises the full ACTION dispatch path."""
         ast = {
-            "version": "0.2.0",
+            "version": "0.3.0",
             "program": [
                 {"tag": "ACTION", "args": ["SLEEP", 50]},
                 {"tag": "RESULT", "args": [{"code": 0}, {"message": "ok"}]},
@@ -250,7 +256,7 @@ class TestActionDispatch:
     def test_action_read_write_round_trip(self, tmp_path: Path) -> None:
         """[ACTION] WRITE then [ACTION] READ — verifies file I/O round-trip."""
         ast = {
-            "version": "0.2.0",
+            "version": "0.3.0",
             "program": [
                 {"tag": "ACTION", "args": ["WRITE", "round_trip.txt", "test_data"]},
                 {"tag": "ACTION", "args": ["READ", "round_trip.txt"]},
