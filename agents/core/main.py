@@ -54,23 +54,51 @@ if hasattr(signal, "SIGUSR1"):
 
 def _ollama_generate(text: str, model: str | None = None) -> str:
     """
-    Call the local Ollama instance to convert human-language text into an HLF
-    program using the Zero-Shot Grammar system prompt.
-
-    Returns the raw HLF string from the model's response.
-    Raises RuntimeError if Ollama is unreachable.
+    Call the local Ollama instance or cloud provider to convert human-language
+    text into an HLF program.
     """
-    ollama_host = os.environ.get("OLLAMA_HOST", "http://ollama-matrix:11434")
-    # Use PRIMARY_MODEL for text→HLF translation; falls back to SUMMARIZATION_MODEL
-    # (qwen:7b) if PRIMARY_MODEL is a cloud model not available locally.
     effective_model = model or os.environ.get("PRIMARY_MODEL") or os.environ.get("SUMMARIZATION_MODEL", "qwen:7b")
+    
+    # 1. Cloud Provider Fallback (OpenRouter/Ollama Cloud)
+    openrouter_api = os.environ.get("OPENROUTER_API")
+    ollama_api_key = os.environ.get("OLLAMA_API_KEY")
+    is_cloud = effective_model.endswith(":cloud") or openrouter_api or ollama_api_key
 
+    if is_cloud:
+        # Use OpenRouter as primary cloud bridge if available
+        if openrouter_api:
+            _logger.log("CLOUD_INFERENCE_START", {"provider": "openrouter", "model": effective_model})
+            try:
+                resp = httpx.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {openrouter_api}",
+                        "X-Title": "Sovereign OS Autonomous Runner",
+                    },
+                    json={
+                        "model": effective_model.replace(":cloud", ""),
+                        "messages": [
+                            {"role": "system", "content": _SYSTEM_PROMPT_PATH.read_text().strip() if _SYSTEM_PROMPT_PATH.exists() else ""},
+                            {"role": "user", "content": text}
+                        ],
+                        "temperature": 0.0
+                    },
+                    timeout=60.0
+                )
+                resp.raise_for_status()
+                return resp.json()["choices"][0]["message"]["content"].strip()
+            except Exception as e:
+                _logger.log("CLOUD_INFERENCE_ERROR", {"error": str(e)}, anomaly_score=0.5)
+                # Fall through to local if cloud fails? No, if we are in cloud mode, we likely don't have local.
+
+    # 2. Local Ollama Path
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://ollama-matrix:11434")
     system_prompt = ""
     if _SYSTEM_PROMPT_PATH.exists():
         system_prompt = _SYSTEM_PROMPT_PATH.read_text().strip()
 
     payload = {
-        "model": effective_model,
+        "model": effective_model.replace(":cloud", ""),
         "system": system_prompt,
         "prompt": text,
         "stream": False,
@@ -86,6 +114,8 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
         data = resp.json()
         return data.get("response", "").strip()
     except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
+        if is_cloud:
+            raise RuntimeError(f"Cloud inference failed and local Ollama unreachable: {exc}")
         raise RuntimeError(f"Ollama unavailable: {exc}") from exc
 
 
