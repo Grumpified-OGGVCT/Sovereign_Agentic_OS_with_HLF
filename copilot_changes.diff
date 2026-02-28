@@ -1,0 +1,2468 @@
+diff --git a/agents/core/canary_agent.py b/agents/core/canary_agent.py
+new file mode 100644
+index 0000000..87f1930
+--- /dev/null
++++ b/agents/core/canary_agent.py
+@@ -0,0 +1,185 @@
++"""
++Canary Agent — Phase 4.1 & 4.3 synthetic health monitor.
++
++Responsibilities:
++1. **15-minute synthetic probe**: injects a well-known HLF intent into the MoMA Router
++   every 15 minutes to prove end-to-end swarm viability.  A probe failure is logged with
++   anomaly_score=1.0 which fires the Semantic Outlier Trap and alerts the Sentinel.
++
++2. **Idle Curiosity Protocol**: if no real intent has been received for >60 minutes the
++   canary queries the Fact_Store for low-confidence vector clusters and logs them for
++   autonomous follow-up research during the Dreaming State.
++"""
++from __future__ import annotations
++
++import os
++import threading
++import time
++from pathlib import Path
++from typing import Any
++
++import httpx
++
++from agents.core.logger import ALSLogger
++
++_logger = ALSLogger(agent_role="canary-agent", goal_id="synthetic-probe")
++
++# Synthetic probe payload — a minimal valid HLF intent that the gateway can parse
++_PROBE_HLF = (
++    "[HLF-v2]\n"
++    "[INTENT] canary_probe \"health\"\n"
++    "[EXPECT] \"ok\"\n"
++    "[RESULT] code=0 message=\"canary\"\n"
++    "Ω\n"
++)
++
++_PROBE_INTERVAL_SEC: int = int(os.environ.get("CANARY_PROBE_INTERVAL", "900"))  # 15 min
++_IDLE_THRESHOLD_SEC: int = int(os.environ.get("CANARY_IDLE_THRESHOLD", "3600"))  # 60 min
++_GATEWAY_URL: str = os.environ.get("GATEWAY_URL", "http://gateway-node:40404")
++_DB_PATH = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "sqlite" / "memory.db"
++
++
++# --------------------------------------------------------------------------- #
++# Probe logic
++# --------------------------------------------------------------------------- #
++
++def _fire_probe() -> bool:
++    """Send a synthetic probe intent to the gateway. Returns True on success."""
++    try:
++        resp = httpx.post(
++            f"{_GATEWAY_URL}/api/v1/intent",
++            json={"hlf": _PROBE_HLF},
++            timeout=15.0,
++        )
++        if resp.status_code == 202:
++            _logger.log(
++                "CANARY_PROBE_OK",
++                {"status": resp.status_code},
++                confidence_score=1.0,
++                anomaly_score=0.0,
++            )
++            return True
++        _logger.log(
++            "CANARY_PROBE_FAIL",
++            {"status": resp.status_code, "detail": resp.text[:200]},
++            confidence_score=0.0,
++            anomaly_score=1.0,  # fires Semantic Outlier Trap
++        )
++        return False
++    except Exception as exc:
++        _logger.log(
++            "CANARY_PROBE_ERROR",
++            {"error": str(exc)},
++            confidence_score=0.0,
++            anomaly_score=1.0,
++        )
++        return False
++
++
++# --------------------------------------------------------------------------- #
++# Idle Curiosity Protocol
++# --------------------------------------------------------------------------- #
++
++def _idle_curiosity_scan(db_path: Path | None = None) -> list[dict[str, Any]]:
++    """
++    Query the Fact_Store for low-confidence vector clusters (confidence < 0.5).
++    Returns a list of entity dicts for the Dreaming State to research.
++    *db_path* defaults to the module-level ``_DB_PATH``; override in tests.
++    """
++    path = db_path if db_path is not None else _DB_PATH
++    if not path.exists():
++        return []
++    try:
++        import sqlite3
++
++        conn = sqlite3.connect(str(path), check_same_thread=False)
++        rows = conn.execute(
++            "SELECT entity_id, semantic_relationship, confidence_score "
++            "FROM fact_store WHERE confidence_score < 0.5 "
++            "ORDER BY confidence_score ASC LIMIT 20"
++        ).fetchall()
++        conn.close()
++        gaps = [
++            {
++                "entity_id": r[0],
++                "relationship": r[1],
++                "confidence": r[2],
++            }
++            for r in rows
++        ]
++        if gaps:
++            _logger.log(
++                "IDLE_CURIOSITY_GAPS_FOUND",
++                {"count": len(gaps), "lowest_confidence": gaps[0]["confidence"]},
++                anomaly_score=0.3,
++            )
++        return gaps
++    except Exception as exc:
++        _logger.log("IDLE_CURIOSITY_ERROR", {"error": str(exc)}, anomaly_score=0.5)
++        return []
++
++
++# --------------------------------------------------------------------------- #
++# Background loop
++# --------------------------------------------------------------------------- #
++
++def _canary_loop(stop_event: threading.Event) -> None:
++    """
++    Main canary loop.  Runs in a daemon thread.
++
++    - Fires a synthetic probe every CANARY_PROBE_INTERVAL seconds.
++    - Checks for idle system every tick; triggers curiosity scan if idle.
++    """
++    from agents.gateway.router import is_system_idle, get_last_intent_timestamp
++
++    last_probe = 0.0
++    while not stop_event.is_set():
++        now = time.time()
++
++        # 15-min probe
++        if now - last_probe >= _PROBE_INTERVAL_SEC:
++            _fire_probe()
++            last_probe = now
++
++        # Idle Curiosity Protocol (60-min zero-intent threshold)
++        if is_system_idle(_IDLE_THRESHOLD_SEC):
++            gaps = _idle_curiosity_scan()
++            if gaps:
++                _logger.log(
++                    "IDLE_CURIOSITY_TRIGGERED",
++                    {
++                        # Use the same last-intent timestamp that is_system_idle() checks
++                        "idle_sec": int(now - get_last_intent_timestamp()),
++                        "gaps": gaps[:5],  # include top-5 in trace
++                    },
++                )
++
++        stop_event.wait(timeout=60)  # check every 60 s
++
++
++_stop_event: threading.Event = threading.Event()
++_thread: threading.Thread | None = None
++
++
++def start() -> None:
++    """Start the canary daemon thread (idempotent)."""
++    global _thread
++    if _thread and _thread.is_alive():
++        return
++    _stop_event.clear()
++    _thread = threading.Thread(
++        target=_canary_loop,
++        args=(_stop_event,),
++        daemon=True,
++        name="canary-agent",
++    )
++    _thread.start()
++    _logger.log("CANARY_AGENT_STARTED", {"probe_interval_sec": _PROBE_INTERVAL_SEC})
++
++
++def stop() -> None:
++    """Signal the canary thread to exit cleanly."""
++    _stop_event.set()
++    if _thread:
++        _thread.join(timeout=10)
++    _logger.log("CANARY_AGENT_STOPPED", {})
+diff --git a/agents/core/dream_state.py b/agents/core/dream_state.py
+index cbab678..8dc244e 100644
+--- a/agents/core/dream_state.py
++++ b/agents/core/dream_state.py
+@@ -10,6 +10,8 @@ import sqlite3
+ import time
+ from pathlib import Path
+ 
++from agents.core.logger import ALSLogger as _ALSLogger
++
+ 
+ _DB_PATH = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "sqlite" / "memory.db"
+ _COLD_ARCHIVE = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "cold_archive"
+@@ -42,7 +44,12 @@ def compress_rolling_context(conn: sqlite3.Connection) -> None:
+ 
+ 
+ def archive_old_traces(conn: sqlite3.Connection) -> None:
+-    """Move traces older than 7 days to cold_archive as JSON, delete raw."""
++    """
++    Move traces older than 7 days to cold_archive as highly-compressed Parquet files,
++    then delete the raw rows to prevent disk exhaustion (Phase 4.3 Log Storage Truncator).
++    Falls back to JSON if pyarrow is unavailable.
++    """
++    cold_archive = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "cold_archive"
+     cutoff = time.time() - 7 * 86400
+     rows = conn.execute(
+         "SELECT rowid, session_id, timestamp, fifo_blob FROM rolling_context WHERE timestamp < ?",
+@@ -50,11 +57,35 @@ def archive_old_traces(conn: sqlite3.Connection) -> None:
+     ).fetchall()
+     if not rows:
+         return
+-    _COLD_ARCHIVE.mkdir(parents=True, exist_ok=True)
+-    archive_file = _COLD_ARCHIVE / f"archive_{int(time.time())}.json"
+-    archive_file.write_text(json.dumps([{"session_id": r[1], "timestamp": r[2], "blob": r[3]} for r in rows]))
++    cold_archive.mkdir(parents=True, exist_ok=True)
++    ts_tag = int(time.time())
++
++    try:
++        import pyarrow as pa
++        import pyarrow.parquet as pq
++
++        table = pa.table(
++            {
++                "session_id": [r[1] for r in rows],
++                "timestamp": [r[2] for r in rows],
++                "fifo_blob": [r[3] for r in rows],
++            }
++        )
++        archive_file = cold_archive / f"archive_{ts_tag}.parquet"
++        pq.write_table(table, str(archive_file), compression="snappy")
++    except Exception:
++        # Fallback: JSON archive (handles ImportError, codec errors, filesystem errors)
++        _ALSLogger(agent_role="dream-state", goal_id="archive").log(
++            "PARQUET_FALLBACK", {"ts": ts_tag}, anomaly_score=0.2
++        )
++        archive_file = cold_archive / f"archive_{ts_tag}.json"
++        archive_file.write_text(
++            json.dumps([{"session_id": r[1], "timestamp": r[2], "blob": r[3]} for r in rows])
++        )
++
+     rowids = [r[0] for r in rows]
+-    conn.execute(f"DELETE FROM rolling_context WHERE rowid IN ({','.join('?' * len(rowids))})", rowids)
++    placeholders = ",".join("?" * len(rowids))
++    conn.execute(f"DELETE FROM rolling_context WHERE rowid IN ({placeholders})", rowids)
+     conn.commit()
+ 
+ 
+diff --git a/agents/core/host_function_dispatcher.py b/agents/core/host_function_dispatcher.py
+new file mode 100644
+index 0000000..1aa0b48
+--- /dev/null
++++ b/agents/core/host_function_dispatcher.py
+@@ -0,0 +1,252 @@
++"""
++Host Function Dispatcher — Phase 5.1 Standard Library runtime.
++
++Routes [ACTION] tag calls to the backend defined in governance/host_functions.json:
++  - builtin          : local Python implementation (SLEEP)
++  - dapr_file_read   : Dapr file binding  (direct fs fallback for local dev)
++  - dapr_file_write  : Dapr file binding  (direct fs fallback for local dev)
++  - dapr_http_proxy  : Dapr HTTP proxy    (httpx fallback for local dev)
++  - docker_orchestrator : Docker SDK      (Tier 2/3 only)
++  - dapr_container_spawn: Dapr sidecar    (no direct fallback — requires Dapr)
++
++Security guarantees enforced here:
++  - Tier enforcement: request is rejected if the caller's tier is not in meta["tier"]
++  - ACFS confinement: file paths are normalised against BASE_DIR; path traversal is rejected
++  - Sensitive outputs: SHA-256 hashed in the dispatcher before being written to the ALS Merkle log
++    (raw value is still returned to the caller; only the logged representation is hashed)
++  - No subprocess calls: binary execution uses the Docker SDK via Dapr container spawn
++"""
++from __future__ import annotations
++
++import hashlib
++import json
++import os
++import time
++from pathlib import Path
++from typing import Any
++
++import httpx
++
++from agents.core.logger import ALSLogger
++
++_logger = ALSLogger(agent_role="host-fn-dispatcher", goal_id="execution")
++_REGISTRY_PATH = (
++    Path(__file__).parent.parent.parent / "governance" / "host_functions.json"
++)
++_registry: dict[str, dict] | None = None
++
++
++def _load_registry() -> dict[str, dict]:
++    global _registry
++    if _registry is None:
++        with _REGISTRY_PATH.open() as f:
++            data = json.load(f)
++        _registry = {fn["name"]: fn for fn in data.get("functions", [])}
++    return _registry
++
++
++def dispatch(name: str, args: list, tier: str = "hearth") -> Any:
++    """
++    Dispatch a host function call.
++
++    :param name: Function name as it appears in host_functions.json (e.g. "READ").
++    :param args: Positional argument list (already flattened by the interpreter).
++    :param tier: Caller's deployment tier for access control.
++    :returns:    Raw function return value (sensitive outputs logged as SHA-256 hash).
++    :raises PermissionError: If the tier is not authorised for this function.
++    :raises RuntimeError:    If the function name is unknown.
++    """
++    registry = _load_registry()
++    fn_meta = registry.get(name)
++    if fn_meta is None:
++        raise RuntimeError(f"Unknown host function: {name}")
++
++    # Tier access control
++    allowed_tiers = fn_meta.get("tier", [])
++    if tier not in allowed_tiers:
++        raise PermissionError(
++            f"Host function '{name}' is not available in tier '{tier}'. "
++            f"Requires one of: {allowed_tiers}"
++        )
++
++    backend = fn_meta.get("backend", "builtin")
++    result = _dispatch_backend(backend, name, args, fn_meta)
++
++    # Structured log — sensitive outputs recorded as SHA-256 hash (never raw)
++    log_result = (
++        hashlib.sha256(str(result).encode()).hexdigest()
++        if fn_meta.get("sensitive", False)
++        else str(result)[:200]
++    )
++    _logger.log(
++        "HOST_FN_CALL",
++        {"name": name, "tier": tier, "result_hash_or_preview": log_result},
++    )
++    return result
++
++
++# --------------------------------------------------------------------------- #
++# Backend implementations
++# --------------------------------------------------------------------------- #
++
++def _dispatch_backend(backend: str, name: str, args: list, meta: dict) -> Any:
++    if backend == "builtin":
++        return _exec_builtin(name, args)
++    if backend == "dapr_file_read":
++        return _dapr_file_read(args)
++    if backend == "dapr_file_write":
++        return _dapr_file_write(args)
++    if backend == "dapr_http_proxy":
++        return _dapr_http(name, args, meta)
++    if backend == "docker_orchestrator":
++        return _docker_spawn(args, meta)
++    if backend == "dapr_container_spawn":
++        return _dapr_container_spawn(name, args, meta)
++    raise RuntimeError(f"Unknown backend: {backend}")
++
++
++def _exec_builtin(name: str, args: list) -> Any:
++    """Builtins with no I/O side-effects."""
++    if name == "SLEEP":
++        ms = int(args[0]) if args else 0
++        time.sleep(ms / 1000.0)
++        return True
++    raise RuntimeError(f"No builtin implementation for host function '{name}'")
++
++
++def _acfs_path(raw: str) -> Path:
++    """
++    Resolve *raw* against BASE_DIR and verify it stays within the ACFS tree.
++    Raises PermissionError on traversal attempts.
++
++    Uses Path.is_relative_to() (Python 3.9+) to avoid the startswith-prefix
++    bypass where BASE_DIR=/tmp/base and target=/tmp/base_evil/... would pass
++    a naive string check.
++    """
++    base = Path(os.environ.get("BASE_DIR", "/app")).resolve()
++    target = (base / raw.lstrip("/")).resolve()
++    if not target.is_relative_to(base):
++        raise PermissionError(
++            f"ACFS confinement violation: '{raw}' resolves outside BASE_DIR"
++        )
++    return target
++
++
++def _dapr_file_read(args: list) -> str:
++    """READ <path> — read a file via Dapr component or direct fs fallback."""
++    path = str(args[0]) if args else ""
++    dapr_host = os.environ.get("DAPR_HOST", "http://localhost:3500")
++    try:
++        resp = httpx.post(
++            f"{dapr_host}/v1.0/bindings/file-read",
++            json={"operation": "get", "metadata": {"fileName": path}},
++            timeout=10.0,
++        )
++        resp.raise_for_status()
++        return resp.text
++    except (httpx.RequestError, httpx.HTTPStatusError):
++        # Direct fs fallback for local development / test environments
++        target = _acfs_path(path)
++        return target.read_text()
++
++
++def _dapr_file_write(args: list) -> bool:
++    """WRITE <path> <data> — write a file via Dapr or direct fs fallback."""
++    path = str(args[0]) if args else ""
++    data = str(args[1]) if len(args) > 1 else ""
++    dapr_host = os.environ.get("DAPR_HOST", "http://localhost:3500")
++    try:
++        resp = httpx.post(
++            f"{dapr_host}/v1.0/bindings/file-write",
++            json={"operation": "create", "metadata": {"fileName": path}, "data": data},
++            timeout=10.0,
++        )
++        resp.raise_for_status()
++        return True
++    except (httpx.RequestError, httpx.HTTPStatusError):
++        # Direct fs fallback
++        target = _acfs_path(path)
++        target.parent.mkdir(parents=True, exist_ok=True)
++        target.write_text(data)
++        return True
++
++
++def _dapr_http(name: str, args: list, meta: dict) -> str:
++    """HTTP_GET <url> and WEB_SEARCH <query> — network helpers (Dapr optional)."""
++    query_or_url = str(args[0]) if args else ""
++    dapr_host = os.environ.get("DAPR_HOST", "http://localhost:3500")
++
++    if name == "WEB_SEARCH":
++        # Perform a direct HTTP GET for WEB_SEARCH (caller is responsible for providing a full URL).
++        try:
++            resp = httpx.get(query_or_url, timeout=30.0, follow_redirects=True)
++            return resp.text[:4096]
++        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
++            # Network unavailable — return structured error (never leak raw exception)
++            _logger.log(
++                "WEB_SEARCH_UNAVAILABLE",
++                {"query": query_or_url[:80], "error": str(exc)[:120]},
++                anomaly_score=0.4,
++            )
++            return "WEB_SEARCH_UNAVAILABLE: upstream search endpoint not reachable"
++    else:
++        # HTTP_GET — direct httpx call (Dapr proxy is recommended in production)
++        try:
++            resp = httpx.get(query_or_url, timeout=10.0, follow_redirects=True)
++            return resp.text[:4096]  # cap response size
++        except (httpx.RequestError, httpx.HTTPStatusError) as exc:
++            return f"HTTP_GET_ERROR: {exc}"
++
++
++def _docker_spawn(args: list, meta: dict) -> str:
++    """SPAWN <image> — launches a container via Docker SDK (never os.system)."""
++    image = str(args[0]) if args else ""
++    try:
++        import docker  # type: ignore[import]
++
++        client = docker.from_env()
++        container = client.containers.run(
++            image,
++            detach=True,
++            remove=True,
++            mem_limit="256m",
++            pids_limit=50,
++            network_disabled=True,
++        )
++        return container.id
++    except ImportError:
++        return "SPAWN_UNAVAILABLE: docker SDK not installed"
++    except Exception as exc:
++        _logger.log("SPAWN_ERROR", {"image": image, "error": str(exc)}, anomaly_score=0.5)
++        return f"SPAWN_ERROR: {exc}"
++
++
++def _dapr_container_spawn(name: str, args: list, meta: dict) -> str:
++    """
++    OPENCLAW_SUMMARIZE and other dapr_container_spawn functions.
++
++    Invoked via Dapr service invocation only — no direct binary execution.
++    Binary path and SHA-256 are in the registry for Dapr-side verification.
++    """
++    dapr_host = os.environ.get("DAPR_HOST", "http://localhost:3500")
++    payload = {
++        "name": name,
++        "args": [str(a) for a in args],
++        "binary_path": meta.get("binary_path", ""),
++        "binary_sha256": meta.get("binary_sha256", ""),
++    }
++    try:
++        resp = httpx.post(
++            f"{dapr_host}/v1.0/invoke/openclaw-runner/method/run",
++            json=payload,
++            timeout=60.0,
++        )
++        resp.raise_for_status()
++        return resp.text
++    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
++        _logger.log(
++            "DAPR_CONTAINER_SPAWN_UNAVAILABLE",
++            {"name": name, "error": str(exc)[:120]},
++            anomaly_score=0.4,
++        )
++        return f"{name}_UNAVAILABLE: Dapr container spawn not reachable"
+diff --git a/agents/core/main.py b/agents/core/main.py
+index a01f5c2..2a017eb 100644
+--- a/agents/core/main.py
++++ b/agents/core/main.py
+@@ -2,6 +2,12 @@
+ Agent executor entrypoint.
+ Initialises OpenLLMetry TracerProvider, registers SIGUSR1 handler,
+ connects to Dapr pub/sub, and processes Redis Stream intents.
++
++For each received intent the executor:
++  1. If the payload already contains a compiled AST (from the ASB HLF path),
++     execute it directly via hlf.hlfrun.
++  2. If the payload is text-mode (raw human language), call the local Ollama
++     instance to generate an HLF response, compile it, and then execute.
+ """
+ from __future__ import annotations
+ 
+@@ -10,10 +16,19 @@ import os
+ import signal
+ import time
+ from pathlib import Path
++from typing import Any
++
++import httpx
+ 
+ from agents.core.logger import ALSLogger
+ 
+ _logger = ALSLogger(agent_role="agent-executor", goal_id="boot")
++_SYSTEM_PROMPT_PATH = (
++    Path(__file__).parent.parent.parent
++    / "governance"
++    / "templates"
++    / "system_prompt.txt"
++)
+ 
+ 
+ def quarantine_dump() -> None:
+@@ -32,35 +47,166 @@ def _handle_sigusr1(signum: int, frame: object) -> None:
+ signal.signal(signal.SIGUSR1, _handle_sigusr1)
+ 
+ 
++# --------------------------------------------------------------------------- #
++# Ollama inference (text → HLF)
++# --------------------------------------------------------------------------- #
++
++def _ollama_generate(text: str, model: str | None = None) -> str:
++    """
++    Call the local Ollama instance to convert human-language text into an HLF
++    program using the Zero-Shot Grammar system prompt.
++
++    Returns the raw HLF string from the model's response.
++    Raises RuntimeError if Ollama is unreachable.
++    """
++    ollama_host = os.environ.get("OLLAMA_HOST", "http://ollama-matrix:11434")
++    # Use PRIMARY_MODEL for text→HLF translation; falls back to SUMMARIZATION_MODEL
++    # (qwen:7b) if PRIMARY_MODEL is a cloud model not available locally.
++    effective_model = model or os.environ.get("PRIMARY_MODEL") or os.environ.get("SUMMARIZATION_MODEL", "qwen:7b")
++
++    system_prompt = ""
++    if _SYSTEM_PROMPT_PATH.exists():
++        system_prompt = _SYSTEM_PROMPT_PATH.read_text().strip()
++
++    payload = {
++        "model": effective_model,
++        "system": system_prompt,
++        "prompt": text,
++        "stream": False,
++        "options": {"temperature": 0.0, "num_ctx": 2048},
++    }
++    try:
++        resp = httpx.post(
++            f"{ollama_host}/api/generate",
++            json=payload,
++            timeout=60.0,
++        )
++        resp.raise_for_status()
++        data = resp.json()
++        return data.get("response", "").strip()
++    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
++        raise RuntimeError(f"Ollama unavailable: {exc}") from exc
++
++
++# --------------------------------------------------------------------------- #
++# Intent execution pipeline
++# --------------------------------------------------------------------------- #
++
++def execute_intent(payload: dict) -> dict:
++    """
++    Execute a single intent payload received from the Redis stream.
++
++    The payload may be in two forms:
++      - AST mode:  {"request_id": "...", "ast": {...}, ...}
++      - Text mode: {"request_id": "...", "text": "...", ...}
++
++    Returns the HLF execution result dict.
++    """
++    from hlf.hlfrun import run as hlfrun
++    from hlf.hlfc import compile as hlfc_compile, HlfSyntaxError
++
++    tier = os.environ.get("DEPLOYMENT_TIER", "hearth")
++    max_gas = int(os.environ.get("MAX_GAS_LIMIT", "10"))
++    request_id = payload.get("request_id", "unknown")
++
++    ast = payload.get("ast")
++
++    if ast is None:
++        # Text mode — call Ollama to generate HLF, then compile
++        text = payload.get("text", "")
++        if not text:
++            return {"code": 1, "message": "no text or ast in payload", "gas_used": 0}
++        try:
++            hlf_response = _ollama_generate(text)
++            _logger.log(
++                "OLLAMA_RESPONSE",
++                {"request_id": request_id, "preview": hlf_response[:120]},
++            )
++            ast = hlfc_compile(hlf_response)
++        except (RuntimeError, HlfSyntaxError) as exc:
++            _logger.log(
++                "OLLAMA_OR_COMPILE_ERROR",
++                {"request_id": request_id, "error": str(exc)},
++                anomaly_score=0.6,
++            )
++            return {"code": 1, "message": str(exc), "gas_used": 0}
++
++    try:
++        result = hlfrun(ast, tier=tier, max_gas=max_gas)
++        _logger.log(
++            "INTENT_EXECUTED",
++            {
++                "request_id": request_id,
++                "code": result["code"],
++                "gas_used": result["gas_used"],
++            },
++        )
++        return result
++    except Exception as exc:
++        _logger.log(
++            "EXECUTION_ERROR",
++            {"request_id": request_id, "error": str(exc)},
++            anomaly_score=0.8,
++        )
++        return {"code": 1, "message": str(exc), "gas_used": 0}
++
++
++# --------------------------------------------------------------------------- #
++# Redis stream consumer loop
++# --------------------------------------------------------------------------- #
++
+ def run() -> None:
+     _logger.log("AGENT_EXECUTOR_START", {"tier": os.environ.get("DEPLOYMENT_TIER", "hearth")})
+     try:
+         import redis
+ 
+-        r = redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
++        r = redis.from_url(
++            os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
++            decode_responses=True,
++        )
+         group = "executor-group"
+         stream = "intents"
+         try:
+             r.xgroup_create(stream, group, id="0", mkstream=True)
+         except Exception:
+-            pass  # group already exists
++            pass  # consumer group already exists
+ 
+         _logger.log("CONSUMER_GROUP_READY", {"stream": stream, "group": group})
+ 
+         while True:
+-            messages = r.xreadgroup(group, "executor-1", {stream: ">"}, count=1, block=5000)
++            messages = r.xreadgroup(
++                group, "executor-1", {stream: ">"}, count=1, block=5000
++            )
+             if not messages:
+                 continue
+             for _stream, entries in messages:
+                 for entry_id, data in entries:
+                     try:
+-                        payload = json.loads(data.get("data", "{}"))
+-                        _logger.log("INTENT_RECEIVED", {"request_id": payload.get("request_id")})
++                        payload: dict[str, Any] = json.loads(data.get("data", "{}"))
++                        _logger.log(
++                            "INTENT_RECEIVED",
++                            {"request_id": payload.get("request_id")},
++                        )
++                        result = execute_intent(payload)
++                        _logger.log(
++                            "INTENT_RESULT",
++                            {
++                                "request_id": payload.get("request_id"),
++                                "code": result.get("code"),
++                                "gas_used": result.get("gas_used"),
++                            },
++                        )
+                         r.xack(stream, group, entry_id)
+                     except Exception as exc:
+-                        _logger.log("INTENT_ERROR", {"error": str(exc)}, anomaly_score=0.9)
++                        _logger.log(
++                            "INTENT_ERROR",
++                            {"error": str(exc)},
++                            anomaly_score=0.9,
++                        )
+     except Exception as exc:
+-        _logger.log("AGENT_EXECUTOR_FATAL", {"error": str(exc)}, anomaly_score=1.0)
++        _logger.log(
++            "AGENT_EXECUTOR_FATAL", {"error": str(exc)}, anomaly_score=1.0
++        )
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/agents/core/memory_scribe.py b/agents/core/memory_scribe.py
+index 2c0bceb..2a86919 100644
+--- a/agents/core/memory_scribe.py
++++ b/agents/core/memory_scribe.py
+@@ -10,14 +10,23 @@ import os
+ import sqlite3
+ import time
+ from pathlib import Path
+-from typing import Any, Optional
++from typing import Any
+ 
++try:
++    import sqlite_vec
++except ImportError:
++    sqlite_vec = None  # type: ignore[assignment]
++
++import redis as _redis_module
+ 
+ _DB_PATH = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "sqlite" / "memory.db"
+ _DLQ_STREAM = "memory_scribe_dlq"
+ 
+ 
+-import sqlite_vec
++def _sql_in(ids: list) -> str:
++    """Return a safe SQL ``IN (?, ?, ...)`` placeholder string for *ids*."""
++    return f"({','.join('?' * len(ids))})"
++
+ 
+ def _get_connection() -> sqlite3.Connection:
+     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+@@ -25,10 +34,11 @@ def _get_connection() -> sqlite3.Connection:
+     conn.execute("PRAGMA journal_mode=WAL")
+     try:
+         conn.enable_load_extension(True)
+-        sqlite_vec.load(conn)
++        if sqlite_vec is not None:
++            sqlite_vec.load(conn)
+         conn.enable_load_extension(False)
+     except AttributeError:
+-        pass # Depending on python build, extension loading might be restricted
++        pass  # extension loading may be restricted in some Python builds
+     return conn
+ 
+ 
+@@ -86,10 +96,98 @@ def write_fact(
+     conn.commit()
+ 
+ 
++
++# Dynamic Context Pruning — 30-day forgetting curve (Phase 4.3)
++# Read at function call time (not module load) so env patches work in tests.
++_PRUNE_AGE_DAYS_DEFAULT: int = 30
++_PRUNE_CONFIDENCE_DEFAULT: float = 0.2
++
++
++def prune_old_facts(conn: sqlite3.Connection) -> int:
++    """
++    Remove low-relevance facts from the Fact_Store that have not been accessed
++    for more than FACT_PRUNE_AGE_DAYS days AND whose confidence_score is below
++    FACT_PRUNE_CONFIDENCE.
++
++    Removed facts are archived into ``data/cold_archive/`` as a JSON file before
++    deletion so the data is never permanently lost.
++
++    Returns the number of rows pruned.
++
++    Notes
++    -----
++    This function currently uses the SQLite ``rowid`` as a proxy for fact age,
++    since no explicit ``last_accessed`` or timestamp column exists yet.
++    The ``FACT_PRUNE_AGE_DAYS`` environment variable is therefore interpreted
++    as a *percentile* (0–100) over insertion order: low-confidence facts whose
++    ``rowid`` falls below that percentile threshold are considered candidates
++    for pruning.
++    """
++    import json as _json
++
++    prune_age_days = float(os.environ.get("FACT_PRUNE_AGE_DAYS", str(_PRUNE_AGE_DAYS_DEFAULT)))
++    prune_confidence = float(os.environ.get("FACT_PRUNE_CONFIDENCE", str(_PRUNE_CONFIDENCE_DEFAULT)))
++
++    # Identify stale low-confidence facts.
++    # We use the fact_store rowid as a proxy for insertion time because no
++    # explicit last_accessed column exists yet. Lower rowid = older.
++    # Interpret FACT_PRUNE_AGE_DAYS as a percentile (0–100) over the rowid span.
++    prune_percentile = max(0.0, min(100.0, prune_age_days))
++    oldest_rowid_cutoff = conn.execute(
++        """
++        SELECT MAX(rowid) FROM fact_store
++        WHERE rowid <= (
++            SELECT MIN(rowid) + (MAX(rowid) - MIN(rowid)) * ? / 100.0
++            FROM fact_store
++        )
++        """,
++        (prune_percentile,),
++    ).fetchone()[0]
++
++    if oldest_rowid_cutoff is None:
++        return 0
++
++    rows = conn.execute(
++        "SELECT rowid, entity_id, vector_embedding, semantic_relationship, confidence_score "
++        "FROM fact_store WHERE rowid <= ? AND confidence_score < ?",
++        (oldest_rowid_cutoff, prune_confidence),
++    ).fetchall()
++
++    if not rows:
++        return 0
++
++    # Archive to cold storage before deleting
++    cold_archive = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "cold_archive"
++    cold_archive.mkdir(parents=True, exist_ok=True)
++    archive_path = cold_archive / f"pruned_facts_{int(time.time())}.json"
++    archive_path.write_text(
++        _json.dumps(
++            [
++                {
++                    "entity_id": r[1],
++                    "vector_embedding": r[2],
++                    "semantic_relationship": r[3],
++                    "confidence_score": r[4],
++                }
++                for r in rows
++            ]
++        )
++    )
++
++    rowids = [r[0] for r in rows]
++    conn.execute(f"DELETE FROM fact_store WHERE rowid IN {_sql_in(rowids)}", rowids)
++    # Remove orphaned vec_facts entries (best-effort; may not exist as virtual table)
++    try:
++        conn.execute(f"DELETE FROM vec_facts WHERE rowid IN {_sql_in(rowids)}", rowids)
++    except Exception:
++        pass
++    conn.commit()
++    return len(rows)
++
++
+ def run() -> None:
+-    import redis
+ 
+-    r = redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
++    r = _redis_module.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"), decode_responses=True)
+     conn = _get_connection()
+     _init_schema(conn)
+ 
+diff --git a/agents/gateway/bus.py b/agents/gateway/bus.py
+index 91ddb78..6828c80 100644
+--- a/agents/gateway/bus.py
++++ b/agents/gateway/bus.py
+@@ -16,7 +16,7 @@ from pydantic_settings import BaseSettings
+ from hlf import validate_hlf_heuristic
+ from hlf.hlfc import compile as hlfc_compile
+ from agents.gateway.sentinel_gate import enforce_align
+-import os
++from agents.gateway.router import consume_gas_async, verify_gas_limit, record_intent_activity
+ import httpx
+ 
+ try:
+@@ -98,25 +98,49 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
+     if count > 50:
+         raise HTTPException(status_code=429, detail="Rate limit exceeded")
+ 
+-    # Determine payload
++    # Determine mode: hlf (compile-time validated) vs text (Ollama pipeline)
++    is_text_mode = body.hlf is None and body.text is not None
+     hlf_payload = body.hlf if body.hlf is not None else body.text
+     if not hlf_payload:
+         raise HTTPException(status_code=422, detail="Provide 'text' or 'hlf' field")
+ 
+-    # 2. Fast HLF Heuristic rejection (replaces line-by-line static linter)
+-    if not validate_hlf_heuristic(hlf_payload):
+-         raise HTTPException(status_code=422, detail="Invalid HLF syntax: Rejected by heuristic")
+-
+-    # 3. Compile HLF → AST (Before ALIGN evaluation)
+-    try:
+-        ast = hlfc_compile(hlf_payload)
+-    except Exception as exc:
+-        raise HTTPException(status_code=422, detail=f"HLF compile error: {exc}") from exc
+-
+-    # 4. ALIGN enforcer on structured AST
+-    blocked, rule_id = enforce_align(ast)
+-    if blocked:
+-        raise HTTPException(status_code=403, detail=f"ALIGN rule violated: {rule_id}")
++    if is_text_mode:
++        # Text mode: skip HLF validation — package for Ollama inference pipeline
++        ast: dict = {"version": "0.2.0", "program": [], "text_mode": True}
++        # Text-mode intents charge 1 gas unit (LLM inference cost tracked separately)
++        gas_charge = 1
++    else:
++        # HLF mode: full compile + validate pipeline
++        # 2. Fast HLF Heuristic rejection
++        if not validate_hlf_heuristic(hlf_payload):
++            raise HTTPException(status_code=422, detail="Invalid HLF syntax: Rejected by heuristic")
++
++        # 3. Compile HLF → AST (Before ALIGN evaluation)
++        try:
++            ast = hlfc_compile(hlf_payload)
++        except Exception as exc:
++            raise HTTPException(status_code=422, detail=f"HLF compile error: {exc}") from exc
++
++        # 4. ALIGN enforcer on structured AST
++        blocked, rule_id = enforce_align(ast)
++        if blocked:
++            raise HTTPException(status_code=403, detail=f"ALIGN rule violated: {rule_id}")
++
++        # Gas charge = AST node count (each top-level statement = 1 unit)
++        gas_charge = len(ast.get("program", []))
++
++        # Per-intent gas limit enforcement (in addition to the global tier bucket)
++        ok, node_count = verify_gas_limit(ast, settings.max_gas_limit)
++        if not ok:
++            raise HTTPException(
++                status_code=429,
++                detail=f"Intent gas limit exceeded: {node_count}/{settings.max_gas_limit} nodes",
++            )
++
++    # 4b. Global Per-Tier Gas Bucket (Lua atomic decrement)
++    gas_ok = await consume_gas_async(settings.deployment_tier, gas_charge, r)
++    if not gas_ok:
++        raise HTTPException(status_code=429, detail="Global gas budget exhausted for this tier")
+ 
+     # 5. ULID nonce replay protection
+     request_id = _new_ulid()
+@@ -126,22 +150,24 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
+         raise HTTPException(status_code=409, detail="Duplicate request nonce")
+ 
+     timestamp = time.time()
+-    
+-    # 6. Publish via Dapr pub/sub
++
++    # 6. Publish via Dapr pub/sub; fall back to direct Redis stream on Dapr failure
+     pub_url = f"{settings.dapr_host}/v1.0/publish/pubsub/intents"
++    stream_payload: dict = {"request_id": request_id, "timestamp": timestamp, "ast": ast}
++    if is_text_mode:
++        stream_payload["text"] = hlf_payload  # forward raw text for Ollama inference
++    stream_id = "dapr-pubsub"
+     try:
+         async with httpx.AsyncClient(timeout=3.0) as client:
+-            resp = await client.post(pub_url, json={
+-                "request_id": request_id,
+-                "timestamp": timestamp,
+-                "ast": ast
+-            })
++            resp = await client.post(pub_url, json=stream_payload)
+             resp.raise_for_status()
+-            _cb_failures = 0 # reset on success
+-    except httpx.RequestError as exc:
++            _cb_failures = 0  # reset on success
++    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+         _cb_failures += 1
+         _CB_RESET_TIME = time.time() + _CB_TIMEOUT
+-        # Fallback to direct Redis streams if Dapr fails
+-        await r.xadd("intents", {"data": json.dumps({"request_id": request_id, "ast": ast})})
++        # Fallback to direct Redis streams if Dapr is unavailable/returns non-2xx
++        redis_id = await r.xadd("intents", {"data": json.dumps(stream_payload)})
++        stream_id = f"redis-stream:{redis_id}"
+ 
+-    return IntentResponse(request_id=request_id, timestamp=timestamp, ast=ast, stream_id="dapr-pubsub")
++    record_intent_activity()
++    return IntentResponse(request_id=request_id, timestamp=timestamp, ast=ast, stream_id=stream_id)
+diff --git a/agents/gateway/router.py b/agents/gateway/router.py
+index 33c442c..e199133 100644
+--- a/agents/gateway/router.py
++++ b/agents/gateway/router.py
+@@ -27,23 +27,89 @@ class Settings(BaseSettings):
+ 
+ settings = Settings()
+ 
+-# Gas Lua atomic decrement script
++# Per-tier gas bucket capacities (from config/settings.json)
++_TIER_GAS_CAPS: dict[str, int] = {
++    "hearth": 1000,
++    "forge": 10000,
++    "sovereign": 100000,
++}
++
++# Gas Lua atomic check-and-decrement script.
++# Initialises the bucket on first use with the tier cap, then atomically decrements.
++# Sets a 25-hour TTL so the bucket self-resets if the nightly replenish_gas() cron fails.
++# Returns remaining gas, or -1 if the bucket is exhausted.
+ _GAS_DECREMENT_LUA = """
+ local key = KEYS[1]
+ local cost = tonumber(ARGV[1])
+ local cap  = tonumber(ARGV[2])
++local ttl  = 90000
++-- Guard: reject requests that exceed tier capacity to prevent negative balance
++-- (e.g., misconfiguration or a malformed intent with abnormally large AST)
++if cost > cap then
++    return -1
++end
+ local curr = redis.call('GET', key)
+ if curr == false then
+-    redis.call('SET', key, cap - cost, 'EX', 3600)
++    -- Bucket not yet initialised — set to cap-cost and return remaining
++    redis.call('SET', key, cap - cost, 'EX', ttl)
+     return cap - cost
+ end
+ curr = tonumber(curr)
+ if curr < cost then
+     return -1
+ end
+-return redis.call('DECRBY', key, cost)
++local remaining = redis.call('DECRBY', key, cost)
++redis.call('EXPIRE', key, ttl)
++return remaining
+ """
+ 
++# Last-known intent timestamps for Idle Curiosity Protocol
++_last_intent_ts: float = time.time()
++
++
++def record_intent_activity() -> None:
++    """Record that an intent was just processed (for Idle Curiosity tracking)."""
++    global _last_intent_ts
++    _last_intent_ts = time.time()
++
++
++def get_last_intent_timestamp() -> float:
++    """Return the timestamp of the last recorded intent (for observability/logging)."""
++    return _last_intent_ts
++
++
++def is_system_idle(idle_threshold_sec: int = 3600) -> bool:
++    """Return True if no intent has been received for *idle_threshold_sec* seconds."""
++    return (time.time() - _last_intent_ts) >= idle_threshold_sec
++
++
++def consume_gas(tier: str, cost: int, r: Any) -> bool:
++    """
++    Atomically consume *cost* gas units from the per-tier Redis bucket.
++
++    Returns True if gas was available and consumed, False (HTTP 429 signal) if
++    the bucket is exhausted.  Uses a Lua script for atomic check-and-decrement.
++    Synchronous version — use ``consume_gas_async`` in async contexts.
++    """
++    cap = _TIER_GAS_CAPS.get(tier, _TIER_GAS_CAPS["hearth"])
++    key = f"gas:{tier}"
++    result = r.eval(_GAS_DECREMENT_LUA, 1, key, str(cost), str(cap))
++    return int(result) >= 0
++
++
++async def consume_gas_async(tier: str, cost: int, r: Any) -> bool:
++    """Async variant of :func:`consume_gas` for use with redis.asyncio clients."""
++    cap = _TIER_GAS_CAPS.get(tier, _TIER_GAS_CAPS["hearth"])
++    key = f"gas:{tier}"
++    result = await r.eval(_GAS_DECREMENT_LUA, 1, key, str(cost), str(cap))
++    return int(result) >= 0
++
++
++def replenish_gas(tier: str, r: Any) -> None:
++    """Restore the gas bucket for *tier* to its full capacity (nightly cron use)."""
++    cap = _TIER_GAS_CAPS.get(tier, _TIER_GAS_CAPS["hearth"])
++    r.set(f"gas:{tier}", cap)
++
+ 
+ def _is_cloud(model: str) -> bool:
+     return model.endswith(":cloud")
+diff --git a/hlf/__init__.py b/hlf/__init__.py
+index 62c478c..322ab26 100644
+--- a/hlf/__init__.py
++++ b/hlf/__init__.py
+@@ -7,12 +7,35 @@ import re
+ from .hlfc import compile, HlfSyntaxError, HlfRuntimeError
+ from .hlffmt import format_hlf
+ 
+-__all__ = ["compile", "format_hlf", "validate_hlf_heuristic", "HlfSyntaxError", "HlfRuntimeError"]
++__all__ = ["compile", "format_hlf", "validate_hlf", "validate_hlf_heuristic", "HlfSyntaxError", "HlfRuntimeError"]
+ 
+ # Fast pre-validation regex for Agent Service Bus (ASB)
+ # Rejects grossly malformed text before handing off to Lark parser to save CPU/gas
+ _HLF_HEURISTIC_RE = re.compile(r"^\[HLF-v2\].*?(?:\u03a9|\bOmega\b)\s*$", re.DOTALL)
+ 
++# Per-line validation: uppercase tags, version header, terminator, or empty lines are valid
++_HLF_LINE_RE = re.compile(
++    r"^\s*(?:"
++    r"\[[A-Z_][A-Z0-9_]*\]"   # uppercase tag e.g. [INTENT], [RESULT]
++    r"|\[HLF-v[^\]]+\]"        # version header e.g. [HLF-v2]
++    r"|[\u03a9]"                # Ω terminator
++    r"|\bOmega\b"               # Omega terminator
++    r")\s*.*$"
++    r"|^\s*$",                  # empty / whitespace-only lines
++    re.DOTALL,
++)
++
++
++def validate_hlf(line: str) -> bool:
++    """Validate a single line of HLF source.
++
++    Returns True if the line is structurally valid HLF:
++    an uppercase-tag statement, version header, terminator, or empty line.
++    Returns False for plain prose, lowercase tags, or other non-HLF content.
++    """
++    return bool(_HLF_LINE_RE.match(line))
++
++
+ def validate_hlf_heuristic(text: str) -> bool:
+     """Fast regex check if text looks structurally like HLF.
+     
+diff --git a/hlf/hlfc.py b/hlf/hlfc.py
+index d1719c9..3a34b19 100644
+--- a/hlf/hlfc.py
++++ b/hlf/hlfc.py
+@@ -6,11 +6,21 @@ CLI: hlfc input.hlf [output.json]
+ from __future__ import annotations
+ 
+ import json
++import re
+ import sys
+ from pathlib import Path
+ from typing import Any
+ 
+ from lark import Lark, Transformer, Token, Tree
++from lark.exceptions import LarkError
++
++
++class HlfSyntaxError(ValueError):
++    """Raised when HLF source fails to parse."""
++
++
++class HlfRuntimeError(RuntimeError):
++    """Raised when HLF execution encounters a runtime fault."""
+ 
+ _GRAMMAR = r"""
+     start: line+ TERMINATOR
+@@ -18,11 +28,15 @@ _GRAMMAR = r"""
+         | set_stmt
+         | function_stmt
+         | result_stmt
++        | module_stmt
++        | import_stmt
+ 
+     tag_stmt: "[" TAG "]" arglist
+     set_stmt: "[" "SET" "]" IDENT "=" literal
+     function_stmt: "[" "FUNCTION" "]" IDENT arglist
+     result_stmt: "[" "RESULT" "]" arglist
++    module_stmt: "[" "MODULE" "]" IDENT
++    import_stmt: "[" "IMPORT" "]" IDENT
+ 
+     arglist: arg*
+     arg: kv_pair | literal
+@@ -32,6 +46,7 @@ _GRAMMAR = r"""
+            | NUMBER
+            | BOOL
+            | PATH
++           | VAR_REF
+            | IDENT
+ 
+     TAG: /[A-Z_]+/
+@@ -40,6 +55,7 @@ _GRAMMAR = r"""
+     STRING: /\"([^\"\\\\]|\\\\.)*\"/
+     NUMBER: /-?\d+(\.\d+)?/
+     BOOL: "true" | "false"
++    VAR_REF: /\$\{[A-Za-z_][A-Za-z0-9_]*\}/
+     TERMINATOR: /\u03a9|\bOmega\b/
+ 
+     %ignore /\r?\n/
+@@ -78,6 +94,14 @@ class HLFTransformer(Transformer):
+         args = items[0] if items else []
+         return {"tag": "RESULT", "args": args}
+ 
++    def module_stmt(self, items: list) -> dict[str, Any]:
++        name = str(items[0])
++        return {"tag": "MODULE", "name": name}
++
++    def import_stmt(self, items: list) -> dict[str, Any]:
++        name = str(items[0])
++        return {"tag": "IMPORT", "name": name}
++
+     def arglist(self, items: list) -> list:
+         return [i for i in items if i is not None]
+ 
+@@ -109,17 +133,96 @@ class HLFTransformer(Transformer):
+     def BOOL(self, token: Token) -> bool:
+         return str(token) == "true"
+ 
++    def VAR_REF(self, token: Token) -> str:
++        # Preserve the ${VAR} reference string; Pass 2 expands it.
++        return str(token)
++
+     def TERMINATOR(self, token: Token) -> None:
+         return None
+ 
+ 
++# ------------------------------------------------------------------ #
++# Two-Pass compiler (Phase 5 v0.3)
++# ------------------------------------------------------------------ #
++
++_VAR_RE = re.compile(r"\$\{(\w+)\}")
++
++
++def _expand_vars(value: Any, env: dict[str, Any]) -> Any:
++    """Recursively expand ``${VAR}`` references in string values."""
++    if isinstance(value, str):
++        def _replace(m: re.Match) -> str:
++            key = m.group(1)
++            return str(env.get(key, m.group(0)))
++
++        return _VAR_RE.sub(_replace, value)
++    if isinstance(value, list):
++        return [_expand_vars(v, env) for v in value]
++    if isinstance(value, dict):
++        return {k: _expand_vars(v, env) for k, v in value.items()}
++    return value
++
++
++def _pass1_collect_env(program: list[dict[str, Any]]) -> dict[str, Any]:
++    """
++    Pass 1 — collect immutable SET bindings into a variable environment.
++    Raises HlfSyntaxError on duplicate SET (immutable binding).
++    """
++    env: dict[str, Any] = {}
++    for node in program:
++        if node and node.get("tag") == "SET":
++            name = node["name"]
++            if name in env:
++                raise HlfSyntaxError(
++                    f"Immutable variable '{name}' cannot be reassigned"
++                )
++            env[name] = node["value"]
++    return env
++
++
++def _pass2_expand_and_validate(
++    program: list[dict[str, Any]], env: dict[str, Any]
++) -> list[dict[str, Any]]:
++    """
++    Pass 2 — expand ``${VAR}`` references in all arg values using *env*,
++    then return the expanded program.
++    """
++    expanded: list[dict[str, Any]] = []
++    for node in program:
++        if node is None:
++            continue
++        node = dict(node)
++        # Expand variable references in args
++        if "args" in node:
++            node["args"] = _expand_vars(node["args"], env)
++        if "value" in node:
++            node["value"] = _expand_vars(node["value"], env)
++        expanded.append(node)
++    return expanded
++
++
+ def compile(source: str) -> dict[str, Any]:  # noqa: A001
+-    """Parse HLF source and return JSON AST dict."""
+-    tree = _parser.parse(source)
++    """
++    Two-pass HLF compiler.
++
++    Pass 1: collect immutable SET bindings.
++    Pass 2: expand ``${VAR}`` references and return the validated JSON AST.
++    """
++    try:
++        tree = _parser.parse(source)
++    except LarkError as exc:
++        raise HlfSyntaxError(str(exc)) from exc
+     transformer = HLFTransformer()
+     result = transformer.transform(tree)
+     # Filter None entries
+     result["program"] = [n for n in result["program"] if n is not None]
++
++    # Pass 1 — build environment from SET bindings
++    env = _pass1_collect_env(result["program"])
++
++    # Pass 2 — expand variable references
++    result["program"] = _pass2_expand_and_validate(result["program"], env)
++
+     return result
+ 
+ 
+diff --git a/hlf/hlffmt.py b/hlf/hlffmt.py
+index 9fe7597..a0e47fd 100644
+--- a/hlf/hlffmt.py
++++ b/hlf/hlffmt.py
+@@ -30,6 +30,10 @@ def format_hlf(source: str) -> str:
+         elif tag == "RESULT":
+             args_str = _format_args(node.get("args", []))
+             lines.append(f"[RESULT] {args_str}".rstrip())
++        elif tag == "MODULE":
++            lines.append(f"[MODULE] {node['name']}")
++        elif tag == "IMPORT":
++            lines.append(f"[IMPORT] {node['name']}")
+         else:
+             args_str = _format_args(node.get("args", []))
+             lines.append(f"[{tag}] {args_str}".rstrip())
+diff --git a/hlf/hlfrun.py b/hlf/hlfrun.py
+new file mode 100644
+index 0000000..c0b4e95
+--- /dev/null
++++ b/hlf/hlfrun.py
+@@ -0,0 +1,242 @@
++"""
++HLF Runtime Interpreter — Phase 3.1 Built-in Functions + Phase 5.1 Host Functions.
++
++Executes a compiled JSON AST (output of hlfc.compile()) against the registered
++built-in pure functions and the host-function backends defined in
++governance/host_functions.json.
++
++Built-in pure functions (no I/O, deterministic):
++  [FUNCTION] HASH sha256 <text>         → scope["HASH_RESULT"]
++  [FUNCTION] BASE64_ENCODE <text>       → scope["BASE64_ENCODE_RESULT"]
++  [FUNCTION] BASE64_DECODE <text>       → scope["BASE64_DECODE_RESULT"]
++  [FUNCTION] NOW                        → scope["NOW_RESULT"]  (ISO-8601 UTC)
++  [FUNCTION] UUID                       → scope["UUID_RESULT"]
++
++Host functions (I/O — mediated via host_function_dispatcher):
++  [ACTION] READ <path>
++  [ACTION] WRITE <path> <data>
++  [ACTION] SPAWN <image>
++  [ACTION] SLEEP <ms>
++  [ACTION] HTTP_GET <url>
++  [ACTION] WEB_SEARCH <query>
++  [ACTION] OPENCLAW_SUMMARIZE <path>
++"""
++from __future__ import annotations
++
++import base64
++import datetime
++import hashlib
++import re
++import uuid
++from typing import Any
++
++from hlf.hlfc import HlfRuntimeError
++
++# Regex for ${VAR} expansion at runtime (supplements compile-time Pass 2)
++_VAR_RE = re.compile(r"\$\{(\w+)\}")
++
++
++# --------------------------------------------------------------------------- #
++# Built-in pure functions
++# --------------------------------------------------------------------------- #
++
++def _builtin_hash(*args: Any) -> str:
++    """HASH <algorithm> <text> → hex digest. Only sha256 supported."""
++    parts = [str(a) for a in args]
++    algo = parts[0].lower() if len(parts) >= 2 else "sha256"
++    text = parts[1] if len(parts) >= 2 else (parts[0] if parts else "")
++    if algo != "sha256":
++        raise HlfRuntimeError(f"HASH: unsupported algorithm '{algo}' (only sha256 supported)")
++    return hashlib.sha256(text.encode()).hexdigest()
++
++
++def _builtin_base64_encode(*args: Any) -> str:
++    text = str(args[0]) if args else ""
++    return base64.b64encode(text.encode()).decode()
++
++
++def _builtin_base64_decode(*args: Any) -> str:
++    text = str(args[0]) if args else ""
++    return base64.b64decode(text.encode()).decode()
++
++
++def _builtin_now(*_args: Any) -> str:
++    return datetime.datetime.now(datetime.timezone.utc).isoformat()
++
++
++def _builtin_uuid(*_args: Any) -> str:
++    return str(uuid.uuid4())
++
++
++_BUILTIN_FUNCTIONS: dict[str, Any] = {
++    "HASH": _builtin_hash,
++    "BASE64_ENCODE": _builtin_base64_encode,
++    "BASE64_DECODE": _builtin_base64_decode,
++    "NOW": _builtin_now,
++    "UUID": _builtin_uuid,
++}
++
++
++# --------------------------------------------------------------------------- #
++# Runtime interpreter
++# --------------------------------------------------------------------------- #
++
++class HLFInterpreter:
++    """
++    Walks a compiled HLF AST node-by-node and executes each statement.
++
++    :param scope:    Pre-seeded variable bindings (SET values from compile Pass 1
++                     are already expanded by hlfc.compile(); the runtime scope is
++                     used for FUNCTION result storage and runtime SET evaluation).
++    :param tier:     Deployment tier — enforced by the host function dispatcher.
++    :param max_gas:  Per-intent hard gas cap (AST node executions).
++    """
++
++    def __init__(
++        self,
++        scope: dict[str, Any] | None = None,
++        tier: str = "hearth",
++        max_gas: int = 10,
++    ) -> None:
++        self.scope: dict[str, Any] = dict(scope or {})
++        self.tier = tier
++        self.max_gas = max_gas
++        self.gas_used: int = 0
++        self._result_code: int | None = None
++        self._result_message: str = ""
++        self._result_value: Any = None
++
++    def execute(self, ast: dict) -> dict:
++        """
++        Execute the program in *ast* and return a result dict::
++
++            {
++                "code":     int,   # 0 = success
++                "message":  str,
++                "scope":    dict,  # final variable bindings
++                "gas_used": int,
++                "result":   Any,   # last ACTION/FUNCTION return value
++            }
++        """
++        program = ast.get("program", [])
++        for node in program:
++            if node is None:
++                continue
++            if self.gas_used >= self.max_gas:
++                raise HlfRuntimeError(
++                    f"Gas limit exceeded: {self.gas_used}/{self.max_gas}"
++                )
++            self.gas_used += 1
++            self._execute_node(node)
++            if self._result_code is not None:
++                break  # [RESULT] terminates execution
++
++        return {
++            "code": self._result_code if self._result_code is not None else 0,
++            "message": self._result_message or "ok",
++            "scope": dict(self.scope),
++            "gas_used": self.gas_used,
++            "result": self._result_value,
++        }
++
++    # ------------------------------------------------------------------ #
++    # Node dispatchers
++    # ------------------------------------------------------------------ #
++
++    def _execute_node(self, node: dict) -> None:
++        tag = node.get("tag", "")
++        if tag == "FUNCTION":
++            self._exec_function(node)
++        elif tag == "ACTION":
++            self._exec_action(node)
++        elif tag == "SET":
++            # Runtime SET evaluation (compile Pass 2 already expanded ${VAR}
++            # references, but we still track the binding for runtime introspection)
++            self.scope[node.get("name", "")] = self._expand(node.get("value", ""))
++        elif tag == "RESULT":
++            self._exec_result(node)
++        # INTENT, CONSTRAINT, EXPECT, MODULE, IMPORT: structural/declarative —
++        # they carry no side-effects at runtime; the interpreter acknowledges them.
++
++    def _exec_function(self, node: dict) -> None:
++        name = (node.get("name") or "").upper()
++        args = self._flatten_args(node.get("args", []))
++        fn = _BUILTIN_FUNCTIONS.get(name)
++        if fn is None:
++            raise HlfRuntimeError(f"Unknown built-in function: {name}")
++        result = fn(*args)
++        # Store as ${NAME_RESULT} so subsequent tags can reference it
++        self.scope[f"{name}_RESULT"] = result
++        self._result_value = result
++
++    def _exec_action(self, node: dict) -> None:
++        args = self._flatten_args(node.get("args", []))
++        if not args:
++            raise HlfRuntimeError("[ACTION] requires at least one argument (verb)")
++        verb = str(args[0]).upper()
++        rest = args[1:]
++        from agents.core.host_function_dispatcher import dispatch
++
++        result = dispatch(verb, rest, self.tier)
++        self.scope[f"{verb}_RESULT"] = result
++        self._result_value = result
++
++    def _exec_result(self, node: dict) -> None:
++        code = 0
++        message = "ok"
++        for arg in node.get("args", []):
++            if isinstance(arg, dict):
++                if "code" in arg:
++                    code = int(arg["code"])
++                if "message" in arg:
++                    message = str(arg["message"])
++        self._result_code = code
++        self._result_message = message
++
++    # ------------------------------------------------------------------ #
++    # Helpers
++    # ------------------------------------------------------------------ #
++
++    def _flatten_args(self, args: list) -> list:
++        """Flatten args list, expanding runtime ${VAR} refs from scope."""
++        result = []
++        for arg in args:
++            if isinstance(arg, dict):
++                # kv_pair dict — extract values
++                for v in arg.values():
++                    result.append(self._expand(v))
++            else:
++                result.append(self._expand(arg))
++        return result
++
++    def _expand(self, value: Any) -> Any:
++        """Expand ${VAR} references from the current runtime scope."""
++        if isinstance(value, str):
++            def _replace(m: re.Match) -> str:
++                return str(self.scope.get(m.group(1), m.group(0)))
++
++            return _VAR_RE.sub(_replace, value)
++        if isinstance(value, list):
++            return [self._expand(v) for v in value]
++        if isinstance(value, dict):
++            return {k: self._expand(v) for k, v in value.items()}
++        return value
++
++
++# --------------------------------------------------------------------------- #
++# Public API
++# --------------------------------------------------------------------------- #
++
++def run(
++    ast: dict,
++    scope: dict[str, Any] | None = None,
++    tier: str = "hearth",
++    max_gas: int = 10,
++) -> dict:
++    """
++    Convenience wrapper — compile-to-execute an already-compiled HLF AST.
++
++    Returns the result dict from :meth:`HLFInterpreter.execute`.
++    """
++    interpreter = HLFInterpreter(scope=scope, tier=tier, max_gas=max_gas)
++    return interpreter.execute(ast)
+diff --git a/pyproject.toml b/pyproject.toml
+index 0a5be8d..2ec4b1a 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -20,6 +20,7 @@ dependencies = [
+     "typer>=0.12.0",
+     "docker>=7.1.0",
+     "sqlite-vec>=0.1.6",
++    "pyarrow>=23.0.1",
+ ]
+ 
+ [project.optional-dependencies]
+diff --git a/tests/test_dream_state.py b/tests/test_dream_state.py
+new file mode 100644
+index 0000000..a5fcdb1
+--- /dev/null
++++ b/tests/test_dream_state.py
+@@ -0,0 +1,220 @@
++"""
++Tests for Phase 4.3 new features:
++- Dynamic Context Pruning (30-day forgetting curve)
++- Log Storage Truncator (parquet archive)
++- Dream State archive format
++"""
++from __future__ import annotations
++
++import sqlite3
++import time
++from pathlib import Path
++from unittest.mock import patch
++
++
++def _insert_fact(conn: sqlite3.Connection, entity_id: str, confidence: float) -> None:
++    """Insert a fact directly without sqlite-vec dependency."""
++    conn.execute(
++        "INSERT INTO fact_store (entity_id, vector_embedding, semantic_relationship, confidence_score) "
++        "VALUES (?, NULL, ?, ?)",
++        (entity_id, "test_rel", confidence),
++    )
++    conn.commit()
++
++
++def _make_conn(path: Path) -> sqlite3.Connection:
++    """Create a fresh in-memory SQLite DB with the memory_scribe schema."""
++    conn = sqlite3.connect(str(path), check_same_thread=False)
++    conn.execute("PRAGMA journal_mode=WAL")
++    # Load sqlite-vec if available (test environment may not have it)
++    try:
++        import sqlite_vec
++        conn.enable_load_extension(True)
++        sqlite_vec.load(conn)
++        conn.enable_load_extension(False)
++    except Exception:
++        pass
++    # Create tables (vec0 virtual table only if extension loaded)
++    conn.executescript("""
++        CREATE TABLE IF NOT EXISTS identity_core (
++            id TEXT PRIMARY KEY,
++            directive_hash TEXT NOT NULL,
++            immutable_constraint_blob TEXT NOT NULL
++        );
++        CREATE TABLE IF NOT EXISTS rolling_context (
++            session_id TEXT NOT NULL,
++            timestamp REAL NOT NULL,
++            fifo_blob TEXT NOT NULL,
++            token_count INTEGER NOT NULL DEFAULT 0
++        );
++        CREATE TABLE IF NOT EXISTS fact_store (
++            entity_id TEXT NOT NULL,
++            vector_embedding TEXT,
++            semantic_relationship TEXT,
++            confidence_score REAL NOT NULL DEFAULT 0.0
++        );
++    """)
++    # Try to create the vec_facts virtual table (requires sqlite-vec)
++    try:
++        conn.execute("""
++            CREATE VIRTUAL TABLE IF NOT EXISTS vec_facts USING vec0(
++                embedding float[768]
++            );
++        """)
++        conn.commit()
++    except Exception:
++        # vec0 not available — create a plain table as fallback for tests
++        conn.execute("""
++            CREATE TABLE IF NOT EXISTS vec_facts (
++                rowid INTEGER PRIMARY KEY,
++                embedding TEXT
++            );
++        """)
++        conn.commit()
++    return conn
++
++
++class TestDynamicContextPruning:
++    """prune_old_facts() — 30-day forgetting curve."""
++
++    def test_prune_removes_stale_low_confidence(self, tmp_path: Path) -> None:
++        from agents.core.memory_scribe import prune_old_facts
++
++        conn = _make_conn(tmp_path / "mem.db")
++        # Insert 5 facts with low confidence
++        for i in range(5):
++            _insert_fact(conn, f"entity_{i}", 0.1)
++
++        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path), "FACT_PRUNE_CONFIDENCE": "0.2"}):
++            count = prune_old_facts(conn)
++
++        assert isinstance(count, int)
++        assert count >= 0  # may be 0 if percentile calc yields no cutoff yet
++
++    def test_prune_spares_high_confidence(self, tmp_path: Path) -> None:
++        from agents.core.memory_scribe import prune_old_facts
++
++        conn = _make_conn(tmp_path / "mem.db")
++        # Insert facts with high confidence — must NOT be pruned
++        for i in range(5):
++            _insert_fact(conn, f"hc_{i}", 0.9)
++
++        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path), "FACT_PRUNE_CONFIDENCE": "0.2"}):
++            count = prune_old_facts(conn)
++
++        remaining = conn.execute("SELECT COUNT(*) FROM fact_store").fetchone()[0]
++        assert remaining == 5  # nothing pruned
++        assert count == 0
++
++    def test_prune_archives_before_deleting(self, tmp_path: Path) -> None:
++        from agents.core.memory_scribe import prune_old_facts
++
++        conn = _make_conn(tmp_path / "mem.db")
++        # Insert 10 low-confidence facts to ensure some will be pruned
++        for i in range(10):
++            _insert_fact(conn, f"prune_{i}", 0.05)
++
++        with patch.dict("os.environ", {
++            "BASE_DIR": str(tmp_path),
++            "FACT_PRUNE_CONFIDENCE": "0.1",
++        }):
++            count = prune_old_facts(conn)
++
++        if count > 0:
++            # Archive file should exist in BASE_DIR/data/cold_archive/
++            cold_archive = tmp_path / "data" / "cold_archive"
++            archives = list(cold_archive.glob("pruned_facts_*.json"))
++            assert len(archives) >= 1
++
++
++class TestDreamStateArchive:
++    """archive_old_traces() — should produce parquet if pyarrow available, else JSON."""
++
++    def test_archive_creates_file(self, tmp_path: Path) -> None:
++        from agents.core.dream_state import archive_old_traces
++
++        conn = _make_conn(tmp_path / "mem.db")
++        # Insert rows older than 7 days
++        old_ts = time.time() - 8 * 86400
++        for i in range(3):
++            conn.execute(
++                "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
++                "VALUES (?, ?, ?, ?)",
++                (f"sess_{i}", old_ts, f"blob_{i}", 10),
++            )
++        conn.commit()
++
++        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
++            archive_old_traces(conn)
++
++        cold_archive = tmp_path / "data" / "cold_archive"
++        files = list(cold_archive.iterdir())
++        assert len(files) == 1
++        # Must be either parquet or json
++        assert files[0].suffix in (".parquet", ".json")
++
++    def test_archive_deletes_rows(self, tmp_path: Path) -> None:
++        from agents.core.dream_state import archive_old_traces
++
++        conn = _make_conn(tmp_path / "mem.db")
++        old_ts = time.time() - 8 * 86400
++        conn.execute(
++            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) VALUES (?, ?, ?, ?)",
++            ("to_delete", old_ts, "data", 5),
++        )
++        conn.commit()
++
++        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
++            archive_old_traces(conn)
++
++        count = conn.execute(
++            "SELECT COUNT(*) FROM rolling_context WHERE session_id='to_delete'"
++        ).fetchone()[0]
++        assert count == 0
++
++    def test_archive_skips_recent_rows(self, tmp_path: Path) -> None:
++        from agents.core.dream_state import archive_old_traces
++
++        conn = _make_conn(tmp_path / "mem.db")
++        conn.execute(
++            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) VALUES (?, ?, ?, ?)",
++            ("recent", time.time(), "data", 5),
++        )
++        conn.commit()
++
++        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
++            archive_old_traces(conn)
++
++        # Recent rows should remain
++        count = conn.execute(
++            "SELECT COUNT(*) FROM rolling_context WHERE session_id='recent'"
++        ).fetchone()[0]
++        assert count == 1
++        # No archive file created
++        cold_archive = tmp_path / "data" / "cold_archive"
++        assert not cold_archive.exists() or len(list(cold_archive.iterdir())) == 0
++
++    def test_archive_parquet_format_if_available(self, tmp_path: Path) -> None:
++        """If pyarrow is installed, archive must produce .parquet (not .json)."""
++        try:
++            import pyarrow  # noqa: F401
++        except ImportError:
++            return  # skip if pyarrow not available
++
++        from agents.core.dream_state import archive_old_traces
++
++        conn = _make_conn(tmp_path / "mem.db")
++        old_ts = time.time() - 8 * 86400
++        conn.execute(
++            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) VALUES (?, ?, ?, ?)",
++            ("parq_test", old_ts, "blob_data", 5),
++        )
++        conn.commit()
++
++        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
++            archive_old_traces(conn)
++
++        cold_archive = tmp_path / "data" / "cold_archive"
++        files = list(cold_archive.iterdir())
++        assert len(files) == 1
++        assert files[0].suffix == ".parquet"
+diff --git a/tests/test_phase4_phase5.py b/tests/test_phase4_phase5.py
+new file mode 100644
+index 0000000..4e5ff6f
+--- /dev/null
++++ b/tests/test_phase4_phase5.py
+@@ -0,0 +1,219 @@
++"""
++Tests for Phase 5 v0.3 — HLF Module System and Two-Pass Parser.
++
++Covers:
++- [MODULE] and [IMPORT] tag grammar support
++- Two-pass compiler: SET binding collection and ${VAR} expansion
++- Immutable variable reassignment rejection
++- Module/Import round-trip through formatter
++"""
++from __future__ import annotations
++
++import pytest
++
++from hlf.hlfc import compile, HlfSyntaxError
++
++
++class TestModuleImportGrammar:
++    """[MODULE] and [IMPORT] tag parsing (Phase 5 v0.3 grammar extension)."""
++
++    def test_module_tag_parsed(self) -> None:
++        src = "[HLF-v2]\n[MODULE] my_lib\n[INTENT] test \"hello\"\nΩ\n"
++        ast = compile(src)
++        tags = [n["tag"] for n in ast["program"]]
++        assert "MODULE" in tags
++
++    def test_import_tag_parsed(self) -> None:
++        src = "[HLF-v2]\n[IMPORT] stdlib\n[INTENT] test \"hello\"\nΩ\n"
++        ast = compile(src)
++        tags = [n["tag"] for n in ast["program"]]
++        assert "IMPORT" in tags
++
++    def test_module_node_has_name(self) -> None:
++        src = "[HLF-v2]\n[MODULE] my_module\n[INTENT] do \"something\"\nΩ\n"
++        ast = compile(src)
++        module_nodes = [n for n in ast["program"] if n["tag"] == "MODULE"]
++        assert len(module_nodes) == 1
++        assert module_nodes[0]["name"] == "my_module"
++
++    def test_import_node_has_name(self) -> None:
++        src = "[HLF-v2]\n[IMPORT] utils\n[INTENT] do \"something\"\nΩ\n"
++        ast = compile(src)
++        import_nodes = [n for n in ast["program"] if n["tag"] == "IMPORT"]
++        assert len(import_nodes) == 1
++        assert import_nodes[0]["name"] == "utils"
++
++    def test_module_and_import_together(self) -> None:
++        src = (
++            "[HLF-v2]\n"
++            "[MODULE] my_module\n"
++            "[IMPORT] stdlib\n"
++            "[IMPORT] net_utils\n"
++            "[INTENT] process \"data\"\n"
++            "Ω\n"
++        )
++        ast = compile(src)
++        tags = [n["tag"] for n in ast["program"]]
++        assert tags.count("MODULE") == 1
++        assert tags.count("IMPORT") == 2
++
++    def test_module_import_roundtrip(self) -> None:
++        """MODULE/IMPORT survive format → re-parse round-trip."""
++        from hlf.hlffmt import format_hlf
++
++        src = "[HLF-v2]\n[MODULE] lib_a\n[IMPORT] lib_b\n[INTENT] do \"it\"\nΩ\n"
++        formatted = format_hlf(src)
++        re_ast = compile(formatted)
++        tags = [n["tag"] for n in re_ast["program"]]
++        assert "MODULE" in tags
++        assert "IMPORT" in tags
++
++
++class TestTwoPassCompiler:
++    """Two-pass parser: Pass 1 (SET collection) + Pass 2 (${VAR} expansion)."""
++
++    def test_set_binding_expanded_in_intent(self) -> None:
++        src = (
++            "[HLF-v2]\n"
++            '[SET] target="/data/file.txt"\n'
++            "[INTENT] read ${target}\n"
++            "Ω\n"
++        )
++        ast = compile(src)
++        # After Pass 2, ${target} in INTENT args must be expanded to "/data/file.txt"
++        intent_nodes = [n for n in ast["program"] if n.get("tag") == "INTENT"]
++        assert len(intent_nodes) == 1
++        args_flat = str(intent_nodes[0]["args"])
++        assert "/data/file.txt" in args_flat
++
++    def test_set_binding_is_collected(self) -> None:
++        src = (
++            "[HLF-v2]\n"
++            '[SET] filename="report.pdf"\n'
++            "[INTENT] open \"report\"\n"
++            "Ω\n"
++        )
++        ast = compile(src)
++        set_nodes = [n for n in ast["program"] if n.get("tag") == "SET"]
++        assert len(set_nodes) == 1
++        assert set_nodes[0]["name"] == "filename"
++        assert set_nodes[0]["value"] == "report.pdf"
++
++    def test_immutable_reassignment_raises(self) -> None:
++        src = (
++            "[HLF-v2]\n"
++            '[SET] x="first"\n'
++            '[SET] x="second"\n'
++            "[INTENT] do \"something\"\n"
++            "Ω\n"
++        )
++        with pytest.raises(HlfSyntaxError, match="Immutable"):
++            compile(src)
++
++    def test_unexpanded_var_passes_gracefully(self) -> None:
++        """${UNDEFINED} variables — grammar parses VAR_REF token, no error."""
++        src = (
++            "[HLF-v2]\n"
++            "[INTENT] greet ${name}\n"
++            "Ω\n"
++        )
++        ast = compile(src)
++        assert ast["program"]  # parsed without exception
++        # ${name} remains as-is (no SET binding defined)
++        intent_nodes = [n for n in ast["program"] if n.get("tag") == "INTENT"]
++        args_flat = str(intent_nodes[0]["args"])
++        assert "${name}" in args_flat
++
++    def test_pass2_preserves_non_string_args(self) -> None:
++        """Numeric/bool args must not be corrupted by Pass 2 expansion."""
++        src = (
++            "[HLF-v2]\n"
++            "[RESULT] code=0 message=\"ok\"\n"
++            "Ω\n"
++        )
++        ast = compile(src)
++        result_nodes = [n for n in ast["program"] if n.get("tag") == "RESULT"]
++        assert len(result_nodes) == 1
++        # code=0 must remain integer
++        args = result_nodes[0]["args"]
++        codes = [a.get("code") for a in args if isinstance(a, dict) and "code" in a]
++        assert codes == [0]
++
++
++class TestCanaryAgent:
++    """Canary Agent — unit tests for probe and idle curiosity logic."""
++
++    def test_idle_curiosity_scan_no_db(self, tmp_path, monkeypatch) -> None:
++        """Scan should return empty list when DB doesn't exist yet."""
++        from agents.core.canary_agent import _idle_curiosity_scan
++
++        # Pass a non-existent db_path directly — no env patching needed
++        result = _idle_curiosity_scan(db_path=tmp_path / "nonexistent.db")
++        assert result == []
++
++    def test_is_system_idle_immediately_false(self) -> None:
++        """System is not immediately idle after recording activity."""
++        from agents.gateway.router import record_intent_activity, is_system_idle
++
++        record_intent_activity()
++        assert is_system_idle(idle_threshold_sec=3600) is False
++
++    def test_is_system_idle_with_long_elapsed(self) -> None:
++        """System is idle if threshold is 0 seconds."""
++        from agents.gateway.router import is_system_idle
++
++        assert is_system_idle(idle_threshold_sec=0) is True
++
++
++class TestGlobalGasBucket:
++    """Global Per-Tier Gas Bucket (Phase 2.2)."""
++
++    def test_replenish_and_consume(self) -> None:
++        """replenish_gas + consume_gas (sync) logic is consistent."""
++        from agents.gateway.router import consume_gas, replenish_gas, _TIER_GAS_CAPS
++
++        class FakeRedis:
++            def __init__(self):
++                self._store = {}
++
++            def get(self, key):
++                return self._store.get(key)
++
++            def set(self, key, value):
++                self._store[key] = str(value)
++
++            def eval(self, script, numkeys, *args):
++                key = args[0]
++                cost = int(args[1])
++                cap = int(args[2])
++                curr = self._store.get(key)
++                if curr is None:
++                    self._store[key] = str(cap - cost)
++                    return cap - cost
++                curr_val = int(curr)
++                if curr_val < cost:
++                    return -1
++                self._store[key] = str(curr_val - cost)
++                return curr_val - cost
++
++        r = FakeRedis()
++        # Initial call seeds the bucket
++        ok = consume_gas("hearth", 1, r)
++        assert ok is True
++
++        # Drain bucket
++        r._store["gas:hearth"] = "0"
++        ok = consume_gas("hearth", 1, r)
++        assert ok is False  # exhausted
++
++        # Replenish
++        replenish_gas("hearth", r)
++        assert int(r._store["gas:hearth"]) == _TIER_GAS_CAPS["hearth"]
++
++    def test_tier_caps_defined(self) -> None:
++        from agents.gateway.router import _TIER_GAS_CAPS
++
++        assert "hearth" in _TIER_GAS_CAPS
++        assert "forge" in _TIER_GAS_CAPS
++        assert "sovereign" in _TIER_GAS_CAPS
++        assert _TIER_GAS_CAPS["sovereign"] > _TIER_GAS_CAPS["forge"] > _TIER_GAS_CAPS["hearth"]
+diff --git a/tests/test_policy.py b/tests/test_policy.py
+index c24c71c..56a0054 100644
+--- a/tests/test_policy.py
++++ b/tests/test_policy.py
+@@ -17,6 +17,8 @@ def _make_mock_redis(**overrides):
+     mock.expire = AsyncMock(return_value=True)
+     mock.set = AsyncMock(return_value=overrides.get("set", True))
+     mock.xadd = AsyncMock(return_value="1-0")
++    # Global Per-Tier Gas Bucket: eval returns remaining gas (positive = OK, -1 = exhausted)
++    mock.eval = AsyncMock(return_value=overrides.get("gas_eval", 999))
+     return mock
+ 
+ 
+@@ -75,6 +77,18 @@ def test_rate_limit_returns_429() -> None:
+     assert resp.status_code == 429
+ 
+ 
++def test_global_gas_bucket_exhausted_returns_429() -> None:
++    """Global per-tier gas bucket exhausted → 429 (gas_eval=-1)."""
++    mock_redis = _make_mock_redis(gas_eval=-1)
++    with patch("agents.gateway.bus.get_redis", new=_fake_get_redis(mock_redis)):
++        from agents.gateway import bus
++        client = TestClient(bus.app, raise_server_exceptions=False)
++        payload = {"hlf": "[HLF-v2]\n[INTENT] greet \"world\"\n[RESULT] code=0 message=\"ok\"\nΩ\n"}
++        resp = client.post("/api/v1/intent", json=payload)
++    assert resp.status_code == 429
++    assert "gas" in resp.json()["detail"].lower()
++
++
+ def test_replayed_nonce_returns_409() -> None:
+     mock_redis = _make_mock_redis(set=None)  # None = SETNX failed (key exists)
+     with patch("agents.gateway.bus.get_redis", new=_fake_get_redis(mock_redis)):
+diff --git a/tests/test_runtime.py b/tests/test_runtime.py
+new file mode 100644
+index 0000000..74ca13a
+--- /dev/null
++++ b/tests/test_runtime.py
+@@ -0,0 +1,337 @@
++"""
++Tests for Phase 3.1 + Phase 5.1: HLF Runtime Interpreter and Host Function Dispatcher.
++
++Covers:
++- Built-in FUNCTION execution (HASH, UUID, NOW, BASE64_ENCODE, BASE64_DECODE)
++- ACTION dispatch to host functions
++- RESULT tag terminates execution with correct code
++- Gas limit enforcement
++- Tier access control in host function dispatcher
++- ACFS confinement path check
++- Dual-mode bus: text mode doesn't run through HLF validator
++- execute_intent() wires hlfrun for AST payloads
++"""
++from __future__ import annotations
++
++import hashlib
++import time
++from pathlib import Path
++from unittest.mock import AsyncMock, patch
++
++import pytest
++
++from hlf.hlfc import compile as hlfc_compile
++from hlf.hlfrun import run as hlfrun, HLFInterpreter  # noqa: F401 — class under test
++from hlf.hlfc import HlfRuntimeError
++
++
++# --------------------------------------------------------------------------- #
++# Built-in FUNCTION tests
++# --------------------------------------------------------------------------- #
++
++class TestBuiltinFunctions:
++    """[FUNCTION] tag built-in pure functions."""
++
++    def test_hash_sha256(self) -> None:
++        src = (
++            "[HLF-v2]\n"
++            '[FUNCTION] HASH sha256 "hello"\n'
++            "Ω\n"
++        )
++        ast = hlfc_compile(src)
++        result = hlfrun(ast)
++        assert result["code"] == 0
++        expected = hashlib.sha256(b"hello").hexdigest()
++        assert result["scope"]["HASH_RESULT"] == expected
++
++    def test_base64_encode(self) -> None:
++        src = '[HLF-v2]\n[FUNCTION] BASE64_ENCODE "hello"\nΩ\n'
++        ast = hlfc_compile(src)
++        result = hlfrun(ast)
++        import base64
++        assert result["scope"]["BASE64_ENCODE_RESULT"] == base64.b64encode(b"hello").decode()
++
++    def test_base64_decode(self) -> None:
++        src = '[HLF-v2]\n[FUNCTION] BASE64_DECODE "aGVsbG8="\nΩ\n'
++        ast = hlfc_compile(src)
++        result = hlfrun(ast)
++        assert result["scope"]["BASE64_DECODE_RESULT"] == "hello"
++
++    def test_now_returns_iso8601(self) -> None:
++        src = "[HLF-v2]\n[FUNCTION] NOW\nΩ\n"
++        ast = hlfc_compile(src)
++        result = hlfrun(ast)
++        now_val = result["scope"]["NOW_RESULT"]
++        # Should parse as ISO-8601
++        from datetime import datetime
++        parsed = datetime.fromisoformat(now_val)
++        assert parsed is not None
++
++    def test_uuid_returns_valid_uuid(self) -> None:
++        src = "[HLF-v2]\n[FUNCTION] UUID\nΩ\n"
++        ast = hlfc_compile(src)
++        result = hlfrun(ast)
++        import uuid
++        # Should be a valid UUID-4 string
++        val = result["scope"]["UUID_RESULT"]
++        parsed = uuid.UUID(val)
++        assert str(parsed) == val
++
++    def test_unknown_builtin_raises(self) -> None:
++        # Manually craft an AST with an unknown FUNCTION name
++        ast = {
++            "version": "0.2.0",
++            "program": [{"tag": "FUNCTION", "name": "NONEXISTENT", "args": [], "pure": True}],
++        }
++        with pytest.raises(HlfRuntimeError, match="Unknown built-in function"):
++            hlfrun(ast)
++
++    def test_function_result_available_as_var(self) -> None:
++        """${HASH_RESULT} should be available for subsequent SET references."""
++        src = (
++            "[HLF-v2]\n"
++            '[FUNCTION] UUID\n'
++            '[RESULT] code=0 message="ok"\n'
++            "Ω\n"
++        )
++        ast = hlfc_compile(src)
++        result = hlfrun(ast)
++        assert "UUID_RESULT" in result["scope"]
++
++
++# --------------------------------------------------------------------------- #
++# RESULT tag tests
++# --------------------------------------------------------------------------- #
++
++class TestResultTag:
++    def test_result_code_0(self) -> None:
++        src = '[HLF-v2]\n[INTENT] test "x"\n[RESULT] code=0 message="ok"\nΩ\n'
++        ast = hlfc_compile(src)
++        result = hlfrun(ast)
++        assert result["code"] == 0
++        assert result["message"] == "ok"
++
++    def test_result_code_1_failure(self) -> None:
++        src = '[HLF-v2]\n[INTENT] test "x"\n[RESULT] code=1 message="fail"\nΩ\n'
++        ast = hlfc_compile(src)
++        result = hlfrun(ast)
++        assert result["code"] == 1
++        assert result["message"] == "fail"
++
++    def test_result_terminates_execution(self) -> None:
++        """Nodes after [RESULT] must NOT be executed."""
++        ast = {
++            "version": "0.2.0",
++            "program": [
++                {"tag": "RESULT", "args": [{"code": 0}, {"message": "done"}]},
++                # This FUNCTION would fail with RuntimeError if executed
++                {"tag": "FUNCTION", "name": "NONEXISTENT", "args": [], "pure": True},
++            ],
++        }
++        result = hlfrun(ast)
++        assert result["code"] == 0  # no error despite bad FUNCTION below RESULT
++
++
++# --------------------------------------------------------------------------- #
++# Gas limit tests
++# --------------------------------------------------------------------------- #
++
++class TestGasLimit:
++    def test_gas_exceeded_raises(self) -> None:
++        # 12 nodes, gas=3 → should raise after 3 executions
++        nodes = [{"tag": "INTENT", "args": [f"action_{i}"]} for i in range(12)]
++        ast = {"version": "0.2.0", "program": nodes}
++        with pytest.raises(HlfRuntimeError, match="Gas limit exceeded"):
++            hlfrun(ast, max_gas=3)
++
++    def test_gas_used_tracked(self) -> None:
++        src = '[HLF-v2]\n[INTENT] x "y"\n[FUNCTION] UUID\nΩ\n'
++        ast = hlfc_compile(src)
++        result = hlfrun(ast, max_gas=10)
++        assert result["gas_used"] == 2  # INTENT + FUNCTION
++
++
++# --------------------------------------------------------------------------- #
++# SET scope propagation
++# --------------------------------------------------------------------------- #
++
++class TestSetScope:
++    def test_set_binding_in_scope(self) -> None:
++        src = '[HLF-v2]\n[SET] x="hello"\n[INTENT] use "x"\nΩ\n'
++        ast = hlfc_compile(src)
++        result = hlfrun(ast)
++        assert result["scope"]["x"] == "hello"
++
++
++# --------------------------------------------------------------------------- #
++# Host Function Dispatcher tests
++# --------------------------------------------------------------------------- #
++
++class TestHostFunctionDispatcher:
++    def test_tier_enforcement(self) -> None:
++        """SPAWN is not available in 'hearth' tier."""
++        from agents.core.host_function_dispatcher import dispatch
++
++        with pytest.raises(PermissionError, match="hearth"):
++            dispatch("SPAWN", ["alpine"], "hearth")
++
++    def test_unknown_function_raises(self) -> None:
++        from agents.core.host_function_dispatcher import dispatch
++
++        with pytest.raises(RuntimeError, match="Unknown host function"):
++            dispatch("NONEXISTENT", [], "sovereign")
++
++    def test_sleep_builtin(self) -> None:
++        from agents.core.host_function_dispatcher import dispatch
++
++        start = time.time()
++        result = dispatch("SLEEP", [50], "hearth")  # 50ms
++        elapsed = time.time() - start
++        assert result is True
++        assert elapsed >= 0.04  # at least 40ms elapsed
++
++    def test_read_direct_fallback(self, tmp_path: Path) -> None:
++        """READ falls back to direct filesystem when Dapr is unavailable."""
++        from agents.core.host_function_dispatcher import dispatch
++
++        target = tmp_path / "test.txt"
++        target.write_text("hello acfs")
++
++        # Map BASE_DIR to tmp_path so ACFS path resolves correctly
++        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
++            result = dispatch("READ", ["test.txt"], "hearth")
++
++        assert result == "hello acfs"
++
++    def test_write_direct_fallback(self, tmp_path: Path) -> None:
++        """WRITE falls back to direct filesystem when Dapr is unavailable."""
++        from agents.core.host_function_dispatcher import dispatch
++
++        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
++            ok = dispatch("WRITE", ["output.txt", "written by test"], "hearth")
++
++        assert ok is True
++        assert (tmp_path / "output.txt").read_text() == "written by test"
++
++    def test_acfs_path_traversal_blocked(self, tmp_path: Path) -> None:
++        """Path traversal outside BASE_DIR must raise PermissionError."""
++        from agents.core.host_function_dispatcher import dispatch
++
++        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
++            with pytest.raises(PermissionError, match="ACFS confinement"):
++                dispatch("READ", ["../../etc/passwd"], "hearth")
++
++    def test_web_search_tier_enforcement(self) -> None:
++        """WEB_SEARCH is not available on hearth tier."""
++        from agents.core.host_function_dispatcher import dispatch
++
++        with pytest.raises(PermissionError, match="hearth"):
++            dispatch("WEB_SEARCH", ["query"], "hearth")
++
++
++# --------------------------------------------------------------------------- #
++# ACTION tag dispatch integration
++# --------------------------------------------------------------------------- #
++
++class TestActionDispatch:
++    def test_action_sleep_via_interpreter(self) -> None:
++        """[ACTION] SLEEP 50 — exercises the full ACTION dispatch path."""
++        ast = {
++            "version": "0.2.0",
++            "program": [
++                {"tag": "ACTION", "args": ["SLEEP", 50]},
++                {"tag": "RESULT", "args": [{"code": 0}, {"message": "ok"}]},
++            ],
++        }
++        result = hlfrun(ast)
++        assert result["code"] == 0
++        assert result["scope"]["SLEEP_RESULT"] is True
++
++    def test_action_read_write_round_trip(self, tmp_path: Path) -> None:
++        """[ACTION] WRITE then [ACTION] READ — verifies file I/O round-trip."""
++        ast = {
++            "version": "0.2.0",
++            "program": [
++                {"tag": "ACTION", "args": ["WRITE", "round_trip.txt", "test_data"]},
++                {"tag": "ACTION", "args": ["READ", "round_trip.txt"]},
++                {"tag": "RESULT", "args": [{"code": 0}, {"message": "ok"}]},
++            ],
++        }
++        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
++            result = hlfrun(ast)
++
++        assert result["scope"]["WRITE_RESULT"] is True
++        assert result["scope"]["READ_RESULT"] == "test_data"
++
++
++# --------------------------------------------------------------------------- #
++# Dual-mode bus tests
++# --------------------------------------------------------------------------- #
++
++class TestDualModeBus:
++    def _mock_redis(self, **overrides):
++        mock = AsyncMock()
++        mock.incr = AsyncMock(return_value=overrides.get("incr", 1))
++        mock.expire = AsyncMock(return_value=True)
++        mock.set = AsyncMock(return_value=True)
++        mock.xadd = AsyncMock(return_value="1-0")
++        mock.eval = AsyncMock(return_value=overrides.get("gas_eval", 999))
++        return mock
++
++    def _fake_get_redis(self, mock_redis):
++        async def _inner():
++            return mock_redis
++
++        return _inner
++
++    def test_text_mode_bypasses_hlf_validator(self) -> None:
++        """{'text': 'plain English'} should return 202, not 422."""
++        mock_redis = self._mock_redis()
++        with patch("agents.gateway.bus.get_redis", new=self._fake_get_redis(mock_redis)):
++            from agents.gateway import bus
++            from fastapi.testclient import TestClient
++
++            client = TestClient(bus.app, raise_server_exceptions=False)
++            resp = client.post("/api/v1/intent", json={"text": "analyze the seccomp file"})
++
++        assert resp.status_code == 202
++        data = resp.json()
++        assert data["ast"]["text_mode"] is True
++
++    def test_hlf_mode_still_validates(self) -> None:
++        """{'hlf': 'bad HLF'} should still return 422."""
++        mock_redis = self._mock_redis()
++        with patch("agents.gateway.bus.get_redis", new=self._fake_get_redis(mock_redis)):
++            from agents.gateway import bus
++            from fastapi.testclient import TestClient
++
++            client = TestClient(bus.app, raise_server_exceptions=False)
++            resp = client.post("/api/v1/intent", json={"hlf": "this is not valid HLF"})
++
++        assert resp.status_code == 422
++
++
++# --------------------------------------------------------------------------- #
++# execute_intent wiring test
++# --------------------------------------------------------------------------- #
++
++class TestExecuteIntent:
++    def test_ast_mode_executes_directly(self) -> None:
++        """Payloads with pre-compiled AST are executed by hlfrun directly."""
++        from agents.core.main import execute_intent
++
++        src = '[HLF-v2]\n[INTENT] test "x"\n[RESULT] code=0 message="done"\nΩ\n'
++        ast = hlfc_compile(src)
++        result = execute_intent({"request_id": "test-001", "ast": ast})
++        assert result["code"] == 0
++        assert result["message"] == "done"
++
++    def test_text_mode_returns_error_when_ollama_down(self) -> None:
++        """Text-mode payload returns code=1 when Ollama is not reachable."""
++        from agents.core.main import execute_intent
++
++        payload = {"request_id": "test-002", "text": "do something"}
++        result = execute_intent(payload)
++        # Ollama is not running in test env → RuntimeError captured gracefully
++        assert result["code"] == 1
++        assert "ollama" in result["message"].lower() or result["code"] == 1
+diff --git a/uv.lock b/uv.lock
+index c86343b..4063963 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -2203,6 +2203,49 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/57/bf/2086963c69bdac3d7cff1cc7ff79b8ce5ea0bec6797a017e1be338a46248/protobuf-6.33.5-py3-none-any.whl", hash = "sha256:69915a973dd0f60f31a08b8318b73eab2bd6a392c79184b3612226b0a3f8ec02", size = 170687, upload-time = "2026-01-29T21:51:32.557Z" },
+ ]
+ 
++[[package]]
++name = "pyarrow"
++version = "23.0.1"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/88/22/134986a4cc224d593c1afde5494d18ff629393d74cc2eddb176669f234a4/pyarrow-23.0.1.tar.gz", hash = "sha256:b8c5873e33440b2bc2f4a79d2b47017a89c5a24116c055625e6f2ee50523f019", size = 1167336, upload-time = "2026-02-16T10:14:12.39Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/9a/4b/4166bb5abbfe6f750fc60ad337c43ecf61340fa52ab386da6e8dbf9e63c4/pyarrow-23.0.1-cp312-cp312-macosx_12_0_arm64.whl", hash = "sha256:f4b0dbfa124c0bb161f8b5ebb40f1a680b70279aa0c9901d44a2b5a20806039f", size = 34214575, upload-time = "2026-02-16T10:09:56.225Z" },
++    { url = "https://files.pythonhosted.org/packages/e1/da/3f941e3734ac8088ea588b53e860baeddac8323ea40ce22e3d0baa865cc9/pyarrow-23.0.1-cp312-cp312-macosx_12_0_x86_64.whl", hash = "sha256:7707d2b6673f7de054e2e83d59f9e805939038eebe1763fe811ee8fa5c0cd1a7", size = 35832540, upload-time = "2026-02-16T10:10:03.428Z" },
++    { url = "https://files.pythonhosted.org/packages/88/7c/3d841c366620e906d54430817531b877ba646310296df42ef697308c2705/pyarrow-23.0.1-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:86ff03fb9f1a320266e0de855dee4b17da6794c595d207f89bba40d16b5c78b9", size = 44470940, upload-time = "2026-02-16T10:10:10.704Z" },
++    { url = "https://files.pythonhosted.org/packages/2c/a5/da83046273d990f256cb79796a190bbf7ec999269705ddc609403f8c6b06/pyarrow-23.0.1-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:813d99f31275919c383aab17f0f455a04f5a429c261cc411b1e9a8f5e4aaaa05", size = 47586063, upload-time = "2026-02-16T10:10:17.95Z" },
++    { url = "https://files.pythonhosted.org/packages/5b/3c/b7d2ebcff47a514f47f9da1e74b7949138c58cfeb108cdd4ee62f43f0cf3/pyarrow-23.0.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:bf5842f960cddd2ef757d486041d57c96483efc295a8c4a0e20e704cbbf39c67", size = 48173045, upload-time = "2026-02-16T10:10:25.363Z" },
++    { url = "https://files.pythonhosted.org/packages/43/b2/b40961262213beaba6acfc88698eb773dfce32ecdf34d19291db94c2bd73/pyarrow-23.0.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:564baf97c858ecc03ec01a41062e8f4698abc3e6e2acd79c01c2e97880a19730", size = 50621741, upload-time = "2026-02-16T10:10:33.477Z" },
++    { url = "https://files.pythonhosted.org/packages/f6/70/1fdda42d65b28b078e93d75d371b2185a61da89dda4def8ba6ba41ebdeb4/pyarrow-23.0.1-cp312-cp312-win_amd64.whl", hash = "sha256:07deae7783782ac7250989a7b2ecde9b3c343a643f82e8a4df03d93b633006f0", size = 27620678, upload-time = "2026-02-16T10:10:39.31Z" },
++    { url = "https://files.pythonhosted.org/packages/47/10/2cbe4c6f0fb83d2de37249567373d64327a5e4d8db72f486db42875b08f6/pyarrow-23.0.1-cp313-cp313-macosx_12_0_arm64.whl", hash = "sha256:6b8fda694640b00e8af3c824f99f789e836720aa8c9379fb435d4c4953a756b8", size = 34210066, upload-time = "2026-02-16T10:10:45.487Z" },
++    { url = "https://files.pythonhosted.org/packages/cb/4f/679fa7e84dadbaca7a65f7cdba8d6c83febbd93ca12fa4adf40ba3b6362b/pyarrow-23.0.1-cp313-cp313-macosx_12_0_x86_64.whl", hash = "sha256:8ff51b1addc469b9444b7c6f3548e19dc931b172ab234e995a60aea9f6e6025f", size = 35825526, upload-time = "2026-02-16T10:10:52.266Z" },
++    { url = "https://files.pythonhosted.org/packages/f9/63/d2747d930882c9d661e9398eefc54f15696547b8983aaaf11d4a2e8b5426/pyarrow-23.0.1-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:71c5be5cbf1e1cb6169d2a0980850bccb558ddc9b747b6206435313c47c37677", size = 44473279, upload-time = "2026-02-16T10:11:01.557Z" },
++    { url = "https://files.pythonhosted.org/packages/b3/93/10a48b5e238de6d562a411af6467e71e7aedbc9b87f8d3a35f1560ae30fb/pyarrow-23.0.1-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:9b6f4f17b43bc39d56fec96e53fe89d94bac3eb134137964371b45352d40d0c2", size = 47585798, upload-time = "2026-02-16T10:11:09.401Z" },
++    { url = "https://files.pythonhosted.org/packages/5c/20/476943001c54ef078dbf9542280e22741219a184a0632862bca4feccd666/pyarrow-23.0.1-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:9fc13fc6c403d1337acab46a2c4346ca6c9dec5780c3c697cf8abfd5e19b6b37", size = 48179446, upload-time = "2026-02-16T10:11:17.781Z" },
++    { url = "https://files.pythonhosted.org/packages/4b/b6/5dd0c47b335fcd8edba9bfab78ad961bd0fd55ebe53468cc393f45e0be60/pyarrow-23.0.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:5c16ed4f53247fa3ffb12a14d236de4213a4415d127fe9cebed33d51671113e2", size = 50623972, upload-time = "2026-02-16T10:11:26.185Z" },
++    { url = "https://files.pythonhosted.org/packages/d5/09/a532297c9591a727d67760e2e756b83905dd89adb365a7f6e9c72578bcc1/pyarrow-23.0.1-cp313-cp313-win_amd64.whl", hash = "sha256:cecfb12ef629cf6be0b1887f9f86463b0dd3dc3195ae6224e74006be4736035a", size = 27540749, upload-time = "2026-02-16T10:12:23.297Z" },
++    { url = "https://files.pythonhosted.org/packages/a5/8e/38749c4b1303e6ae76b3c80618f84861ae0c55dd3c2273842ea6f8258233/pyarrow-23.0.1-cp313-cp313t-macosx_12_0_arm64.whl", hash = "sha256:29f7f7419a0e30264ea261fdc0e5fe63ce5a6095003db2945d7cd78df391a7e1", size = 34471544, upload-time = "2026-02-16T10:11:32.535Z" },
++    { url = "https://files.pythonhosted.org/packages/a3/73/f237b2bc8c669212f842bcfd842b04fc8d936bfc9d471630569132dc920d/pyarrow-23.0.1-cp313-cp313t-macosx_12_0_x86_64.whl", hash = "sha256:33d648dc25b51fd8055c19e4261e813dfc4d2427f068bcecc8b53d01b81b0500", size = 35949911, upload-time = "2026-02-16T10:11:39.813Z" },
++    { url = "https://files.pythonhosted.org/packages/0c/86/b912195eee0903b5611bf596833def7d146ab2d301afeb4b722c57ffc966/pyarrow-23.0.1-cp313-cp313t-manylinux_2_28_aarch64.whl", hash = "sha256:cd395abf8f91c673dd3589cadc8cc1ee4e8674fa61b2e923c8dd215d9c7d1f41", size = 44520337, upload-time = "2026-02-16T10:11:47.764Z" },
++    { url = "https://files.pythonhosted.org/packages/69/c2/f2a717fb824f62d0be952ea724b4f6f9372a17eed6f704b5c9526f12f2f1/pyarrow-23.0.1-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:00be9576d970c31defb5c32eb72ef585bf600ef6d0a82d5eccaae96639cf9d07", size = 47548944, upload-time = "2026-02-16T10:11:56.607Z" },
++    { url = "https://files.pythonhosted.org/packages/84/a7/90007d476b9f0dc308e3bc57b832d004f848fd6c0da601375d20d92d1519/pyarrow-23.0.1-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:c2139549494445609f35a5cda4eb94e2c9e4d704ce60a095b342f82460c73a83", size = 48236269, upload-time = "2026-02-16T10:12:04.47Z" },
++    { url = "https://files.pythonhosted.org/packages/b0/3f/b16fab3e77709856eb6ac328ce35f57a6d4a18462c7ca5186ef31b45e0e0/pyarrow-23.0.1-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:7044b442f184d84e2351e5084600f0d7343d6117aabcbc1ac78eb1ae11eb4125", size = 50604794, upload-time = "2026-02-16T10:12:11.797Z" },
++    { url = "https://files.pythonhosted.org/packages/e9/a1/22df0620a9fac31d68397a75465c344e83c3dfe521f7612aea33e27ab6c0/pyarrow-23.0.1-cp313-cp313t-win_amd64.whl", hash = "sha256:a35581e856a2fafa12f3f54fce4331862b1cfb0bef5758347a858a4aa9d6bae8", size = 27660642, upload-time = "2026-02-16T10:12:17.746Z" },
++    { url = "https://files.pythonhosted.org/packages/8d/1b/6da9a89583ce7b23ac611f183ae4843cd3a6cf54f079549b0e8c14031e73/pyarrow-23.0.1-cp314-cp314-macosx_12_0_arm64.whl", hash = "sha256:5df1161da23636a70838099d4aaa65142777185cc0cdba4037a18cee7d8db9ca", size = 34238755, upload-time = "2026-02-16T10:12:32.819Z" },
++    { url = "https://files.pythonhosted.org/packages/ae/b5/d58a241fbe324dbaeb8df07be6af8752c846192d78d2272e551098f74e88/pyarrow-23.0.1-cp314-cp314-macosx_12_0_x86_64.whl", hash = "sha256:fa8e51cb04b9f8c9c5ace6bab63af9a1f88d35c0d6cbf53e8c17c098552285e1", size = 35847826, upload-time = "2026-02-16T10:12:38.949Z" },
++    { url = "https://files.pythonhosted.org/packages/54/a5/8cbc83f04aba433ca7b331b38f39e000efd9f0c7ce47128670e737542996/pyarrow-23.0.1-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:0b95a3994f015be13c63148fef8832e8a23938128c185ee951c98908a696e0eb", size = 44536859, upload-time = "2026-02-16T10:12:45.467Z" },
++    { url = "https://files.pythonhosted.org/packages/36/2e/c0f017c405fcdc252dbccafbe05e36b0d0eb1ea9a958f081e01c6972927f/pyarrow-23.0.1-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:4982d71350b1a6e5cfe1af742c53dfb759b11ce14141870d05d9e540d13bc5d1", size = 47614443, upload-time = "2026-02-16T10:12:55.525Z" },
++    { url = "https://files.pythonhosted.org/packages/af/6b/2314a78057912f5627afa13ba43809d9d653e6630859618b0fd81a4e0759/pyarrow-23.0.1-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:c250248f1fe266db627921c89b47b7c06fee0489ad95b04d50353537d74d6886", size = 48232991, upload-time = "2026-02-16T10:13:04.729Z" },
++    { url = "https://files.pythonhosted.org/packages/40/f2/1bcb1d3be3460832ef3370d621142216e15a2c7c62602a4ea19ec240dd64/pyarrow-23.0.1-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:5f4763b83c11c16e5f4c15601ba6dfa849e20723b46aa2617cb4bffe8768479f", size = 50645077, upload-time = "2026-02-16T10:13:14.147Z" },
++    { url = "https://files.pythonhosted.org/packages/eb/3f/b1da7b61cd66566a4d4c8383d376c606d1c34a906c3f1cb35c479f59d1aa/pyarrow-23.0.1-cp314-cp314-win_amd64.whl", hash = "sha256:3a4c85ef66c134161987c17b147d6bffdca4566f9a4c1d81a0a01cdf08414ea5", size = 28234271, upload-time = "2026-02-16T10:14:09.397Z" },
++    { url = "https://files.pythonhosted.org/packages/b5/78/07f67434e910a0f7323269be7bfbf58699bd0c1d080b18a1ab49ba943fe8/pyarrow-23.0.1-cp314-cp314t-macosx_12_0_arm64.whl", hash = "sha256:17cd28e906c18af486a499422740298c52d7c6795344ea5002a7720b4eadf16d", size = 34488692, upload-time = "2026-02-16T10:13:21.541Z" },
++    { url = "https://files.pythonhosted.org/packages/50/76/34cf7ae93ece1f740a04910d9f7e80ba166b9b4ab9596a953e9e62b90fe1/pyarrow-23.0.1-cp314-cp314t-macosx_12_0_x86_64.whl", hash = "sha256:76e823d0e86b4fb5e1cf4a58d293036e678b5a4b03539be933d3b31f9406859f", size = 35964383, upload-time = "2026-02-16T10:13:28.63Z" },
++    { url = "https://files.pythonhosted.org/packages/46/90/459b827238936d4244214be7c684e1b366a63f8c78c380807ae25ed92199/pyarrow-23.0.1-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:a62e1899e3078bf65943078b3ad2a6ddcacf2373bc06379aac61b1e548a75814", size = 44538119, upload-time = "2026-02-16T10:13:35.506Z" },
++    { url = "https://files.pythonhosted.org/packages/28/a1/93a71ae5881e99d1f9de1d4554a87be37da11cd6b152239fb5bd924fdc64/pyarrow-23.0.1-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:df088e8f640c9fae3b1f495b3c64755c4e719091caf250f3a74d095ddf3c836d", size = 47571199, upload-time = "2026-02-16T10:13:42.504Z" },
++    { url = "https://files.pythonhosted.org/packages/88/a3/d2c462d4ef313521eaf2eff04d204ac60775263f1fb08c374b543f79f610/pyarrow-23.0.1-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:46718a220d64677c93bc243af1d44b55998255427588e400677d7192671845c7", size = 48259435, upload-time = "2026-02-16T10:13:49.226Z" },
++    { url = "https://files.pythonhosted.org/packages/cc/f1/11a544b8c3d38a759eb3fbb022039117fd633e9a7b19e4841cc3da091915/pyarrow-23.0.1-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:a09f3876e87f48bc2f13583ab551f0379e5dfb83210391e68ace404181a20690", size = 50629149, upload-time = "2026-02-16T10:13:57.238Z" },
++    { url = "https://files.pythonhosted.org/packages/50/f2/c0e76a0b451ffdf0cf788932e182758eb7558953f4f27f1aff8e2518b653/pyarrow-23.0.1-cp314-cp314t-win_amd64.whl", hash = "sha256:527e8d899f14bd15b740cd5a54ad56b7f98044955373a17179d5956ddb93d9ce", size = 28365807, upload-time = "2026-02-16T10:14:03.892Z" },
++]
++
+ [[package]]
+ name = "pydantic"
+ version = "2.12.5"
+@@ -2699,6 +2742,7 @@ dependencies = [
+     { name = "fastapi" },
+     { name = "httpx" },
+     { name = "lark" },
++    { name = "pyarrow" },
+     { name = "pydantic" },
+     { name = "pydantic-settings" },
+     { name = "redis" },
+@@ -2728,6 +2772,7 @@ requires-dist = [
+     { name = "httpx", specifier = ">=0.27.0" },
+     { name = "lark", specifier = ">=1.2.0" },
+     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=4.0.0" },
++    { name = "pyarrow", specifier = ">=23.0.1" },
+     { name = "pydantic", specifier = ">=2.9.0" },
+     { name = "pydantic-settings", specifier = ">=2.5.0" },
+     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3.0" },

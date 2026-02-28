@@ -62,6 +62,7 @@ _GRAMMAR = r"""
     %ignore " "+
     %ignore /\[HLF-v\d+\]/
     %ignore /\[HLF-v[^\]]*\]/
+    %ignore /Δ|Ж|⩕|⌘|∇|⨝/
 """
 
 _parser = Lark(_GRAMMAR, parser="lalr", start="start")
