@@ -45,12 +45,26 @@ jobs:
           # OS Tier Configuration
           DEPLOYMENT_TIER: "forge"
           AUTO_RUN: "true"
-          REDIS_URL: "redis://localhost:6379/0"
+          REDIS_URL: "redis://127.0.0.1:6379/0"
         run: |
           uv sync
           
-          echo "Waiting for Redis to be ready on localhost:6379..."
-          timeout 30s bash -c 'until printf "" 2>/dev/null >/dev/tcp/localhost/6379; do sleep 1; done' || (echo "Redis wait timed out" && exit 1)
+          echo "Waiting for Redis to be ready on 127.0.0.1:6379..."
+          # Use 127.0.0.1 explicitly to avoid IPv6 issues inside the runner
+          for i in {1..60}; do
+            if bash -c "printf '' > /dev/tcp/127.0.0.1/6379" 2>/dev/null; then
+              echo "Redis is UP!"
+              break
+            fi
+            if [ $i -eq 60 ]; then
+              echo "Redis wait timed out. Container status:"
+              docker compose ps
+              docker compose logs redis-broker
+              exit 1
+            fi
+            echo "Waiting... ($i/60)"
+            sleep 1
+          done
           
           echo "Starting Agent Executor in background..."
           uv run python -m agents.core.main &
