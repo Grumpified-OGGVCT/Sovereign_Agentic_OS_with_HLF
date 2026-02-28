@@ -113,25 +113,35 @@ def prune_old_facts(conn: sqlite3.Connection) -> int:
     deletion so the data is never permanently lost.
 
     Returns the number of rows pruned.
+
+    Notes
+    -----
+    This function currently uses the SQLite ``rowid`` as a proxy for fact age,
+    since no explicit ``last_accessed`` or timestamp column exists yet.
+    The ``FACT_PRUNE_AGE_DAYS`` environment variable is therefore interpreted
+    as a *percentile* (0–100) over insertion order: low-confidence facts whose
+    ``rowid`` falls below that percentile threshold are considered candidates
+    for pruning.
     """
     import json as _json
 
-    prune_age_days = int(os.environ.get("FACT_PRUNE_AGE_DAYS", str(_PRUNE_AGE_DAYS_DEFAULT)))
+    prune_age_days = float(os.environ.get("FACT_PRUNE_AGE_DAYS", str(_PRUNE_AGE_DAYS_DEFAULT)))
     prune_confidence = float(os.environ.get("FACT_PRUNE_CONFIDENCE", str(_PRUNE_CONFIDENCE_DEFAULT)))
 
     # Identify stale low-confidence facts.
     # We use the fact_store rowid as a proxy for insertion time because no
-    # explicit last_accessed column exists yet.  Lower rowid = older.
+    # explicit last_accessed column exists yet. Lower rowid = older.
+    # Interpret FACT_PRUNE_AGE_DAYS as a percentile (0–100) over the rowid span.
+    prune_percentile = max(0.0, min(100.0, prune_age_days))
     oldest_rowid_cutoff = conn.execute(
         """
         SELECT MAX(rowid) FROM fact_store
         WHERE rowid <= (
-            SELECT COALESCE(MIN(rowid) +
-                (SELECT COUNT(*) FROM fact_store) * ? / 100, 0)
+            SELECT MIN(rowid) + (MAX(rowid) - MIN(rowid)) * ? / 100.0
             FROM fact_store
         )
         """,
-        (int(prune_age_days / 30 * 30),),  # approximate percentile of age
+        (prune_percentile,),
     ).fetchone()[0]
 
     if oldest_rowid_cutoff is None:
