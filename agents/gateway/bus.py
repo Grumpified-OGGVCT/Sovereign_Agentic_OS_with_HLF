@@ -16,7 +16,7 @@ from pydantic_settings import BaseSettings
 from hlf import validate_hlf_heuristic
 from hlf.hlfc import compile as hlfc_compile
 from agents.gateway.sentinel_gate import enforce_align
-import os
+from agents.gateway.router import consume_gas_async, verify_gas_limit, record_intent_activity
 import httpx
 
 try:
@@ -98,25 +98,49 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
     if count > 50:
         raise HTTPException(status_code=429, detail="Rate limit exceeded")
 
-    # Determine payload
+    # Determine mode: hlf (compile-time validated) vs text (Ollama pipeline)
+    is_text_mode = body.hlf is None and body.text is not None
     hlf_payload = body.hlf if body.hlf is not None else body.text
     if not hlf_payload:
         raise HTTPException(status_code=422, detail="Provide 'text' or 'hlf' field")
 
-    # 2. Fast HLF Heuristic rejection (replaces line-by-line static linter)
-    if not validate_hlf_heuristic(hlf_payload):
-         raise HTTPException(status_code=422, detail="Invalid HLF syntax: Rejected by heuristic")
+    if is_text_mode:
+        # Text mode: skip HLF validation — package for Ollama inference pipeline
+        ast: dict = {"version": "0.2.0", "program": [], "text_mode": True}
+        # Text-mode intents charge 1 gas unit (LLM inference cost tracked separately)
+        gas_charge = 1
+    else:
+        # HLF mode: full compile + validate pipeline
+        # 2. Fast HLF Heuristic rejection
+        if not validate_hlf_heuristic(hlf_payload):
+            raise HTTPException(status_code=422, detail="Invalid HLF syntax: Rejected by heuristic")
 
-    # 3. Compile HLF → AST (Before ALIGN evaluation)
-    try:
-        ast = hlfc_compile(hlf_payload)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"HLF compile error: {exc}") from exc
+        # 3. Compile HLF → AST (Before ALIGN evaluation)
+        try:
+            ast = hlfc_compile(hlf_payload)
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"HLF compile error: {exc}") from exc
 
-    # 4. ALIGN enforcer on structured AST
-    blocked, rule_id = enforce_align(ast)
-    if blocked:
-        raise HTTPException(status_code=403, detail=f"ALIGN rule violated: {rule_id}")
+        # 4. ALIGN enforcer on structured AST
+        blocked, rule_id = enforce_align(ast)
+        if blocked:
+            raise HTTPException(status_code=403, detail=f"ALIGN rule violated: {rule_id}")
+
+        # Gas charge = AST node count (each top-level statement = 1 unit)
+        gas_charge = len(ast.get("program", []))
+
+        # Per-intent gas limit enforcement (in addition to the global tier bucket)
+        ok, node_count = verify_gas_limit(ast, settings.max_gas_limit)
+        if not ok:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Intent gas limit exceeded: {node_count}/{settings.max_gas_limit} nodes",
+            )
+
+    # 4b. Global Per-Tier Gas Bucket (Lua atomic decrement)
+    gas_ok = await consume_gas_async(settings.deployment_tier, gas_charge, r)
+    if not gas_ok:
+        raise HTTPException(status_code=429, detail="Global gas budget exhausted for this tier")
 
     # 5. ULID nonce replay protection
     request_id = _new_ulid()
@@ -126,22 +150,24 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
         raise HTTPException(status_code=409, detail="Duplicate request nonce")
 
     timestamp = time.time()
-    
-    # 6. Publish via Dapr pub/sub
+
+    # 6. Publish via Dapr pub/sub; fall back to direct Redis stream on Dapr failure
     pub_url = f"{settings.dapr_host}/v1.0/publish/pubsub/intents"
+    stream_payload: dict = {"request_id": request_id, "timestamp": timestamp, "ast": ast}
+    if is_text_mode:
+        stream_payload["text"] = hlf_payload  # forward raw text for Ollama inference
+    stream_id = "dapr-pubsub"
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.post(pub_url, json={
-                "request_id": request_id,
-                "timestamp": timestamp,
-                "ast": ast
-            })
+            resp = await client.post(pub_url, json=stream_payload)
             resp.raise_for_status()
-            _cb_failures = 0 # reset on success
-    except httpx.RequestError as exc:
+            _cb_failures = 0  # reset on success
+    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
         _cb_failures += 1
         _CB_RESET_TIME = time.time() + _CB_TIMEOUT
-        # Fallback to direct Redis streams if Dapr fails
-        await r.xadd("intents", {"data": json.dumps({"request_id": request_id, "ast": ast})})
+        # Fallback to direct Redis streams if Dapr is unavailable/returns non-2xx
+        redis_id = await r.xadd("intents", {"data": json.dumps(stream_payload)})
+        stream_id = f"redis-stream:{redis_id}"
 
-    return IntentResponse(request_id=request_id, timestamp=timestamp, ast=ast, stream_id="dapr-pubsub")
+    record_intent_activity()
+    return IntentResponse(request_id=request_id, timestamp=timestamp, ast=ast, stream_id=stream_id)

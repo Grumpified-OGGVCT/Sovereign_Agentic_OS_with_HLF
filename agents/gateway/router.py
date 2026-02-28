@@ -27,22 +27,88 @@ class Settings(BaseSettings):
 
 settings = Settings()
 
-# Gas Lua atomic decrement script
+# Per-tier gas bucket capacities (from config/settings.json)
+_TIER_GAS_CAPS: dict[str, int] = {
+    "hearth": 1000,
+    "forge": 10000,
+    "sovereign": 100000,
+}
+
+# Gas Lua atomic check-and-decrement script.
+# Initialises the bucket on first use with the tier cap, then atomically decrements.
+# Sets a 25-hour TTL so the bucket self-resets if the nightly replenish_gas() cron fails.
+# Returns remaining gas, or -1 if the bucket is exhausted.
 _GAS_DECREMENT_LUA = """
 local key = KEYS[1]
 local cost = tonumber(ARGV[1])
 local cap  = tonumber(ARGV[2])
+local ttl  = 90000
+-- Guard: reject requests that exceed tier capacity to prevent negative balance
+-- (e.g., misconfiguration or a malformed intent with abnormally large AST)
+if cost > cap then
+    return -1
+end
 local curr = redis.call('GET', key)
 if curr == false then
-    redis.call('SET', key, cap - cost, 'EX', 3600)
+    -- Bucket not yet initialised — set to cap-cost and return remaining
+    redis.call('SET', key, cap - cost, 'EX', ttl)
     return cap - cost
 end
 curr = tonumber(curr)
 if curr < cost then
     return -1
 end
-return redis.call('DECRBY', key, cost)
+local remaining = redis.call('DECRBY', key, cost)
+redis.call('EXPIRE', key, ttl)
+return remaining
 """
+
+# Last-known intent timestamps for Idle Curiosity Protocol
+_last_intent_ts: float = time.time()
+
+
+def record_intent_activity() -> None:
+    """Record that an intent was just processed (for Idle Curiosity tracking)."""
+    global _last_intent_ts
+    _last_intent_ts = time.time()
+
+
+def get_last_intent_timestamp() -> float:
+    """Return the timestamp of the last recorded intent (for observability/logging)."""
+    return _last_intent_ts
+
+
+def is_system_idle(idle_threshold_sec: int = 3600) -> bool:
+    """Return True if no intent has been received for *idle_threshold_sec* seconds."""
+    return (time.time() - _last_intent_ts) >= idle_threshold_sec
+
+
+def consume_gas(tier: str, cost: int, r: Any) -> bool:
+    """
+    Atomically consume *cost* gas units from the per-tier Redis bucket.
+
+    Returns True if gas was available and consumed, False (HTTP 429 signal) if
+    the bucket is exhausted.  Uses a Lua script for atomic check-and-decrement.
+    Synchronous version — use ``consume_gas_async`` in async contexts.
+    """
+    cap = _TIER_GAS_CAPS.get(tier, _TIER_GAS_CAPS["hearth"])
+    key = f"gas:{tier}"
+    result = r.eval(_GAS_DECREMENT_LUA, 1, key, str(cost), str(cap))
+    return int(result) >= 0
+
+
+async def consume_gas_async(tier: str, cost: int, r: Any) -> bool:
+    """Async variant of :func:`consume_gas` for use with redis.asyncio clients."""
+    cap = _TIER_GAS_CAPS.get(tier, _TIER_GAS_CAPS["hearth"])
+    key = f"gas:{tier}"
+    result = await r.eval(_GAS_DECREMENT_LUA, 1, key, str(cost), str(cap))
+    return int(result) >= 0
+
+
+def replenish_gas(tier: str, r: Any) -> None:
+    """Restore the gas bucket for *tier* to its full capacity (nightly cron use)."""
+    cap = _TIER_GAS_CAPS.get(tier, _TIER_GAS_CAPS["hearth"])
+    r.set(f"gas:{tier}", cap)
 
 
 def _is_cloud(model: str) -> bool:
