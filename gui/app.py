@@ -116,7 +116,7 @@ with center_canvas:
     with st.container(border=True):
         st.markdown("**Dispatch HLF Intent**")
         intent_input = st.text_input("HLF Vector", placeholder="[INTENT] analyze /security/seccomp.json [CONSTRAINT] mode=\"read-only\" Ω")
-        colA, colB = st.columns([1, 3])
+        colA, _ = st.columns([1, 3])
         with colA:
             dispatch_btn = st.button("🚀 Dispatch to OS")
         
