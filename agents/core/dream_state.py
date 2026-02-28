@@ -17,6 +17,8 @@ _COLD_ARCHIVE = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "cold_archiv
 
 def compress_rolling_context(conn: sqlite3.Connection) -> None:
     """Map-reduce summarize day's rolling context."""
+    from agents.core.fractal_summarization import FractalSummarizer
+
     cutoff = time.time() - 86400  # 24 hours
     rows = conn.execute(
         "SELECT session_id, fifo_blob FROM rolling_context WHERE timestamp > ?", (cutoff,)
@@ -24,12 +26,17 @@ def compress_rolling_context(conn: sqlite3.Connection) -> None:
     if not rows:
         return
     combined = " ".join(r[1] for r in rows)
-    # TODO(Phase 5): Replace truncation with proper map-reduce summarization via qwen:7b
-    summary = combined[:1500]  # truncate to ~1500 tokens as placeholder
+    
+    # Use real map-reduce summarization
+    summary = FractalSummarizer.summarize_context(combined, target_tokens=1500)
+    
+    # Fast token count estimation (approx. 4 chars per token)
+    token_count = len(summary) // 4
+    
     conn.execute(
         "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
         "VALUES (?, ?, ?, ?)",
-        ("dream_summary", time.time(), summary, len(summary.split())),
+        ("dream_summary", time.time(), summary, token_count),
     )
     conn.commit()
 

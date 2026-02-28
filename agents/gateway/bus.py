@@ -13,9 +13,11 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
-from hlf import validate_hlf
+from hlf import validate_hlf_heuristic
 from hlf.hlfc import compile as hlfc_compile
 from agents.gateway.sentinel_gate import enforce_align
+import os
+import httpx
 
 try:
     import ulid as _ulid_module
@@ -34,6 +36,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     max_gas_limit: int = 10
     deployment_tier: str = "hearth"
+    dapr_host: str = "http://localhost:3500"
 
     model_config = {"env_file": ".env"}
 
@@ -42,6 +45,12 @@ settings = Settings()
 app = FastAPI(title="Sovereign Gateway", version="0.1.0")
 
 _redis: Optional[aioredis.Redis] = None
+
+# Circuit Breaker state
+_cb_failures = 0
+_CB_THRESHOLD = 5
+_CB_RESET_TIME = 0.0
+_CB_TIMEOUT = 30.0  # seconds
 
 
 async def get_redis() -> aioredis.Redis:
@@ -70,6 +79,15 @@ async def health() -> dict:
 
 @app.post("/api/v1/intent", status_code=202)
 async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
+    global _cb_failures, _CB_RESET_TIME
+    
+    # Check circuit breaker
+    if _cb_failures >= _CB_THRESHOLD:
+        if time.time() < _CB_RESET_TIME:
+            raise HTTPException(status_code=503, detail="Dapr Circuit Breaker Open")
+        else:
+            _cb_failures = 0  # Half-open
+            
     r = await get_redis()
 
     # 1. Token bucket rate limiter (50 rpm)
@@ -85,31 +103,45 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
     if not hlf_payload:
         raise HTTPException(status_code=422, detail="Provide 'text' or 'hlf' field")
 
-    # 2. HLF linter
-    for line in hlf_payload.splitlines():
-        if line.strip() and not validate_hlf(line):
-            raise HTTPException(status_code=422, detail=f"Invalid HLF syntax: {line!r}")
+    # 2. Fast HLF Heuristic rejection (replaces line-by-line static linter)
+    if not validate_hlf_heuristic(hlf_payload):
+         raise HTTPException(status_code=422, detail="Invalid HLF syntax: Rejected by heuristic")
 
-    # 3. ALIGN enforcer
-    blocked, rule_id = enforce_align(hlf_payload)
+    # 3. Compile HLF → AST (Before ALIGN evaluation)
+    try:
+        ast = hlfc_compile(hlf_payload)
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"HLF compile error: {exc}") from exc
+
+    # 4. ALIGN enforcer on structured AST
+    blocked, rule_id = enforce_align(ast)
     if blocked:
         raise HTTPException(status_code=403, detail=f"ALIGN rule violated: {rule_id}")
 
-    # 4. ULID nonce replay protection
+    # 5. ULID nonce replay protection
     request_id = _new_ulid()
     nonce_key = f"nonce:{request_id}"
     set_ok = await r.set(nonce_key, "1", nx=True, ex=600)
     if not set_ok:
         raise HTTPException(status_code=409, detail="Duplicate request nonce")
 
-    # Compile HLF → AST
-    try:
-        ast = hlfc_compile(hlf_payload)
-    except Exception as exc:
-        raise HTTPException(status_code=422, detail=f"HLF compile error: {exc}") from exc
-
     timestamp = time.time()
-    message = json.dumps({"request_id": request_id, "timestamp": timestamp, "ast": ast})
-    stream_id = await r.xadd("intents", {"data": message})
+    
+    # 6. Publish via Dapr pub/sub
+    pub_url = f"{settings.dapr_host}/v1.0/publish/pubsub/intents"
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.post(pub_url, json={
+                "request_id": request_id,
+                "timestamp": timestamp,
+                "ast": ast
+            })
+            resp.raise_for_status()
+            _cb_failures = 0 # reset on success
+    except httpx.RequestError as exc:
+        _cb_failures += 1
+        _CB_RESET_TIME = time.time() + _CB_TIMEOUT
+        # Fallback to direct Redis streams if Dapr fails
+        await r.xadd("intents", {"data": json.dumps({"request_id": request_id, "ast": ast})})
 
-    return IntentResponse(request_id=request_id, timestamp=timestamp, ast=ast, stream_id=stream_id)
+    return IntentResponse(request_id=request_id, timestamp=timestamp, ast=ast, stream_id="dapr-pubsub")

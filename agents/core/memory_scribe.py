@@ -17,10 +17,18 @@ _DB_PATH = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "sqlite" / "memor
 _DLQ_STREAM = "memory_scribe_dlq"
 
 
+import sqlite_vec
+
 def _get_connection() -> sqlite3.Connection:
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(_DB_PATH), check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
+    try:
+        conn.enable_load_extension(True)
+        sqlite_vec.load(conn)
+        conn.enable_load_extension(False)
+    except AttributeError:
+        pass # Depending on python build, extension loading might be restricted
     return conn
 
 
@@ -43,6 +51,10 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             semantic_relationship TEXT,
             confidence_score REAL NOT NULL DEFAULT 0.0
         );
+        -- Vector Search Table using sqlite-vec
+        CREATE VIRTUAL TABLE IF NOT EXISTS vec_facts USING vec0(
+            embedding float[768]
+        );
     """)
     conn.commit()
 
@@ -59,11 +71,18 @@ def write_fact(
     confidence_score: float,
 ) -> None:
     vec_json = json.dumps(vector_embedding) if vector_embedding else None
-    conn.execute(
+    cur = conn.cursor()
+    cur.execute(
         "INSERT INTO fact_store (entity_id, vector_embedding, semantic_relationship, confidence_score) "
         "VALUES (?, ?, ?, ?)",
         (entity_id, vec_json, semantic_relationship, confidence_score),
     )
+    if vec_json is not None:
+        row_id = cur.lastrowid
+        cur.execute(
+            "INSERT INTO vec_facts(rowid, embedding) VALUES (?, ?)",
+            (row_id, vec_json)
+        )
     conn.commit()
 
 

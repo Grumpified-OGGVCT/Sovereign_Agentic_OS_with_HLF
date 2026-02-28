@@ -60,10 +60,10 @@ def main() -> None:
         print("Usage: hlffmt [--in-place] input.hlf", file=sys.stderr)
         sys.exit(1)
     p = Path(args[0])
-    source = p.read_text()
+    source = p.read_text(encoding="utf-8")
     formatted = format_hlf(source)
     if in_place:
-        p.write_text(formatted)
+        p.write_text(formatted, encoding="utf-8")
     else:
         print(formatted, end="")
 

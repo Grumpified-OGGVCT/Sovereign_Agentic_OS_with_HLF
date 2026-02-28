@@ -1,5 +1,7 @@
 [HLF-v2]
 [INTENT] greet "world"
-[EXPECT] "Hello, world!"
-[RESULT] code=0 message="ok"
+[SET] target="world"
+[FUNCTION] echo "target"
+[EXPECT] "target == 'world'"
+[RESULT] code=0 message="baseline intact"
 Ω

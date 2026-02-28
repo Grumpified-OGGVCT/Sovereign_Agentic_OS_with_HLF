@@ -1,24 +1,23 @@
-"""
-HLF (Hieroglyphic Logic Framework) package.
-Exports validate_hlf() for gateway middleware.
-"""
+"""Hieroglyphic Logic Framework (HLF) Toolkit."""
 from __future__ import annotations
 
 import re
 
-_TAG_RE = re.compile(r"^\s*\[[A-Z_]+\]")
-_SPECIAL_LINES = {"Ω", "[HLF-v2]", ""}
+# Export core utilities
+from .hlfc import compile, HlfSyntaxError, HlfRuntimeError
+from .hlffmt import format_hlf
 
+__all__ = ["compile", "format_hlf", "validate_hlf_heuristic", "HlfSyntaxError", "HlfRuntimeError"]
 
-def validate_hlf(line: str) -> bool:
-    r"""
-    Returns True if *line* is a valid HLF line:
-    - Empty / whitespace-only lines
-    - Version header [HLF-v2]
-    - Terminator Ω
-    - Any tag line matching ^\s*\[[A-Z_]+\]
+# Fast pre-validation regex for Agent Service Bus (ASB)
+# Rejects grossly malformed text before handing off to Lark parser to save CPU/gas
+_HLF_HEURISTIC_RE = re.compile(r"^\[HLF-v2\].*?(?:\u03a9|\bOmega\b)\s*$", re.DOTALL)
+
+def validate_hlf_heuristic(text: str) -> bool:
+    """Fast regex check if text looks structurally like HLF.
+    
+    Used by ASB router to instantly drop non-HLF text without invoking full parser.
+    Requires [HLF-v2] header and Ω terminator.
     """
-    stripped = line.strip()
-    if stripped in _SPECIAL_LINES or stripped == "\u03a9":
-        return True
-    return bool(_TAG_RE.match(line))
+    text = text.strip()
+    return bool(_HLF_HEURISTIC_RE.match(text))

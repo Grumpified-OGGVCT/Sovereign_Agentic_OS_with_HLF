@@ -13,7 +13,7 @@ REPO_ROOT = Path(__file__).parent.parent
 
 
 def test_hello_world_roundtrip() -> None:
-    source = (REPO_ROOT / "tests" / "fixtures" / "hello_world.hlf").read_text()
+    source = (REPO_ROOT / "tests" / "fixtures" / "hello_world.hlf").read_text(encoding="utf-8")
     ast1 = hlfc_compile(source)
     formatted = format_hlf(source)
     ast2 = hlfc_compile(formatted)

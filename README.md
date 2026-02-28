@@ -1,8 +1,6 @@
 # Sovereign Agentic OS with HLF
 
-<p align="center">
-  <img src="assets/The Rosetta Stone of Agentic AI Systems.svg" alt="The Rosetta Stone of Agentic AI Systems" width="100%">
-</p>
+![The Rosetta Stone of Agentic AI Systems](assets/The%20Rosetta%20Stone%20of%20Agentic%20AI%20Systems.svg)
 
 A **Spec-Driven Development (SDD)** project for a Sovereign Agentic OS with a custom DSL called **HLF (Hieroglyphic Logic Framework)**. This framework forms a zero-trust, completely isolated orchestration environment designed for robust multi-agent execution at scale.
 
@@ -36,7 +34,7 @@ bash bootstrap_all_in_one.sh
 The OS adapts configuration, networking privileges, and security boundaries based on the deployment tier:
 
 | Tier | Docker Profile | Gas Bucket | Context Tokens | Description |
-|------|---------------|------------|----------------|-------------|
+| ---- | -------------- | ---------- | -------------- | ----------- |
 | `hearth` | (default) | 1,000 | 8,192 | Home / personal use |
 | `forge` | forge | 10,000 | 16,384 | Professional / team use |
 | `sovereign` | sovereign | 100,000 | 32,768 | Enterprise / air-gapped |
@@ -56,6 +54,7 @@ The OS adapts configuration, networking privileges, and security boundaries base
 ```
 
 **Compiler Rules:**
+
 - First line must be `[INTENT]`
 - One tag per line — no prose
 - Every message ends with `Ω`
@@ -74,6 +73,7 @@ The OS adapts configuration, networking privileges, and security boundaries base
 ## 📚 Official Design Documents & Blueprints
 
 Dive deeper into the comprehensive design documentation that informs the OS specifications:
+
 - [Genesis Stack Blueprint](assets/Genesis_Stack_Blueprint.pdf)
 - [Sovereign Agentic Stack Architecture](assets/Sovereign_Agentic_Stack.pdf)
 - [Ollama Matrix Sync Pipeline](assets/Ollama_Matrix_Sync.pdf)
@@ -81,7 +81,7 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 ## 💻 Tech Stack
 
 | Component | Technology |
-|-----------|-----------|
+| --------- | ---------- |
 | Language | Python 3.12 |
 | API | FastAPI + Uvicorn |
 | Message Bus | Redis Streams |

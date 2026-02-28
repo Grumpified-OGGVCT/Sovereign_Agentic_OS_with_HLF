@@ -6,9 +6,11 @@ spec:
   type: pubsub.redis
   version: v1
   metadata:
-    - name: redisHost
-      value: "redis-broker:6379"
-    - name: redisPassword
-      value: ""
-    - name: consumerID
-      value: "sovereign-consumer"
+  - name: redisHost
+    value: "redis-broker:6379"
+  - name: redisPassword
+    value: ""
+scopes:
+  - gateway-node
+  - agent-executor
+  - memory-core

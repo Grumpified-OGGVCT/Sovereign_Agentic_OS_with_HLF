@@ -35,14 +35,22 @@ def _load_ledger() -> None:
 _load_ledger()
 
 
-def enforce_align(payload: str) -> tuple[bool, str]:
+import json
+
+def enforce_align(payload: str | dict) -> tuple[bool, str]:
     """
     Scan *payload* against compiled ALIGN rules.
+    If payload is an AST dict, it is dumped to JSON for structural regex checks.
     Returns (blocked: bool, rule_id: str).
     """
+    if isinstance(payload, dict):
+        text_to_scan = json.dumps(payload)
+    else:
+        text_to_scan = str(payload)
+        
     for rule in _compiled_rules:
         pattern: Optional[re.Pattern] = rule.get("_pattern")
-        if pattern and pattern.search(payload):
+        if pattern and pattern.search(text_to_scan):
             return True, rule.get("id", "unknown")
     return False, ""
 

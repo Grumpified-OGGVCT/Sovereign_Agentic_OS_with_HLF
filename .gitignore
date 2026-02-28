@@ -207,11 +207,19 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Note: governance/, security/, observability/, ci/ are now tracked.
-# Only ignore runtime-generated data and secrets.
+# Note: governance/, security/, observability/, ci/ are tracked by default.
+# Ignore runtime-generated data and secrets in data/, but keep directory structure.
 data/sqlite/*.db
 data/sqlite/*.sqlite3
-data/cold_archive/*.json
-data/cold_archive/*.parquet
-data/quarantine_dumps/*.json
+data/sqlite/*.db-shm
+data/sqlite/*.db-wal
+data/cold_archive/*
+!data/cold_archive/.gitkeep
+data/quarantine_dumps/*
+!data/quarantine_dumps/.gitkeep
+data/align_staging/*
+!data/align_staging/.gitkeep
+data/redis/
+
+# Observability dynamic hashes
 observability/openllmetry/last_hash.txt
