@@ -22,6 +22,25 @@ graph TD
     ASB-->Redis["Redis Broker\n(:6379)"]
 ```
 
+## 📖 The Origin Story & Architecture Credits
+
+*Off the record, this architecture was born from sheer frustration and terminal quota exhaustion.*
+
+The Sovereign OS began as a simple question asked when cloud API tokens ran dry: *"Why not create a compressed language exclusively for AI-to-AI communication to save tokens?"* Those scattered notes morphed into the foundational "God View" stack via intensive prompting sessions spanning days.
+
+**Forging the Manifest (The Plan from the Plans):**
+After the initial NotebookLM brainstorming exhausted context windows, the raw concepts were dumped into a monolithic baseline plan. We subjected the entire architecture to a **De Bono 6-Hat Agentic Matrix** cycle (Red, Black, White, Yellow, Green, Blue Hats) to forge the ironclad, verified system you see here.
+
+**Architectural Credits & Gratitude:**
+- **My Wife:** For her constant, patient support and giving me the massive amounts of unmanaged time required to architect this.
+- **Google NotebookLM & Gemini Pro:** For serving as the chaotic sounding board and vital structural refiner.
+- **Msty Studio & OpenRouter:** For frontier-tier model access during grueling CoVe verification loops.
+- **GitHub:** Where this OS will inevitably be hosted, versioned, and open-sourced.
+- **Ollama Cloud Models:** For making local/cloud-hybrid multi-agent swarms financially feasible.
+- **Meeting Assistant & AnythingLLM:** For extracting audio and capturing vital "critic" red-teaming sessions.
+- **LOLLMS (ParisNeo):** For constant inspiration and architectural solutions throughout these builds.
+- **Hof (from Websim.com):** For being a constant source of wild ideas, support, and an invaluable sounding board.
+
 ## 🚀 Quick Start
 
 ```bash

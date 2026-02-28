@@ -21,6 +21,11 @@ dependencies = [
     "docker>=7.1.0",
     "sqlite-vec>=0.1.6",
     "pyarrow>=23.0.1",
+    "pystray>=0.19.5",
+    "pillow>=12.1.1",
+    "streamlit>=1.54.0",
+    "plotly>=6.5.2",
+    "pandas>=2.3.3",
 ]
 
 [project.optional-dependencies]

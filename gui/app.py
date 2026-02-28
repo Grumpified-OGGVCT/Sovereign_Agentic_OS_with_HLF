@@ -1,10 +1,11 @@
 import streamlit as st
 import redis
-import json
-import time
+import httpx
+import pandas as pd
+import numpy as np
 
 # --- Setup Page Config ---
-st.set_page_config(page_title="Sovereign OS Command Center", page_icon="👑", layout="wide")
+st.set_page_config(page_title="Sovereign OS | Cognitive SOC", page_icon="👑", layout="wide")
 
 # --- Custom CSS for Premium Look ---
 st.markdown("""
@@ -28,12 +29,6 @@ st.markdown("""
         font-family: 'Courier New', Courier, monospace;
     }
 
-    /* Sidebar */
-    [data-testid="stSidebar"] {
-        background-color: #161b22;
-        border-right: 1px solid #30363d;
-    }
-    
     /* Code box styling */
     .stCode {
         border-radius: 8px;
@@ -58,91 +53,151 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- Title ---
-st.title("👑 Sovereign Agentic OS Command Center")
-st.markdown("*A highly secure, tier-aware operating system interface for sovereign AI.*")
+st.title("🛡️ Cognitive Security Operations Center (C-SOC)")
+st.markdown("*HLF Sovereign GUI v2.0: Visualizing Identity, Deception, State, and Threats*")
 st.markdown("---")
 
-# --- Sidebar configuration ---
-st.sidebar.header("System Telemetry")
-
-# Redis Status
+# Global Settings & Status
 try:
     r = redis.Redis(host='localhost', port=6379, decode_responses=True)
     r.ping()
-    st.sidebar.success("🟢 Redis Cache: Connected")
     redis_active = True
 except Exception:
-    st.sidebar.error("🔴 Redis Cache: Disconnected")
     redis_active = False
 
-tier_selection = st.sidebar.selectbox("🔐 Deployment Tier Override", ["hearth", "forge", "sovereign"])
-
-st.sidebar.markdown("---")
-st.sidebar.subheader("Quick Diagnostics")
+tier_selection = st.sidebar.selectbox("🔐 Deployment Tier Override", ["hearth", "forge", "sovereign"], index=1)
+st.sidebar.markdown(f"**Redis Status:** {'🟢 Active' if redis_active else '🔴 Down'}")
 if st.sidebar.button("Run Security Sweep"):
-    with st.sidebar.status("Initiating ACFS checks...", expanded=True) as status:
-        time.sleep(1)
-        st.write("Checking Dapr Sidecars...")
-        time.sleep(1)
-        st.write("Validating Kernel Confinement...")
-        time.sleep(1)
-        status.update(label="Sweep Complete (Clean)", state="complete", expanded=False)
+    st.sidebar.success("Sweep Complete (Clean)")
 
-# --- Main Columns ---
-col1, space, col2 = st.columns([1.5, 0.1, 1])
+# --- Main Columns (Left, Center, Right) ---
+# 1: Left Pane (CST), 2.5: Center Canvas (A2UI), 1: Right Pane (Glass-Box)
+left_pane, center_canvas, right_pane = st.columns([1, 2.5, 1], gap="medium")
 
-# Left Column - Intent Terminal
-with col1:
-    st.subheader("📡 HLF Intent Terminal")
-    st.markdown("Dispatch Natural Language or Hierarchical Logical Form (HLF) intents directly to the OS orchestrator.")
+# ==========================================
+# 1. THE LEFT PANE: Cognitive Security Tree
+# ==========================================
+with left_pane:
+    st.subheader("🌳 Cognitive Security Tree")
+    st.markdown("**Aegis-Nexus Threat Lens**")
+    threat_lens = st.toggle("Enable Threat Lens", value=True)
     
-    intent_input = st.text_area("Intents Field (Text or AST)", height=180, placeholder="e.g. Generate a summary of system performance...")
+    st.markdown("### KYA Provenance")
     
-    if st.button("🚀 Dispatch Intent to Bus", use_container_width=True):
-        if not intent_input:
-            st.warning("Intent field is empty. Please enter a command.")
-        elif not redis_active:
-            st.error("Cannot dispatch intent. Redis connection is down.")
-        else:
-            with st.spinner("Encrypting and dispatching to stream..."):
+    # Mocking the Agent Nodes
+    with st.expander("🟢 Agent: Logi-01 (Active)", expanded=True):
+        st.caption("SPIFFE ID: spiffe://sovereign.os/ns/core/sa/logi-01")
+        st.markdown("**Role:** Standard Inference")
+        st.markdown("**Integrity:** Verified `HLF-88b1...`")
+        if threat_lens:
+            st.info("No active MITRE ATT&CK vectors.")
+            
+    with st.expander("🟡 Agent: Admin-Bot (Delegated)", expanded=True):
+        st.caption("SPIFFE ID: spiffe://sovereign.os/ns/sys/sa/admin-bot")
+        st.warning("⚠️ Confused Deputy Warning: Inherited elevated privileges from Intern-Bot.")
+        st.markdown("**Integrity:** Verified `HLF-77c2...`")
+        if threat_lens:
+            st.error("**T1078 - Valid Accounts** (Privilege Escalation Risk)")
+
+    with st.expander("☠️ Agent: Scraper-99 (Quarantined)", expanded=False):
+        st.caption("SPIFFE ID: spiffe://sovereign.os/ns/ext/sa/scraper-99")
+        st.error("Integrity Hash Mismatch! Possible Supply Chain Poisoning.")
+
+
+# ==========================================
+# 2. THE CENTER CANVAS: A2UI Lifecycle Orchestrator
+# ==========================================
+with center_canvas:
+    st.subheader("⚙️ A2UI Lifecycle Orchestrator")
+    
+    # HLF Intent Terminal
+    with st.container(border=True):
+        st.markdown("**Dispatch HLF Intent**")
+        intent_input = st.text_input("HLF Vector", placeholder="[INTENT] analyze /security/seccomp.json [CONSTRAINT] mode=\"read-only\" Ω")
+        colA, _ = st.columns([1, 3])
+        with colA:
+            dispatch_btn = st.button("🚀 Dispatch to OS")
+        
+        if dispatch_btn:
+            if not redis_active:
+                st.error("Cannot dispatch intent. Redis connection is down.")
+            else:
                 try:
-                    payload = {
-                        "text": intent_input
-                    }
-                    import httpx
-                    # Dispatch to the Gateway Node (which enforces security protocols)
-                    response = httpx.post("http://localhost:40404/api/v1/intent", json=payload, timeout=5.0)
+                    payload = {"text": intent_input}
+                    response = httpx.post("http://localhost:40404/api/v1/intent", json=payload, timeout=2.0)
                     response.raise_for_status()
-                    time.sleep(0.5) # Simulate slight latency for UI feel
-                    st.success(f"Intent dispatched to ACFS Sandbox via Gateway. [Tier: {tier_selection}]")
-                except httpx.HTTPError as e:
-                    st.error(f"Gateway rejected the intent (Security Block or Rate Limit): {e}")
+                    st.success("Intent routed through Gateway Node.")
                 except Exception as e:
-                    st.error(f"Failed to communicate with OS Gateway: {e}")
+                    st.error(f"Gateway rejected intent: {e}")
 
-# Right Column - System Real-Time Metrics
-with col2:
-    st.subheader("📊 Kernel Metrics")
-    m1, m2 = st.columns(2)
-    m1.metric(label="Active Agent Nodes", value="6", delta="All Healthy")
-    m2.metric(label=f"Tier '{tier_selection.capitalize()}' Gas", value="1000", delta="-12 spent")
+    st.markdown("---")
     
-    m3, m4 = st.columns(2)
-    m3.metric(label="Memory Traces", value="1,204", delta="+12/hr")
-    m4.metric(label="Threat Index", value="Low", delta="0 Intrusions", delta_color="normal")
+    # A2A Traffic Light System
+    st.markdown("### 🚦 Swarm State Machine")
+    s1, s2, s3 = st.columns(3)
+    s1.success("🟢 4 Agents Working")
+    s2.warning("🟡 1 Input Required")
+    s3.error("🔴 0 Exceptions")
+    
+    # Actionable Intervention UI
+    st.info("**Action Required:** `Sec-Bot-A` paused execution.")
+    with st.form("a2ui_intervention_form"):
+        st.markdown("**Request:** Missing Change Ticket ID to proceed with firewall modification.")
+        ticket_id = st.text_input("Enter Ticket ID (e.g. CHG-9921)")
+        submit_intervention = st.form_submit_button("Inject A2UI Packet & Resume")
+        if submit_intervention:
+            st.success(f"Injected `{ticket_id}` into HLF stream. Sec-Bot-A resumed.")
+            
+    # Tri-Diff Merge Conflict Placeholder
+    with st.expander("🔬 View Active Tri-Diff Merge Conflict (State Arbitration)", expanded=False):
+        st.markdown("*Conflict detected on `memory.sqlite3` write operation.*")
+        tc1, tc2, tc3 = st.columns(3)
+        with tc1:
+            st.markdown("**Agent A (Local)**")
+            st.code("+ INSERT INTO rules...")
+            st.button("Accept Left")
+        with tc2:
+            st.markdown("**Sovereign State (Truth)**")
+            st.code("  INSERT INTO rules...")
+        with tc3:
+            st.markdown("**Agent B (Remote)**")
+            st.code("- DROP TABLE rules;")
+            st.button("Accept Right")
 
+
+# ==========================================
+# 3. THE RIGHT PANE: "Glass-Box" Truth Layer
+# ==========================================
+with right_pane:
+    st.subheader("🔍 Glass-Box Truth")
+    
+    # Enhanced InsAIts V2: Anchor Drift Gauge
+    st.markdown("**Anchor Drift Gauge**")
+    st.progress(0.92, text="Semantic Similarity (92%) - Safe")
+    
+    st.markdown("---")
+    # Alignment Faking Monitor
+    st.markdown("**Alignment Faking Monitor**")
+    st.caption("Interpretability Noise-Injection Fidelity")
+    
+    # Mocking a stability graph
+    chart_data = pd.DataFrame(
+        np.random.randn(20, 1) * 0.05 + 0.95,
+        columns=["Stability Index"]
+    )
+    st.line_chart(chart_data, height=150)
+    st.caption("🟢 No Catastrophic Reversion detected during noise injection.")
+    
+    st.markdown("---")
+    
+    # Trace-ID Forensics
+    st.markdown("**Trace-ID Forensics**")
+    st.caption("Click translation to view cryptographic proof.")
+    with st.expander("Translation: 'Analyze firewall rules'"):
+        st.markdown("**HLF Math:** `⊎ {¬✓DB}`")
+        st.markdown("**Hash:** `SHA256: 88b1a3...`")
+        st.button("Verify Proof")
+
+# --- Footer ---
 st.markdown("---")
-
-# --- Log Stream Viewer ---
-st.subheader("📜 Live Event Stream")
-with st.container(border=True):
-    st.code("""
-[15:43:21] [agent-executor] Boot sequence initiated...
-[15:43:22] [memory-scribe] Connecting to Fact_Store (sqlite-vec)... OK
-[15:43:22] [host-function] ACFS confinement active. Syscalls sandboxed.
-[15:43:25] [canary-probe] System idle detected, starting curiosity scan...
-[15:44:01] [tool-forge] New tool signature generated and validated via LLM.
-[15:44:12] [gateway] Accepted incoming REST request. Dispatching to Dapr sidecar.
-    """, language="log")
-
-st.caption("Sovereign Agentic OS v1.0.0 | Secure GUI Dashboard")
+st.caption("Sovereign Agentic OS v2.0 | Cognitive SOC Architecture | Tier: " + tier_selection.capitalize())

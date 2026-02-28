@@ -24,32 +24,35 @@ echo 3. Exit Boot Menu
 echo.
 set /p choice="Select an OS boot mode (1-3): "
 
-if "%choice%"=="1" (
-    echo.
-    echo [BOOT] Initializing Sovereign System Tray Manager...
-    echo [BOOT] The Taskbar Manager will Auto-launch backends and the GUI.
-    start /B uv run pythonw gui\tray_manager.py --auto-launch >nul 2>&1
-    
-    echo.
-    echo -----------------------------------------------------------------
-    echo Look for the 👑 icon in your Windows Taskbar tray (bottom right).
-    echo The Sovereign Command Center GUI will open in your browser shortly.
-    echo You may safely close this black command window.
-    echo -----------------------------------------------------------------
-    pause
-    exit
-) else if "%choice%"=="2" (
-    echo.
-    echo [BOOT] Starting System Tray Manager silently...
-    start /B uv run pythonw gui\tray_manager.py >nul 2>&1
-    echo -----------------------------------------------------------------
-    echo Look for the 👑 icon in your Windows Taskbar tray (bottom right).
-    echo Right-click the icon to control OS services.
-    echo You may safely close this black command window.
-    echo -----------------------------------------------------------------
-    pause
-    exit
-) else (
-    echo Exiting Boot Menu.
-    exit /b 0
-)
+if "%choice%"=="1" goto mode1
+if "%choice%"=="2" goto mode2
+if "%choice%"=="3" goto mode3
+goto end
+
+:mode1
+echo [BOOT] Initializing Sovereign System Tray Manager...
+echo [BOOT] The Taskbar Manager will Auto-launch backends and the GUI.
+start /B uv run pythonw gui\tray_manager.py --auto-launch >nul 2>&1
+echo -----------------------------------------------------------------
+echo Look for the 👑 icon in your Windows Taskbar tray (bottom right).
+echo The Sovereign Command Center GUI will open in your browser shortly.
+echo You may safely close this black command window.
+echo -----------------------------------------------------------------
+pause
+exit
+
+:mode2
+echo [BOOT] Starting System Tray Manager silently...
+start /B uv run pythonw gui\tray_manager.py >nul 2>&1
+echo -----------------------------------------------------------------
+echo Look for the 👑 icon in your Windows Taskbar tray (bottom right).
+echo Right-click the icon to control OS services.
+echo You may safely close this black command window.
+echo -----------------------------------------------------------------
+pause
+exit
+
+:mode3
+:end
+echo Exiting Boot Menu.
+exit /b 0

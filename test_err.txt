@@ -1,0 +1,138 @@
+This file previously contained captured pytest output from a local development run.
+The raw logs have been removed to avoid leaking environment-specific paths and transient test state.
+If you need example pytest output, please generate it locally rather than committing it to the repository.
+tests/test_runtime.py::TestActionDispatch::test_action_read_write_round_trip PASSED [ 84%]
+tests/test_runtime.py::TestDualModeBus::test_text_mode_bypasses_hlf_validator PASSED [ 88%]
+tests/test_runtime.py::TestDualModeBus::test_hlf_mode_still_validates PASSED [ 92%]
+tests/test_runtime.py::TestExecuteIntent::test_ast_mode_executes_directly FAILED [ 96%]
+tests/test_runtime.py::TestExecuteIntent::test_text_mode_returns_error_when_ollama_down FAILED [100%]
+
+================================== FAILURES ===================================
+______________ TestExecuteIntent.test_ast_mode_executes_directly ______________
+
+self = <test_runtime.TestExecuteIntent object at 0x000002C29FACAD50>
+
+    def test_ast_mode_executes_directly(self) -> None:
+        """Payloads with pre-compiled AST are executed by hlfrun directly."""
+>       from agents.core.main import execute_intent
+
+tests\test_runtime.py:321: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Agent executor entrypoint.
+    Initialises OpenLLMetry TracerProvider, registers SIGUSR1 handler,
+    connects to Dapr pub/sub, and processes Redis Stream intents.
+    
+    For each received intent the executor:
+      1. If the payload already contains a compiled AST (from the ASB HLF path),
+         execute it directly via hlf.hlfrun.
+      2. If the payload is text-mode (raw human language), call the local Ollama
+         instance to generate an HLF response, compile it, and then execute.
+    """
+    from __future__ import annotations
+    
+    import json
+    import os
+    import signal
+    import time
+    from pathlib import Path
+    from typing import Any
+    
+    import httpx
+    
+    from agents.core.logger import ALSLogger
+    
+    _logger = ALSLogger(agent_role="agent-executor", goal_id="boot")
+    _SYSTEM_PROMPT_PATH = (
+        Path(__file__).parent.parent.parent
+        / "governance"
+        / "templates"
+        / "system_prompt.txt"
+    )
+    
+    
+    def quarantine_dump() -> None:
+        """Dump active memory snapshot to quarantine_dumps on SIGUSR1."""
+        dump_dir = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "quarantine_dumps"
+        dump_dir.mkdir(parents=True, exist_ok=True)
+        dump_file = dump_dir / f"quarantine_{int(time.time())}.json"
+        dump_file.write_text(json.dumps({"event": "SIGUSR1_DUMP", "ts": time.time()}))
+        _logger.log("QUARANTINE_DUMP", {"path": str(dump_file)})
+    
+    
+    def _handle_sigusr1(signum: int, frame: object) -> None:
+        quarantine_dump()
+    
+    
+>   signal.signal(signal.SIGUSR1, _handle_sigusr1)
+                  ^^^^^^^^^^^^^^
+E   AttributeError: module 'signal' has no attribute 'SIGUSR1'
+
+agents\core\main.py:47: AttributeError
+_______ TestExecuteIntent.test_text_mode_returns_error_when_ollama_down _______
+
+self = <test_runtime.TestExecuteIntent object at 0x000002C29FACAE90>
+
+    def test_text_mode_returns_error_when_ollama_down(self) -> None:
+        """Text-mode payload returns code=1 when Ollama is not reachable."""
+>       from agents.core.main import execute_intent
+
+tests\test_runtime.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    """
+    Agent executor entrypoint.
+    Initialises OpenLLMetry TracerProvider, registers SIGUSR1 handler,
+    connects to Dapr pub/sub, and processes Redis Stream intents.
+    
+    For each received intent the executor:
+      1. If the payload already contains a compiled AST (from the ASB HLF path),
+         execute it directly via hlf.hlfrun.
+      2. If the payload is text-mode (raw human language), call the local Ollama
+         instance to generate an HLF response, compile it, and then execute.
+    """
+    from __future__ import annotations
+    
+    import json
+    import os
+    import signal
+    import time
+    from pathlib import Path
+    from typing import Any
+    
+    import httpx
+    
+    from agents.core.logger import ALSLogger
+    
+    _logger = ALSLogger(agent_role="agent-executor", goal_id="boot")
+    _SYSTEM_PROMPT_PATH = (
+        Path(__file__).parent.parent.parent
+        / "governance"
+        / "templates"
+        / "system_prompt.txt"
+    )
+    
+    
+    def quarantine_dump() -> None:
+        """Dump active memory snapshot to quarantine_dumps on SIGUSR1."""
+        dump_dir = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "quarantine_dumps"
+        dump_dir.mkdir(parents=True, exist_ok=True)
+        dump_file = dump_dir / f"quarantine_{int(time.time())}.json"
+        dump_file.write_text(json.dumps({"event": "SIGUSR1_DUMP", "ts": time.time()}))
+        _logger.log("QUARANTINE_DUMP", {"path": str(dump_file)})
+    
+    
+    def _handle_sigusr1(signum: int, frame: object) -> None:
+        quarantine_dump()
+    
+    
+>   signal.signal(signal.SIGUSR1, _handle_sigusr1)
+                  ^^^^^^^^^^^^^^
+E   AttributeError: module 'signal' has no attribute 'SIGUSR1'
+
+agents\core\main.py:47: AttributeError
+=========================== short test summary info ===========================
+FAILED tests/test_runtime.py::TestExecuteIntent::test_ast_mode_executes_directly
+FAILED tests/test_runtime.py::TestExecuteIntent::test_text_mode_returns_error_when_ollama_down
+======================== 2 failed, 24 passed in 23.91s ========================

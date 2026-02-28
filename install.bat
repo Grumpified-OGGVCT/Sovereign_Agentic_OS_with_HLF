@@ -37,10 +37,6 @@ echo Updating requirements.txt based on current state...
 call uv pip compile pyproject.toml -o requirements.txt
 
 echo.
-echo Installing Streamlit and UI dependencies...
-call uv pip install streamlit plotly pandas
-
-echo.
 echo Pulling minimum Docker images required for the OS...
 docker pull redis:7-alpine
 
