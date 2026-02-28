@@ -14,7 +14,7 @@ on:
 jobs:
   agent-runner:
     runs-on: ubuntu-latest
-    environment: production # Requires the environment secrets shown in your settings
+    environment: Secrets # Requires the environment secrets shown in your settings
 
     steps:
       - name: Checkout Code
