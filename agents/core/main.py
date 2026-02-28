@@ -44,7 +44,8 @@ def _handle_sigusr1(signum: int, frame: object) -> None:
     quarantine_dump()
 
 
-signal.signal(signal.SIGUSR1, _handle_sigusr1)
+if hasattr(signal, "SIGUSR1"):
+    signal.signal(signal.SIGUSR1, _handle_sigusr1)
 
 
 # --------------------------------------------------------------------------- #
