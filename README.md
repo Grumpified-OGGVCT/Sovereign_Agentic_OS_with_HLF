@@ -1,7 +1,7 @@
 # Sovereign Agentic OS with HLF
 
 > 🚨 **Development Status Alert (Feb 2026)**
-> We have exhausted our Claude 3 Opus quota. OS development has temporarily shifted to a **Hybrid AI / Local-First** paradigm. We are actively expanding the **Ollama Matrix** integration and building deeply integrated MCP servers (like the Sovereign MCP Server for Antigravity) to sustain development velocity using local models.
+> We have exhausted our Claude 4.6 Opus quota. We are actively expanding the **Ollama Matrix** integration and building deeply integrated MCP servers (like the Sovereign MCP Server for Antigravity) to sustain development velocity using local models.
 > 
 > **Currently Working**: Dream Mode pipeline (111/111 passing), 6-Hat Engine, Gateway Bus with ALIGN enforcement, GUI Dashboard, local/cloud model switching, and MCP Server auto-launch via taskbar.
 > **In Progress**: Full Chat vs OpenClaw mode separation, real-time "thinking" indicators, deep Antigravity workflow automations.
