@@ -11,6 +11,15 @@ from pathlib import Path
 from typing import Any
 
 from lark import Lark, Transformer, Token, Tree
+from lark.exceptions import LarkError
+
+
+class HlfSyntaxError(ValueError):
+    """Raised when HLF source fails to parse."""
+
+
+class HlfRuntimeError(RuntimeError):
+    """Raised when HLF execution encounters a runtime fault."""
 
 _GRAMMAR = r"""
     start: line+ TERMINATOR
@@ -115,7 +124,10 @@ class HLFTransformer(Transformer):
 
 def compile(source: str) -> dict[str, Any]:  # noqa: A001
     """Parse HLF source and return JSON AST dict."""
-    tree = _parser.parse(source)
+    try:
+        tree = _parser.parse(source)
+    except LarkError as exc:
+        raise HlfSyntaxError(str(exc)) from exc
     transformer = HLFTransformer()
     result = transformer.transform(tree)
     # Filter None entries
