@@ -1,5 +1,12 @@
 # Sovereign Agentic OS with HLF
 
+> 🚨 **Development Status Alert (Feb 2026)**
+> We have exhausted our Claude 3 Opus quota. OS development has temporarily shifted to a **Hybrid AI / Local-First** paradigm. We are actively expanding the **Ollama Matrix** integration and building deeply integrated MCP servers (like the Sovereign MCP Server for Antigravity) to sustain development velocity using local models.
+> 
+> **Currently Working**: Dream Mode pipeline (111/111 passing), 6-Hat Engine, Gateway Bus with ALIGN enforcement, GUI Dashboard, local/cloud model switching, and MCP Server auto-launch via taskbar.
+> **In Progress**: Full Chat vs OpenClaw mode separation, real-time "thinking" indicators, deep Antigravity workflow automations.
+> **Paused**: Pure cloud-only orchestrations requiring Opus.
+
 ![The Rosetta Stone of Agentic AI Systems](assets/The%20Rosetta%20Stone%20of%20Agentic%20AI%20Systems.svg)
 
 A **Spec-Driven Development (SDD)** project for a Sovereign Agentic OS with a custom DSL called **HLF (Hieroglyphic Logic Framework)**. This framework forms a zero-trust, completely isolated orchestration environment designed for robust multi-agent execution at scale.
@@ -41,6 +48,13 @@ After the initial NotebookLM brainstorming exhausted context windows, the raw co
 - **LOLLMS (ParisNeo):** For constant inspiration and architectural solutions throughout these builds.
 - **Hof (from Websim.com):** For being a constant source of wild ideas, support, and an invaluable sounding board.
 
+### Quick Start Example (v0.3.0)
+
+*   **Logic Isolation**:
+    ```bash
+    bash bootstrap_all_in_one.sh
+    ```
+
 ## 🚀 Quick Start
 
 ```bash
@@ -60,26 +74,67 @@ The OS adapts configuration, networking privileges, and security boundaries base
 
 > **Note**: Set `DEPLOYMENT_TIER` in your `.env` file prior to bootstrap to engage these boundaries.
 
-## 📜 HLF (Hieroglyphic Logic Framework)
+## 📜 HLF (Hieroglyphic Logic Framework): The Rosetta Stone for Machines
 
-**HLF** is a robust, structured DSL for expressing agent intents with typed, validated tags. It replaces ambiguous natural language with deterministic, parseable directives.
+**HLF** is not just another DSL; it is a **deterministic orchestration protocol** designed to eliminate natural language ambiguity between agents. By replacing prose with a strictly-typed Hieroglyphic AST, HLF enables zero-trust execution, cryptographic validation, and ultra-dense token efficiency.
 
+### Core Goals
+- **Deterministic Intent**: 100% predictable execution paths via LALR(1) parsing.
+- **Token Compression**: Achieve up to 80% reduction in context window bloat compared to JSON or natural language.
+- **Cross-Model Alignment**: Ensure a GPT-4o planning agent can communicate perfectly with a local deepseek-v3 worker.
+- **Cryptographic Governance**: Every intent is mathematically verifiable against the **ALIGN Ledger**.
+
+### 💎 High-Impact Examples
+
+#### 1. Security Baseline Audit (Sentinel Mode)
+
+### Tool Orchestration
+
+The agent audits a critical system file while enforcing strict RO (Read-Only) constraints.
 ```hlf
-[HLF-v2]
-[INTENT] analyze /security/seccomp.json
-[CONSTRAINT] mode="read-only"
-[EXPECT] vulnerability_report
+[HLF-v3]
+Δ analyze /security/seccomp.json 
+ Ж [CONSTRAINT] mode="ro" 
+Ж [EXPECT] vulnerability_shorthand 
+⨝ [VOTE] consensus="strict"
 Ω
 ```
 
-**Compiler Rules:**
+#### 2. Multi-Agent Task Delegation (Orchestrator Mode)
+The primary agent delegates a long-running summarization task to a specialized Scribe agent.
+```hlf
+[HLF-v3]
+⌘ [DELEGATE] agent="scribe" goal="fractal_summarize"
+ ∇ [SOURCE] /data/raw_logs/matrix_sync_2026.txt
+ ⩕ [PRIORITY] level="high"
+Ж [ASSERT] vram_limit="8GB"
+Ω
+```
 
-- First line must be `[INTENT]`
-- One tag per line — no prose
-- Every message ends with `Ω`
-- Version prefix `[HLF-v2]` is strictly enforced.
+#### 3. Real-Time Resource Mediation (MoMA Router)
+The router dynamically shifts a task to a local model based on real-time VRAM availability.
+```hlf
+[HLF-v3]
+⌘ [ROUTE] target="local_ollama" 
+ Δ [MODEL] name="qwen:7b"
+ ∇ [PARAM] temperature=0.0
+Ж [VOTE] confirmation="required"
+Ω
+```
+
+---
+
+## 🌟 The Sovereign Advantage: Why it Matters
+
+The Sovereign Agentic OS represents a paradigm shift in AI autonomy:
+- **Aegis-Nexus Engine**: Our tri-perspective audit cycle (Red/White/Blue Hats) ensures your agents never hallucinate into privilege escalation or memory leaks.
+- **MoMA Dynamic Routing**: Intelligent "Downshifting" means you never pay for a Frontier-tier model when a local small-language model (SLM) can do the same task for free.
+- **Glass-Box Transparency**: The C-SOC dashboard allows you to see every "thought" and "action" in real-time—no secret LLM decision-making.
+- **Start Strong Mandate**: Built from day one with the assumption that AI agents will be the primary operators of the next generation of infrastructure.
 
 ## 🔏 Security Features & Governance
+
+### Security & Governance
 
 - **ALIGN Ledger** — Immutable governance rules enforced at runtime.
 - **Seccomp Profile** — Custom syscall allowlist for all node containers.

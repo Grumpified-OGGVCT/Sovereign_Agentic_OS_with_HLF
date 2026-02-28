@@ -65,6 +65,30 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         CREATE VIRTUAL TABLE IF NOT EXISTS vec_facts USING vec0(
             embedding float[768]
         );
+        -- Dream Mode results
+        CREATE TABLE IF NOT EXISTS dream_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp REAL NOT NULL,
+            cycle_type TEXT NOT NULL DEFAULT 'scheduled',
+            hlf_practiced INTEGER DEFAULT 0,
+            hlf_passed INTEGER DEFAULT 0,
+            context_compressed_chars INTEGER DEFAULT 0,
+            context_result_chars INTEGER DEFAULT 0,
+            duration_seconds REAL DEFAULT 0,
+            summary TEXT
+        );
+        -- Hat analysis findings
+        CREATE TABLE IF NOT EXISTS hat_findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dream_cycle_id INTEGER REFERENCES dream_results(id),
+            hat TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            recommendation TEXT,
+            resolved INTEGER DEFAULT 0,
+            timestamp REAL NOT NULL
+        );
     """)
     conn.commit()
 

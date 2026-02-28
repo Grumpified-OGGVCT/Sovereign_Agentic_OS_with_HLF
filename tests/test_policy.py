@@ -6,7 +6,6 @@ Uses FastAPI TestClient (no real Redis needed via mocking).
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
-
 from fastapi.testclient import TestClient
 
 
@@ -41,7 +40,7 @@ def test_valid_intent_returns_202() -> None:
     with patch("agents.gateway.bus.get_redis", new=_fake_get_redis(mock_redis)):
         from agents.gateway import bus
         client = TestClient(bus.app, raise_server_exceptions=True)
-        payload = {"hlf": "[HLF-v2]\n[INTENT] greet \"world\"\n[RESULT] code=0 message=\"ok\"\nΩ\n"}
+        payload = {"hlf": "[HLF-v3]\n[INTENT] greet \"world\"\n[RESULT] code=0 message=\"ok\"\nΩ\n"}
         resp = client.post("/api/v1/intent", json=payload)
     assert resp.status_code == 202
 
@@ -62,7 +61,7 @@ def test_align_blocked_returns_403() -> None:
         from agents.gateway import bus
         client = TestClient(bus.app, raise_server_exceptions=False)
         # R-006 pattern: sudo
-        payload = {"hlf": "[HLF-v2]\n[INTENT] sudo rm\nΩ\n"}
+        payload = {"hlf": "[HLF-v3]\n[INTENT] sudo rm\nΩ\n"}
         resp = client.post("/api/v1/intent", json=payload)
     assert resp.status_code == 403
 
@@ -72,7 +71,7 @@ def test_rate_limit_returns_429() -> None:
     with patch("agents.gateway.bus.get_redis", new=_fake_get_redis(mock_redis)):
         from agents.gateway import bus
         client = TestClient(bus.app, raise_server_exceptions=False)
-        payload = {"hlf": "[HLF-v2]\n[INTENT] greet \"world\"\nΩ\n"}
+        payload = {"hlf": "[HLF-v3]\n[INTENT] greet \"world\"\nΩ\n"}
         resp = client.post("/api/v1/intent", json=payload)
     assert resp.status_code == 429
 
@@ -83,7 +82,7 @@ def test_global_gas_bucket_exhausted_returns_429() -> None:
     with patch("agents.gateway.bus.get_redis", new=_fake_get_redis(mock_redis)):
         from agents.gateway import bus
         client = TestClient(bus.app, raise_server_exceptions=False)
-        payload = {"hlf": "[HLF-v2]\n[INTENT] greet \"world\"\n[RESULT] code=0 message=\"ok\"\nΩ\n"}
+        payload = {"hlf": "[HLF-v3]\n[INTENT] greet \"world\"\n[RESULT] code=0 message=\"ok\"\nΩ\n"}
         resp = client.post("/api/v1/intent", json=payload)
     assert resp.status_code == 429
     assert "gas" in resp.json()["detail"].lower()
@@ -94,7 +93,7 @@ def test_replayed_nonce_returns_409() -> None:
     with patch("agents.gateway.bus.get_redis", new=_fake_get_redis(mock_redis)):
         from agents.gateway import bus
         client = TestClient(bus.app, raise_server_exceptions=False)
-        payload = {"hlf": "[HLF-v2]\n[INTENT] greet \"world\"\n[RESULT] code=0 message=\"ok\"\nΩ\n"}
+        payload = {"hlf": "[HLF-v3]\n[INTENT] greet \"world\"\n[RESULT] code=0 message=\"ok\"\nΩ\n"}
         resp = client.post("/api/v1/intent", json=payload)
     assert resp.status_code == 409
 
@@ -106,3 +105,14 @@ def test_empty_body_returns_422() -> None:
         client = TestClient(bus.app, raise_server_exceptions=False)
         resp = client.post("/api/v1/intent", json={})
     assert resp.status_code == 422
+
+
+def test_text_mode_valid_intent() -> None:
+    """Text-mode intents (plain English) should be accepted as 202."""
+    mock_redis = _make_mock_redis()
+    with patch("agents.gateway.bus.get_redis", new=_fake_get_redis(mock_redis)):
+        from agents.gateway import bus
+        client = TestClient(bus.app, raise_server_exceptions=False)
+        payload = {"text": "Can you review the seccomp files for vulnerabilities?"}
+        resp = client.post("/api/v1/intent", json=payload)
+    assert resp.status_code == 202

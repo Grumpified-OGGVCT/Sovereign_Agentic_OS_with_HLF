@@ -71,7 +71,7 @@ _parser = Lark(_GRAMMAR, parser="lalr", start="start")
 class HLFTransformer(Transformer):
     def start(self, items: list) -> dict[str, Any]:
         program = [i for i in items if i is not None]
-        return {"version": "0.2.0", "program": program}
+        return {"version": "0.3.0", "program": program}
 
     def line(self, items: list) -> Any:
         return items[0] if items else None

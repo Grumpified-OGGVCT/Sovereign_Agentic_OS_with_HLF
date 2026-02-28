@@ -7,26 +7,40 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+import warnings
 from pathlib import Path
 from typing import Any, Optional
 
-_LAST_HASH_FILE = Path(__file__).parent.parent.parent / "observability" / "openllmetry" / "last_hash.txt"
+_DEFAULT_HASH_DIR = Path(__file__).parent.parent.parent / "observability" / "openllmetry"
+_LAST_HASH_FILE = _DEFAULT_HASH_DIR / "last_hash.txt"
 _SEED_HASH = "0" * 64
 
 
 def _read_last_hash() -> str:
+    """Read the last Merkle hash from disk. Gracefully handles Windows PermissionError."""
     try:
         if _LAST_HASH_FILE.exists():
             return _LAST_HASH_FILE.read_text().strip() or _SEED_HASH
+    except PermissionError:
+        warnings.warn(
+            f"ALS: PermissionError reading {_LAST_HASH_FILE}. "
+            "Using seed hash. This is normal on Windows in virtualenv/test contexts.",
+            stacklevel=2,
+        )
     except Exception:
         pass
     return _SEED_HASH
 
 
 def _write_last_hash(h: str) -> None:
+    """Persist the latest Merkle hash. Gracefully handles Windows PermissionError."""
     try:
         _LAST_HASH_FILE.parent.mkdir(parents=True, exist_ok=True)
         _LAST_HASH_FILE.write_text(h)
+    except PermissionError:
+        # Windows volume-locked paths (\\?\Volume{GUID}\...) trigger this.
+        # Silently skip — the Merkle chain is best-effort in local dev.
+        pass
     except Exception:
         pass
 
@@ -79,3 +93,7 @@ class ALSLogger:
             enforce_align(json.dumps(entry))
         except Exception:
             pass
+
+
+# Module-level convenience instance for backward compatibility
+log = ALSLogger(agent_role="system", goal_id="default").log

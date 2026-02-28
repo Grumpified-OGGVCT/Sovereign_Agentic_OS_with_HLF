@@ -93,6 +93,8 @@
     - [x] Identify GitHub repository and sync `task.md` to `TODO.md`.
     - [ ] Create feature branch and push all recent changes.
     - [ ] Submit Pull Request with detailed changelog.
+- [ ] **V.6: Universal Taskbar Manager Polish**
+    - [ ] Expand `gui/tray_manager.py` with further actions (View Logs, Restart All, Open Config) to make it fully fleshed out for all OS commands.
 
 ## Phase VI: HLF Language Evolution (POST-GENESIS)
 - [ ] v0.3 — Modules, Imports & Standard Library

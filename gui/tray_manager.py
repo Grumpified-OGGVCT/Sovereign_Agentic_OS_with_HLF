@@ -10,8 +10,10 @@ import webbrowser
 # OS Level states
 backend_process = None
 gui_process = None
+mcp_process = None
 backend_running = False
 gui_running = False
+mcp_running = False
 
 # Setup Icon Graphic
 def create_image(width, height, color1, color2):
@@ -77,8 +79,32 @@ def stop_gui(icon, item):
 
 def exit_action(icon, item):
     stop_gui(icon, item)
+    stop_mcp(icon, item)
     stop_backend(icon, item)
     icon.stop()
+
+
+def start_mcp(icon, item):
+    global mcp_process, mcp_running
+    if not mcp_running:
+        print("[System Tray] Starting Sovereign OS MCP Server...")
+        mcp_process = subprocess.Popen(
+            ["uv", "run", "python", "mcp/sovereign_mcp_server.py"],
+            shell=True
+        )
+        mcp_running = True
+        if icon:
+            icon.notify("Sovereign OS MCP Server started.")
+
+
+def stop_mcp(icon, item):
+    global mcp_process, mcp_running
+    if mcp_running and mcp_process:
+        print("[System Tray] Stopping MCP Server...")
+        mcp_process.terminate()
+        mcp_running = False
+        if icon:
+            icon.notify("MCP Server stopped.")
 
 
 # --- Menu Definition ---
@@ -89,6 +115,9 @@ menu = pystray.Menu(
     pystray.Menu.SEPARATOR,
     item('Start OS Backend \u2699', start_backend),
     item('Stop OS Backend \u26d4', stop_backend),
+    pystray.Menu.SEPARATOR,
+    item('Start MCP Server \U0001f517', start_mcp),
+    item('Stop MCP Server \u23f9', stop_mcp),
     pystray.Menu.SEPARATOR,
     item('Exit Manager \u274c', exit_action)
 )
@@ -106,6 +135,7 @@ if __name__ == "__main__":
         print("[System Tray] Auto-launching OS Services...")
         start_backend(icon, None)
         start_gui(icon, None)
+        start_mcp(icon, None)
 
     print("Sovereign OS Tray Manager loading. Check your system tray (bottom right).")
     icon.run()
