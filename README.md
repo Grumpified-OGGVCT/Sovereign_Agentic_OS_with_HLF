@@ -5,7 +5,7 @@
 > 
 > **Currently Working**: Dream Mode pipeline (111/111 passing), 6-Hat Engine, Gateway Bus with ALIGN enforcement, GUI Dashboard, local/cloud model switching, and MCP Server auto-launch via taskbar.
 > **In Progress**: Full Chat vs OpenClaw mode separation, real-time "thinking" indicators, deep Antigravity workflow automations.
-> **Paused**: Pure cloud-only orchestrations requiring Opus.
+> **Paused**: Pure cloud-only orchestrations.
 
 ![The Rosetta Stone of Agentic AI Systems](assets/The%20Rosetta%20Stone%20of%20Agentic%20AI%20Systems.svg)
 
