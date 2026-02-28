@@ -28,7 +28,7 @@ jobs:
       - name: Start Background Services
         # Start Redis in the background for ASB/Gateway communication
         run: |
-          docker compose --profile hearth up redis -d
+          docker compose up redis-broker -d
           
       - name: Execute Autonomous Agent
         env:
