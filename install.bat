@@ -42,7 +42,7 @@ call uv pip install streamlit plotly pandas
 
 echo.
 echo Pulling minimum Docker images required for the OS...
-docker pull redis:alpine
+docker pull redis:7-alpine
 
 echo.
 echo =========================================

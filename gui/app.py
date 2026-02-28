@@ -107,17 +107,18 @@ with col1:
             with st.spinner("Encrypting and dispatching to stream..."):
                 try:
                     payload = {
-                        "text": intent_input,
-                        "tier": tier_selection,
-                        "source": "gui_dashboard",
-                        "ts": time.time()
+                        "text": intent_input
                     }
-                    # Publish to the Redis stream (Dapr sub channel backup)
-                    r.xadd("agent:intents", payload)
-                    time.sleep(0.5) # Simulate slight network latency
-                    st.success(f"Intent dispatched successfully inside ACFS sandbox. [Tier: {tier_selection}]")
+                    import httpx
+                    # Dispatch to the Gateway Node (which enforces security protocols)
+                    response = httpx.post("http://localhost:40404/api/v1/intent", json=payload, timeout=5.0)
+                    response.raise_for_status()
+                    time.sleep(0.5) # Simulate slight latency for UI feel
+                    st.success(f"Intent dispatched to ACFS Sandbox via Gateway. [Tier: {tier_selection}]")
+                except httpx.HTTPError as e:
+                    st.error(f"Gateway rejected the intent (Security Block or Rate Limit): {e}")
                 except Exception as e:
-                    st.error(f"Failed to push to bus: {e}")
+                    st.error(f"Failed to communicate with OS Gateway: {e}")
 
 # Right Column - System Real-Time Metrics
 with col2:
