@@ -176,6 +176,39 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# ALS audit logging
+try:
+    from agents.core.logger import ALSLogger
+    _routing_logger = ALSLogger(agent_role="moma-router", goal_id="routing")
+except ImportError:
+    _routing_logger = None
+
+
+def _log_routing_decision(
+    profile: "AgentProfile",
+    intent_text: str,
+    phase: str,
+) -> None:
+    """Emit an ALS ROUTING_DECISION event for governance audit."""
+    if _routing_logger is None:
+        return
+    _routing_logger.log(
+        event="ROUTING_DECISION",
+        data={
+            "model": profile.model,
+            "provider": profile.provider,
+            "tier": profile.tier,
+            "phase": phase,
+            "specialization": next(
+                (s["match"] for s in profile.routing_trace if s.get("step") == "specialization"),
+                None,
+            ),
+            "trace_steps": len(profile.routing_trace),
+            "intent_preview": intent_text[:80],
+        },
+        confidence_score=profile.confidence,
+    )
+
 
 @dataclass
 class AgentProfile:
@@ -249,6 +282,7 @@ def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None =
             routing_trace=trace,
             confidence=0.3,
         )
+        # NOTE: _log_routing_decision deferred to after return — use wrapper below
 
     get_db, db_path, init_db, get_models_by_tier, get_local_inventory, get_agent_template, get_equivalents = db_imports
 
@@ -356,7 +390,7 @@ def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None =
             elif selected_tier == "openrouter":
                 provider = "openrouter"
 
-            return AgentProfile(
+            profile = AgentProfile(
                 model=selected_model,
                 provider=provider,
                 tier=selected_tier or "D",
@@ -366,14 +400,18 @@ def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None =
                 routing_trace=trace,
                 confidence=0.9 if selected_tier in ("S", "A+", "A") else 0.7 if selected_tier in ("A-", "B+") else 0.5,
             )
+            _log_routing_decision(profile, intent_text, phase=selected_tier or "fallback")
+            return profile
 
     except Exception as exc:
         # Registry query failed — graceful fallback
         legacy_model = route_intent(intent_text, ast)
         trace.append({"step": "fallback", "reason": f"registry_error: {exc}", "model": legacy_model})
-        return AgentProfile(
+        profile = AgentProfile(
             model=legacy_model,
             provider="cloud" if _is_cloud(legacy_model) else "ollama",
             routing_trace=trace,
             confidence=0.2,
         )
+        _log_routing_decision(profile, intent_text, phase="error_fallback")
+        return profile

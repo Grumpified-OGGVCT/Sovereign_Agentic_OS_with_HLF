@@ -23,6 +23,122 @@ from .diffing import build_diff
 from .io.csv_io import write_csv, read_csv
 from .io.json_io import write_json, write_jsonl
 
+
+# ---------------------------------------------------------------------------
+# Registry bridge — persist pipeline results to registry.db
+# ---------------------------------------------------------------------------
+
+def _try_import_db():
+    """Lazy-import the db module to avoid hard dependency."""
+    try:
+        from agents.core import db
+        return db
+    except ImportError:
+        return None
+
+
+def _persist_to_registry(
+    catalog_rows: List[Dict],
+    matrix_rows: List[Dict],
+    dup_rows: List[Dict],
+    families: list[str],
+    promote: bool = False,
+    db_path: str | None = None,
+) -> dict:
+    """Persist pipeline results to registry.db.
+
+    Creates a snapshot, upserts each cloud model with its best tier,
+    upserts local inventory from dup_rows, and optionally promotes the
+    snapshot to active so route_request() picks it up.
+
+    Returns a summary dict for inclusion in the manifest.
+    """
+    db = _try_import_db()
+    if db is None:
+        return {"registry_persisted": False, "reason": "agents.core.db not importable"}
+
+    path = db_path or str(db.db_path())
+    db.init_db(path)
+
+    # Build a lookup: model_id → best tier from matrix_rows
+    # matrix_rows has per-category tiers; pick the best (lowest index in tier walk)
+    _tier_rank = {"S": 0, "A+": 1, "A": 2, "A-": 3, "B+": 4, "B": 5, "C": 6, "D": 7}
+    best_tier: Dict[str, str] = {}
+    best_score: Dict[str, float] = {}
+    for row in matrix_rows:
+        mid = row["official_nomenclature"]
+        tier = row["tier"]
+        score = float(row.get("category_score", 0))
+        if mid not in best_tier or _tier_rank.get(tier, 99) < _tier_rank.get(best_tier[mid], 99):
+            best_tier[mid] = tier
+            best_score[mid] = score
+
+    with db.get_db(path) as conn:
+        # 1. Create snapshot
+        snap_id = db.create_snapshot(conn, families=families)
+
+        # 2. Upsert cloud models from catalog
+        upserted = 0
+        for row in catalog_rows:
+            mid = row["official_nomenclature"]
+            tier = best_tier.get(mid, "D")
+            raw_score = best_score.get(mid, 0.0)
+            size_bytes = row.get("size_bytes", 0)
+            try:
+                param_b = float(size_bytes) / 1e9 if size_bytes else 0.0
+            except (ValueError, TypeError):
+                param_b = 0.0
+
+            db.upsert_model(
+                conn,
+                snap_id,
+                mid,
+                family=row.get("family", ""),
+                param_b=param_b,
+                quant="",
+                raw_score=raw_score,
+                tier=tier,
+                context_length=0,
+            )
+            upserted += 1
+
+        # 3. Update snapshot model count
+        db.update_snapshot_model_count(conn, snap_id, upserted)
+
+        # 4. Upsert local inventory
+        local_synced = 0
+        for row in dup_rows:
+            mid = row["local_model"]
+            size_bytes = row.get("size_bytes", 0)
+            try:
+                size_gb = float(size_bytes) / 1e9 if size_bytes else 0.0
+            except (ValueError, TypeError):
+                size_gb = 0.0
+            db.upsert_local_inventory(conn, mid, size_gb=size_gb)
+            # Also persist extended metadata if available
+            db.upsert_local_metadata(
+                conn, mid,
+                digest=row.get("digest", ""),
+                modified_at=row.get("modified_at", ""),
+                quantization_level="",
+            )
+            local_synced += 1
+
+        # 5. Optionally promote to active
+        if promote:
+            db.promote_snapshot(conn, snap_id)
+
+        conn.commit()
+
+    return {
+        "registry_persisted": True,
+        "db_path": path,
+        "snapshot_id": snap_id,
+        "models_upserted": upserted,
+        "local_synced": local_synced,
+        "promoted": promote,
+    }
+
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
     ap.add_argument("--output-dir", default="./out")
@@ -50,6 +166,16 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--previous-matrix", default="")
     ap.add_argument("--gsheet-id", default="")
     ap.add_argument("--gcp-creds", default="")
+    ap.add_argument(
+        "--registry-db",
+        action="store_true",
+        help="Persist pipeline results to registry.db (SQL model catalog).",
+    )
+    ap.add_argument(
+        "--promote",
+        action="store_true",
+        help="Promote the new snapshot to active (used with --registry-db).",
+    )
     return ap.parse_args()
 
 def parse_families_csv(value: str) -> set[str]:
@@ -326,6 +452,23 @@ def run_pipeline() -> None:
             "Demoted": demoted_rows if demoted_rows else [{"note": "No demoted rows"}],
             "Manifest": [manifest],
         })
+
+    # ── Registry Bridge ──────────────────────────────────────────────────
+    registry_summary = {"registry_persisted": False, "reason": "--registry-db not set"}
+    if args.registry_db and not args.dry_run:
+        print("[9.5/9] Persist to registry.db")
+        registry_summary = _persist_to_registry(
+            catalog_rows=catalog_rows,
+            matrix_rows=matrix_rows,
+            dup_rows=dup_rows,
+            families=families,
+            promote=args.promote,
+        )
+        print(f"  → snapshot #{registry_summary.get('snapshot_id', '?')}: "
+              f"{registry_summary.get('models_upserted', 0)} models, "
+              f"{registry_summary.get('local_synced', 0)} local, "
+              f"promoted={registry_summary.get('promoted', False)}")
+    manifest["registry"] = registry_summary
 
     print("Done.")
     print(json.dumps(manifest, indent=2))
