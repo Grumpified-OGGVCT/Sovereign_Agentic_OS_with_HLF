@@ -670,11 +670,11 @@ def main() -> None:
     if len(sys.argv) < 2:
         print("Usage: hlfc input.hlf [output.json]", file=sys.stderr)
         sys.exit(1)
-    src = Path(sys.argv[1]).read_text()
+    src = Path(sys.argv[1]).read_text(encoding="utf-8")
     ast = compile(src)
     output = json.dumps(ast, indent=2)
     if len(sys.argv) >= 3:
-        Path(sys.argv[2]).write_text(output)
+        Path(sys.argv[2]).write_text(output, encoding="utf-8")
     else:
         print(output)
 

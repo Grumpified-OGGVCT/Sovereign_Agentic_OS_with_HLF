@@ -249,6 +249,11 @@ secrets.toml
 .secrets/
 config/local_overrides.json
 config/local_overrides.yaml
+**/API_Keys*
+**/Credentials*
+**/*_credentials*
+**/*_secrets*
+**/*_tokens*
 
 # --- Streamlit Secrets ---
 .streamlit/secrets.toml

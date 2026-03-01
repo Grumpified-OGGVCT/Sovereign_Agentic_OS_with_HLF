@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
 from hlf import validate_hlf_heuristic
-from hlf.hlfc import compile as hlfc_compile
+from hlf.hlfc import compile as hlfc_compile, format_correction, HlfSyntaxError
 from agents.gateway.sentinel_gate import enforce_align
 from agents.gateway.router import consume_gas_async, verify_gas_limit, record_intent_activity
 import httpx
@@ -163,6 +163,9 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
         # 3. Compile HLF → AST (Before ALIGN evaluation)
         try:
             ast = hlfc_compile(hlf_payload)
+        except HlfSyntaxError as exc:
+            correction = format_correction(hlf_payload, exc)
+            raise HTTPException(status_code=422, detail=correction) from exc
         except Exception as exc:
             raise HTTPException(status_code=422, detail=f"HLF compile error: {exc}") from exc
 
