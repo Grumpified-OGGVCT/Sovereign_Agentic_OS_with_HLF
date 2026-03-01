@@ -621,6 +621,115 @@
         }
         .footer a:hover { text-decoration: underline; }
 
+        /* ── Honesty Badge ── */
+        .sim-badge {
+            display: inline-block;
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 1px 6px;
+            border-radius: 4px;
+            margin-left: 6px;
+            vertical-align: middle;
+        }
+        .sim-badge.simulated {
+            background: rgba(210, 153, 34, 0.15);
+            color: var(--accent-orange);
+            border: 1px solid rgba(210, 153, 34, 0.3);
+        }
+        .sim-badge.live {
+            background: rgba(63, 185, 80, 0.15);
+            color: var(--accent-green);
+            border: 1px solid rgba(63, 185, 80, 0.3);
+        }
+        .honesty-notice {
+            font-size: 0.72rem;
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            background: rgba(210, 153, 34, 0.08);
+            border: 1px solid rgba(210, 153, 34, 0.2);
+            border-radius: 6px;
+            margin: 6px 0;
+        }
+        .owner-banner {
+            background: linear-gradient(90deg, rgba(188, 140, 255, 0.1), rgba(88, 166, 255, 0.1));
+            border: 1px solid var(--accent-purple);
+            color: var(--accent-purple);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            text-align: center;
+        }
+
+        /* ── Architecture Modal ── */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.75);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal-content {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            max-width: 700px;
+            width: 100%;
+            max-height: 85vh;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+        .modal-content h3 {
+            color: var(--accent-purple);
+            margin-bottom: 1rem;
+        }
+        .modal-close {
+            float: right;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .modal-close:hover { color: var(--text-primary); }
+        .tier-row {
+            display: flex;
+            gap: 0.75rem;
+            margin: 1rem 0;
+        }
+        .tier-card {
+            flex: 1;
+            padding: 0.75rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-tertiary);
+            text-align: center;
+        }
+        .tier-card h4 { font-size: 0.85rem; margin-bottom: 0.3rem; }
+        .tier-card p { font-size: 0.72rem; color: var(--text-secondary); }
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+        .flow-step:last-child { border-bottom: none; }
+        .flow-num {
+            width: 28px; height: 28px;
+            border-radius: 50%;
+            background: var(--accent-purple);
+            color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.75rem; font-weight: 700;
+            flex-shrink: 0;
+        }
+        .flow-desc { font-size: 0.82rem; }
+        .flow-desc strong { color: var(--accent-blue); }
+
         /* ── Responsive ── */
         @media (max-width: 600px) {
             .hero h1 { font-size: 1.6rem; }
@@ -628,6 +737,7 @@
             .pipeline-arrow { transform: rotate(90deg); }
             .message-bubble { max-width: 95%; }
             .dashboard-grid { grid-template-columns: 1fr; }
+            .tier-row { flex-direction: column; }
         }
     </style>
 </head>
@@ -668,16 +778,18 @@
     <div class="chat-container">
         <div class="chat-header">
             <h3>🛡️ Sovereign OS — HLF Chat Demo</h3>
-            <span style="color: var(--accent-green); font-size: 0.8rem;">● Connected</span>
+            <span class="sim-badge simulated">🔬 Demo Mode</span>
         </div>
 
         <div class="chat-body" id="chatBody">
             <div class="message system">
                 <div class="message-label system">⚙️ System</div>
                 <div class="message-bubble">
-                    Welcome to the HLF Translation Pipeline demo. Type a natural language command
-                    and watch it get compiled into HLF hieroglyphic symbols, validated against
-                    the ALIGN Ledger, executed by the agent, and translated back.
+                    Welcome to the HLF Translation Pipeline demo. This shows the <strong>structure</strong>
+                    of HLF compilation using pre-built templates — for real compilation, run <code>hlfc</code>
+                    locally or deploy your own instance.
+                    <div class="honesty-notice" style="margin-top:8px;">🔬 Translations use template matching, not live compilation.
+                    Token counts are estimated via BPE approximation. Dashboard data is <span class="sim-badge live">✅ Live</span> from GitHub API.</div>
                 </div>
             </div>
         </div>
@@ -687,7 +799,7 @@
             <button class="preset-btn" onclick="usePreset('Scan the security config for vulnerabilities')">🔒 Security Scan</button>
             <button class="preset-btn" onclick="usePreset('Summarize the latest agent activity logs')">📊 Log Summary</button>
             <button class="preset-btn" onclick="usePreset('Delegate a research task to the scribe agent')">📝 Delegate Task</button>
-            <button class="preset-btn" onclick="usePreset('Route this to the fastest local model')">⚡ Model Route</button>
+            <button class="preset-btn" onclick="openArchitectureModal()">⚡ Model Router ℹ️</button>
             <button class="preset-btn" onclick="usePreset('Check the ALIGN governance ledger status')">🛡️ ALIGN Check</button>
         </div>
 
@@ -812,7 +924,7 @@
 
             <h4>🔮 Why Fork? — The HLF Value Proposition</h4>
             <div class="benefit-grid">
-                <div class="benefit-item"><strong>60-67%</strong> token compression vs natural language</div>
+                <div class="benefit-item"><strong>83-86%</strong> token compression vs full JSON payloads</div>
                 <div class="benefit-item"><strong>Sub-ms</strong> deterministic LALR(1) parsing</div>
                 <div class="benefit-item"><strong>Zero-trust</strong> security built into the grammar</div>
                 <div class="benefit-item"><strong>Swarm evolution</strong> — agents improve the language itself</div>
@@ -893,7 +1005,63 @@ python scripts/copilot_factory.py hlf-evolve</pre>
         <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF">GitHub Repository</a> ·
         Sovereign Agentic OS with HLF · Built with 🤖 by the Sovereign Stack
     </p>
-    <p style="margin-top: 0.3rem; font-size: 0.7rem;">Data refreshes from GitHub public API on page load</p>
+    <p style="margin-top: 0.3rem; font-size: 0.7rem;">Dashboard: <span class="sim-badge live">✅ Live</span> GitHub API · Translation: <span class="sim-badge simulated">🔬 Template Demo</span></p>
+</div>
+
+<!-- ══ MODEL ROUTER ARCHITECTURE MODAL ══ -->
+<div class="modal-overlay" id="routerModal" onclick="if(event.target===this)closeArchitectureModal()">
+    <div class="modal-content">
+        <button class="modal-close" onclick="closeArchitectureModal()">✕</button>
+        <h3>⚡ MoMA Model Router — Architecture</h3>
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">This is how the real model routing works when running locally. It is <strong>not simulated</strong> in this static demo — it requires a live Ollama or OpenRouter backend.</p>
+
+        <h4 style="font-size:0.85rem; color:var(--accent-blue); margin:1rem 0 0.5rem;">🏗️ Routing Flow</h4>
+        <div>
+            <div class="flow-step">
+                <div class="flow-num">1</div>
+                <div class="flow-desc"><strong>Intent Analysis</strong> — HLF intent is parsed for complexity, domain, and latency constraints</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-num">2</div>
+                <div class="flow-desc"><strong>Tier Resolution</strong> — Deployment tier (Hearth/Forge/Sovereign) determines available backends</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-num">3</div>
+                <div class="flow-desc"><strong>Model Selection</strong> — MoMA Router picks optimal model based on: task type, VRAM budget, latency SLA, and benchmark scores</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-num">4</div>
+                <div class="flow-desc"><strong>Dispatch</strong> — Request routed to Ollama (local) or OpenRouter (cloud) with gas metering</div>
+            </div>
+            <div class="flow-step">
+                <div class="flow-num">5</div>
+                <div class="flow-desc"><strong>Result + Metrics</strong> — Response captured with real latency/throughput, logged to ALIGN Ledger</div>
+            </div>
+        </div>
+
+        <h4 style="font-size:0.85rem; color:var(--accent-blue); margin:1rem 0 0.5rem;">📊 Deployment Tiers</h4>
+        <div class="tier-row">
+            <div class="tier-card">
+                <h4>🏠 Hearth</h4>
+                <p>Local Ollama only<br>qwen2.5:7b, phi3:mini<br>Max latency: 500ms</p>
+            </div>
+            <div class="tier-card">
+                <h4>🔥 Forge</h4>
+                <p>Ollama + OpenRouter fallback<br>codestral, deepseek-coder<br>Max latency: 2000ms</p>
+            </div>
+            <div class="tier-card">
+                <h4>👑 Sovereign</h4>
+                <p>Full cloud access<br>claude-3.5, gpt-4o<br>No latency limit</p>
+            </div>
+        </div>
+
+        <h4 style="font-size:0.85rem; color:var(--accent-blue); margin:1rem 0 0.5rem;">🔧 To Use Real Routing</h4>
+        <p style="font-size:0.8rem; color:var(--text-secondary);">Fork & deploy locally, then configure in <code>.env</code>:</p>
+        <pre style="background:var(--bg-tertiary); padding:0.75rem; border-radius:6px; font-size:0.75rem; overflow-x:auto; margin-top:0.5rem;">OLLAMA_HOST=http://localhost:11434
+OPENROUTER_API_KEY=sk-or-...
+DEFAULT_TIER=hearth</pre>
+        <p style="font-size:0.75rem; color:var(--text-secondary); margin-top:0.5rem;">See <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/blob/main/config/" target="_blank" style="color:var(--accent-blue);">config/</a> and <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/blob/main/docs/HLF_PROGRESS.md" target="_blank" style="color:var(--accent-blue);">HLF_PROGRESS.md</a> for full docs.</p>
+    </div>
 </div>
 
 <script>
@@ -975,12 +1143,12 @@ async function sendMessage() {
 
     // Step 2: Show HLF compilation
     setActiveStep('step-compile');
-    addMessage('hlf', '⚙️ HLF Compiled (NLP → Hieroglyphics)', template.hlf);
+    addMessage('hlf', '⚙️ HLF Compiled (NLP → Hieroglyphics) <span class="sim-badge simulated">Template</span>', template.hlf);
     await delay(800);
 
     // Step 3: ALIGN validation
     setActiveStep('step-validate');
-    addMessage('system', '🛡️ ALIGN Gate', '✅ All governance rules pass. Intent cleared for execution.');
+    addMessage('system', '🛡️ ALIGN Gate <span class="sim-badge simulated">Simulated</span>', '✅ Governance check simulated. In production, this runs validate_hlf() → hlflint.lint() → ALIGN Ledger enforcement.');
     await delay(600);
 
     // Step 4: Agent execution
@@ -991,7 +1159,7 @@ async function sendMessage() {
 
     // Step 5: HLF Response
     setActiveStep('step-response');
-    addMessage('hlf', '📝 Agent Response (HLF)', template.response_hlf);
+    addMessage('hlf', '📝 Agent Response (HLF) <span class="sim-badge simulated">Template</span>', template.response_hlf);
     await delay(600);
 
     // Step 6: Decoded NLP response
@@ -1019,6 +1187,11 @@ function addMessage(type, label, text) {
     chatBody.scrollTop = chatBody.scrollHeight;
 }
 
+function estimateTokens(text) {
+    // BPE approximation: ~4 chars per token for English
+    return Math.ceil(text.length / 4);
+}
+
 function addMetrics(m) {
     const chatBody = document.getElementById('chatBody');
     const msg = document.createElement('div');
@@ -1026,8 +1199,9 @@ function addMetrics(m) {
     const saved = m.nlp_payload - m.tokens_hlf;
     const pctHlf = Math.round((m.tokens_hlf / m.nlp_payload) * 100);
     const swarmSaved = saved * m.swarm_agents;
+    const compression = Math.round(100 - (m.tokens_hlf / m.nlp_payload) * 100);
     msg.innerHTML = `
-        <div class="message-label metrics">📊 Translation Metrics — Efficiency Breakdown</div>
+        <div class="message-label metrics">📊 Efficiency Breakdown <span class="sim-badge simulated">Estimated</span></div>
         <div class="metrics-panel">
             <div class="metric-item">
                 <div class="metric-value blue">${m.nlp_payload}</div>
@@ -1038,32 +1212,23 @@ function addMetrics(m) {
                 <div class="metric-label">HLF Tokens<br><small style="opacity:0.6">Same instruction</small></div>
             </div>
             <div class="metric-item">
-                <div class="metric-value" style="color: #3fb950; font-size: 1.4rem;">↓ ${m.compression}</div>
+                <div class="metric-value" style="color: #3fb950; font-size: 1.4rem;">↓ ${compression}%</div>
                 <div class="metric-label">Compression<br><small style="opacity:0.6">${saved} tokens saved</small></div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-value gold">${m.parse_ms}ms</div>
-                <div class="metric-label">Parse (LALR)</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-value gold">${m.validate_ms}ms</div>
-                <div class="metric-label">ALIGN Gate</div>
-            </div>
-            <div class="metric-item">
-                <div class="metric-value gold">${m.exec_ms}ms</div>
-                <div class="metric-label">Execution</div>
             </div>
         </div>
         <div style="margin-top: 0.6rem; padding: 0 0.3rem;">
             <div style="font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 4px;">
-                Token comparison: NLP payload (${m.nlp_payload}) vs HLF (${m.tokens_hlf})
+                Token comparison: NLP payload (~${m.nlp_payload}) vs HLF (~${m.tokens_hlf}) · <em>Estimated via BPE approximation</em>
             </div>
             <div style="display: flex; gap: 2px; height: 20px; border-radius: 6px; overflow: hidden;">
-                <div style="width: ${pctHlf}%; background: linear-gradient(90deg, #3fb950, #238636); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: #fff;">HLF ${m.tokens_hlf}</div>
-                <div style="flex: 1; background: linear-gradient(90deg, #1f3a2a, #30363d); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--text-secondary);">← ${saved} tokens eliminated →</div>
+                <div style="width: ${pctHlf}%; background: linear-gradient(90deg, #3fb950, #238636); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: #fff;">HLF ~${m.tokens_hlf}</div>
+                <div style="flex: 1; background: linear-gradient(90deg, #1f3a2a, #30363d); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--text-secondary);">← ~${saved} tokens eliminated →</div>
             </div>
             <div style="font-size: 0.7rem; color: var(--accent-green); margin-top: 6px; text-align: center;">
-                🐝 In a ${m.swarm_agents}-agent swarm: <strong>${swarmSaved} tokens saved</strong> per round-trip (${m.nlp_payload * m.swarm_agents} → ${m.tokens_hlf * m.swarm_agents})
+                🐝 In a ${m.swarm_agents}-agent swarm: <strong>~${swarmSaved} tokens saved</strong> per round-trip
+            </div>
+            <div style="font-size: 0.65rem; color: var(--text-secondary); margin-top: 4px; text-align: center; font-style: italic;">
+                For real measured metrics, run: <code>python scripts/hlf_benchmark.py</code>
             </div>
         </div>
     `;
@@ -1112,7 +1277,7 @@ function delay(ms) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// QUOTA SYSTEM — 5 translations/day on upstream, unlimited on forks
+// QUOTA SYSTEM — 5 translations/day on upstream, unlimited on forks/owners
 // ═══════════════════════════════════════════════════════════════
 
 const UPSTREAM_HOST = 'grumpified-oggvct.github.io';
@@ -1121,6 +1286,15 @@ const QUOTA_KEY = 'hlf_demo_quota';
 
 function isUpstream() {
     return window.location.hostname.toLowerCase() === UPSTREAM_HOST;
+}
+
+// Owner/contributor detection — exempt from quota
+// To activate: open browser console and run:
+//   localStorage.setItem('hlf_owner', 'true')
+// To revoke:
+//   localStorage.removeItem('hlf_owner')
+function isOwnerOrContributor() {
+    return localStorage.getItem('hlf_owner') === 'true';
 }
 
 function getQuotaData() {
@@ -1142,12 +1316,14 @@ function getUsedToday() {
 }
 
 function checkQuota() {
-    if (!isUpstream()) return true; // forks have no quota
+    if (!isUpstream()) return true;          // forks — no quota
+    if (isOwnerOrContributor()) return true;  // owner/contributor — no quota
     return getUsedToday() < DAILY_LIMIT;
 }
 
 function incrementQuota() {
     if (!isUpstream()) return;
+    if (isOwnerOrContributor()) return; // don't count owner usage
     const today = getTodayKey();
     const data = getQuotaData();
     const count = (data && data.date === today) ? (data.count || 0) + 1 : 1;
@@ -1156,12 +1332,18 @@ function incrementQuota() {
 
 function getRemainingQuota() {
     if (!isUpstream()) return Infinity;
+    if (isOwnerOrContributor()) return Infinity;
     return Math.max(0, DAILY_LIMIT - getUsedToday());
 }
 
 function updateQuotaBanner() {
     const container = document.getElementById('quotaBanner');
     if (!container) return;
+
+    if (isOwnerOrContributor()) {
+        container.innerHTML = `<div class="owner-banner">👑 Owner/Contributor — unlimited translations</div>`;
+        return;
+    }
 
     if (!isUpstream()) {
         container.innerHTML = `<div class="quota-banner unlimited">✅ Self-hosted fork detected — unlimited translations enabled</div>`;
@@ -1186,6 +1368,14 @@ function updateQuotaBanner() {
             <span>💬 ${remaining}/${DAILY_LIMIT} translations remaining today</span>
         </div>`;
     }
+}
+
+// ── Architecture Modal ──
+function openArchitectureModal() {
+    document.getElementById('routerModal').classList.add('open');
+}
+function closeArchitectureModal() {
+    document.getElementById('routerModal').classList.remove('open');
 }
 
 // Init quota banner on load
