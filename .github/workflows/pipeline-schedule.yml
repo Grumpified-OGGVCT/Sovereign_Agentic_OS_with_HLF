@@ -1,0 +1,45 @@
+name: Pipeline Schedule
+
+on:
+  schedule:
+    # Every 6 hours (matches pipeline_scheduler.interval_hours in config/settings.json)
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      promote:
+        description: "Promote snapshot to active after run"
+        required: false
+        default: "true"
+
+permissions:
+  contents: read
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Install dependencies
+        run: uv sync --all-extras --frozen
+
+      - name: Run pipeline with registry persistence
+        env:
+          OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+          DEPLOYMENT_TIER: ${{ vars.DEPLOYMENT_TIER || 'hearth' }}
+        run: |
+          PROMOTE_FLAG=""
+          if [ "${{ github.event.inputs.promote || 'true' }}" != "true" ]; then
+            PROMOTE_FLAG="--no-promote"
+          fi
+          uv run python scripts/run_pipeline_scheduled.py $PROMOTE_FLAG

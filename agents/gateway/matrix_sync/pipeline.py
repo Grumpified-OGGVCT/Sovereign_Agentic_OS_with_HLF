@@ -139,6 +139,32 @@ def _persist_to_registry(
         "promoted": promote,
     }
 
+def run_pipeline_scheduled(promote: bool = True) -> None:
+    """Run the pipeline programmatically (no sys.argv).
+
+    Equivalent to: ``python -m ... --registry-db [--promote]``
+    Used by the APScheduler background job and the GitHub Actions cron trigger.
+    """
+    args = argparse.Namespace(
+        output_dir="./out",
+        versioned=False,
+        cache_dir="./.cache_cards",
+        families="",
+        families_file="./families.txt",
+        auto_discover_families=False,
+        include_all_cloud=False,
+        apply_pulls=False,
+        dry_run=False,
+        sleep_cards=0.25,
+        previous_matrix="",
+        gsheet_id="",
+        gcp_creds="",
+        registry_db=True,
+        promote=promote,
+    )
+    run_pipeline(args)
+
+
 def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
     ap.add_argument("--output-dir", default="./out")
@@ -197,8 +223,9 @@ def load_families_file(path: str) -> set[str]:
                 out.add(s)
     return out
 
-def run_pipeline() -> None:
-    args = parse_args()
+def run_pipeline(args: argparse.Namespace | None = None) -> None:
+    if args is None:
+        args = parse_args()
     ensure_dir(args.output_dir)
     ensure_dir(args.cache_dir)
     out_dir = make_versioned_output_dir(args.output_dir) if args.versioned else args.output_dir
