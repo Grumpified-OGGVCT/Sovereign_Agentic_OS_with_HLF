@@ -5,6 +5,27 @@ echo Sovereign Agentic OS Setup Wizard
 echo =========================================
 echo.
 
+:: Try the comprehensive PowerShell setup wizard first
+echo Attempting comprehensive setup via setup.ps1...
+where powershell >nul 2>nul
+if %errorlevel% equ 0 (
+    powershell -ExecutionPolicy Bypass -File "%~dp0setup.ps1"
+    if %errorlevel% equ 0 (
+        echo.
+        echo =========================================
+        echo Setup Complete via PowerShell wizard!
+        echo You can now use run.bat to start the system.
+        echo =========================================
+        pause
+        exit /b 0
+    )
+    echo [WARN] PowerShell setup exited with errors, falling back to legacy flow...
+)
+
+echo.
+echo --- Legacy Setup Fallback ---
+echo.
+
 echo Checking for uv (Python package manager)...
 where uv >nul 2>nul
 if %errorlevel% neq 0 (
