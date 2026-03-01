@@ -123,3 +123,102 @@ global_invariants:
   gas_enforcement: true
   align_enforcement: true
   merkle_chain: true
+  no_transparency_reduction: true
+  no_feature_simplification: true
+  six_hats_on_all_prs: true
+
+# ─── Transparency Assessment Track ───────────────────────────────
+transparency:
+  frequency: weekly
+  description: "Assess and enhance system-wide transparency (GUI, logging, agent visibility)"
+  tasks:
+    - name: gui-transparency-audit
+      description: "Audit gui/app.py for agent visibility coverage — ensure routing traces, model selections, HLF translations, and ALS log streams are visible"
+      commands:
+        - "uv run python -m pytest tests/ -v -k 'gui or app' --tb=short"
+      invariants:
+        - "never_reduce_visibility"
+        - "additive_only"
+      output: "reports/transparency-audit.md"
+      six_hats_review: true
+
+    - name: user-level-check
+      description: "Verify adjustable user levels (minimal/standard/detailed) exist and function correctly for resource and token governance"
+      commands:
+        - "grep -r 'user_level\\|verbosity\\|token_budget' gui/ agents/ --include='*.py' -l"
+
+    - name: inter-agent-communication-log
+      description: "Verify all agent-to-agent messages are logged and displayable in GUI"
+      commands:
+        - "grep -r 'ALSLogger\\|agent_message\\|routing_trace' agents/ --include='*.py' -c"
+
+    - name: hlf-translation-visibility
+      description: "Check real-time HLF translation panels are active and showing natural-language equivalents"
+
+# ─── Self-Capability Tracking Track ──────────────────────────────
+self_capability:
+  frequency: bi-weekly
+  description: "Jules maintains and updates its own capability manifest"
+  tasks:
+    - name: capability-manifest-update
+      description: "Review and update config/jules_capabilities.yaml — what Jules CAN do, CANNOT yet do, and COULD do with enhancements"
+      output: "config/jules_capabilities.yaml"
+      six_hats_review: true
+
+    - name: enhancement-proposal-scan
+      description: "Identify opportunities to expand Jules usefulness — create GitHub issues with label 'jules-enhancement'"
+      auto_create_issues: true
+      issue_label: "jules-enhancement"
+      invariants:
+        - "must_pass_six_hats"
+        - "never_overstate"
+
+    - name: capability-growth-log
+      description: "Update reports/jules_capability_log.md with any new capabilities gained"
+      output: "reports/jules_capability_log.md"
+
+# ─── Gemini Model Integration Track ─────────────────────────────
+gemini_integration:
+  frequency: weekly
+  description: "Track and integrate upgraded Gemini models and services"
+  tasks:
+    - name: gemini-model-check
+      description: "Check for new Gemini model releases (2.5 Pro, Flash, etc.) and add to SQL registry with proper tiers"
+      commands:
+        - "uv run python -c \"from agents.core.db import RegistryDB; db = RegistryDB(); print(db.list_models(provider='gemini'))\""
+
+    - name: gemini-service-integration
+      description: "Assess Gemini-specific services (vision, code exec, grounding) for integration points"
+
+    - name: gemini-tier-walk-audit
+      description: "Verify Gemini models participate correctly in 3-phase tier walk and fallback chains"
+      commands:
+        - "uv run python -m pytest tests/test_router_v2.py -v --tb=short"
+
+# ─── HLF Maximization Track ─────────────────────────────────────
+hlf_maximization:
+  frequency: weekly
+  description: "Maximize usefulness and power of HLF agent and related components"
+  tasks:
+    - name: hlf-grammar-evolution
+      description: "Propose new HLF tags, syntax extensions, expressive power improvements — always additive"
+      invariants:
+        - "never_remove_syntax"
+        - "additive_only"
+      six_hats_review: true
+
+    - name: hlf-compiler-hardening
+      description: "Expand hlfc.py test coverage, edge cases, and error messages"
+      commands:
+        - "uv run python -m pytest tests/ -v -k 'hlf or hlfc or parse' --tb=short"
+
+    - name: hlf-linter-expansion
+      description: "Add new lint rules to hlflint.py for security, performance, best practices"
+
+    - name: hlf-test-corpus-growth
+      description: "Expand HLF test corpus with real-world examples, edge cases, adversarial inputs"
+      output: "reports/hlf-test-corpus.md"
+
+    - name: hlf-documentation-sync
+      description: "Ensure HLF docs are current with every grammar change"
+
