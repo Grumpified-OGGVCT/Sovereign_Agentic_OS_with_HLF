@@ -156,7 +156,7 @@ The OS adapts configuration, networking privileges, and security boundaries base
 ### Core Goals
 - **Deterministic Intent**: 100% predictable execution paths via LALR(1) parsing.
 - **Token Compression**: Measured **12–30% compression** per intent (tiktoken cl100k_base); up to **83% vs verbose JSON payloads**. In a 5-agent swarm, savings multiply — 83 tokens saved per broadcast × 5 agents = **415 tokens per cycle**.
-- **Cross-Model Alignment**: Ensure a GPT-4o planning agent can communicate perfectly with a local deepseek-v3 worker.
+- **Cross-Model Alignment**: The MoMA Router auto-selects from the **model matrix** per deployment tier — ensuring any allowed model can communicate via typed HLF intents.
 - **Cryptographic Governance**: Every intent is mathematically verifiable against the **ALIGN Ledger**.
 
 ### 💎 High-Impact Examples
@@ -187,11 +187,10 @@ The primary agent delegates a long-running summarization task to a specialized S
 ```
 
 #### 3. Real-Time Resource Mediation (MoMA Router)
-The router dynamically shifts a task to a local model based on real-time VRAM availability.
+The router dynamically selects from the tier's model matrix based on VRAM, task complexity, and cost.
 ```hlf
 [HLF-v3]
-⌘ [ROUTE] target="local_ollama" 
- Δ [MODEL] name="qwen:7b"
+⌘ [ROUTE] strategy="auto" tier="$DEPLOYMENT_TIER"
  ∇ [PARAM] temperature=0.0
 Ж [VOTE] confirmation="required"
 Ω
@@ -237,7 +236,7 @@ The Sovereign OS uses a **3-tier memory architecture** that eliminates the conte
 
 ### Key Innovations
 
-- **Fractal Summarization**: When context approaches the token limit, a local model (qwen:7b) runs map-reduce compression, distilling to 1,500 tokens before injection.
+- **Fractal Summarization**: When context approaches the token limit, the summarization model runs map-reduce compression, distilling to 1,500 tokens before injection.
 - **SHA-256 Embedding Cache**: Deduplicates vector embeddings before they hit the ML model, saving compute.
 - **Active Context Tiering**: When an agent focuses on a topic, relevant cold vectors are pre-loaded into Redis for sub-millisecond retrieval.
 - **Vector Race Protection**: Cosine similarity check (>0.98 threshold) prevents duplicate INSERTs from parallel agents.
@@ -267,7 +266,7 @@ HLF and the Infinite RAG are designed to amplify each other:
 - 🔨 Vector Embeddings — `sqlite-vec` C-extension installation needed
 - 🔨 Redis Hot Cache — Active Context Tiering spec'd, not yet coded
 - 🔨 SHA-256 Dedup Cache — designed, implementation pending
-- 🔨 Fractal Summarization — qwen:7b map-reduce spec'd
+- 🔨 Fractal Summarization — summarization model map-reduce spec'd
 
 > 🌐 See the **[Infinite RAG explainer popup](https://grumpified-oggvct.github.io/Sovereign_Agentic_OS_with_HLF/)** on the live demo page for interactive comparison with traditional RAG.
 
