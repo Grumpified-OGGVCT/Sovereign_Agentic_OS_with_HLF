@@ -317,6 +317,187 @@
             40% { opacity: 1; }
         }
 
+        /* ── Dashboard Sections ── */
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        .dash-card {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            overflow: hidden;
+        }
+        .dash-card.full-width {
+            grid-column: 1 / -1;
+        }
+        .dash-card-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.7rem 1rem;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .dash-card-body {
+            padding: 0.8rem 1rem;
+            max-height: 320px;
+            overflow-y: auto;
+        }
+        .dash-card-body::-webkit-scrollbar { width: 4px; }
+        .dash-card-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+        /* ── Commit Items ── */
+        .commit-item {
+            display: flex;
+            gap: 0.6rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            font-size: 0.82rem;
+            align-items: flex-start;
+        }
+        .commit-item:last-child { border-bottom: none; }
+        .commit-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 1px solid var(--border);
+        }
+        .commit-info { flex: 1; min-width: 0; }
+        .commit-msg {
+            color: var(--text-primary);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .commit-meta {
+            color: var(--text-secondary);
+            font-size: 0.72rem;
+            margin-top: 2px;
+        }
+        .commit-sha {
+            font-family: var(--font-mono);
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 0.72rem;
+        }
+        .commit-sha:hover { text-decoration: underline; }
+
+        /* ── PR / Agent Items ── */
+        .pr-item {
+            display: flex;
+            gap: 0.6rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            font-size: 0.82rem;
+            align-items: center;
+        }
+        .pr-item:last-child { border-bottom: none; }
+        .pr-icon { font-size: 1.1rem; flex-shrink: 0; }
+        .pr-title {
+            flex: 1;
+            color: var(--text-primary);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .pr-title a { color: var(--accent-blue); text-decoration: none; }
+        .pr-title a:hover { text-decoration: underline; }
+        .pr-label {
+            padding: 0.1rem 0.4rem;
+            border-radius: 10px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        /* ── CI Status ── */
+        .ci-item {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.4rem 0;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            font-size: 0.82rem;
+            align-items: center;
+        }
+        .ci-item:last-child { border-bottom: none; }
+        .ci-status { font-size: 1rem; flex-shrink: 0; }
+        .ci-name { flex: 1; font-weight: 500; }
+        .ci-time { color: var(--text-secondary); font-size: 0.72rem; }
+
+        /* ── Jules Timeline ── */
+        .timeline-item {
+            display: flex;
+            gap: 0.6rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(48, 54, 61, 0.5);
+            font-size: 0.82rem;
+        }
+        .timeline-item:last-child { border-bottom: none; }
+        .timeline-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            margin-top: 4px;
+        }
+        .timeline-dot.daily { background: var(--accent-green); }
+        .timeline-dot.weekly { background: var(--accent-blue); }
+        .timeline-dot.monthly { background: var(--accent-purple); }
+        .timeline-content { flex: 1; }
+        .timeline-cadence {
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+        .timeline-cadence.daily { color: var(--accent-green); }
+        .timeline-cadence.weekly { color: var(--accent-blue); }
+        .timeline-cadence.monthly { color: var(--accent-purple); }
+
+        /* ── Loading Skeleton ── */
+        .skeleton {
+            background: linear-gradient(90deg, var(--bg-tertiary) 25%, #2a3040 50%, var(--bg-tertiary) 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+            border-radius: 6px;
+            height: 38px;
+            margin-bottom: 0.4rem;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 1.5rem;
+            font-size: 0.85rem;
+        }
+
+        /* ── Pulse indicator ── */
+        .live-dot {
+            display: inline-block;
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            animation: pulse-live 2s ease-in-out infinite;
+            margin-right: 4px;
+        }
+        @keyframes pulse-live {
+            0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.4); }
+            50% { opacity: 0.6; box-shadow: 0 0 6px 3px rgba(63, 185, 80, 0.2); }
+        }
+
         /* ── Footer ── */
         .footer {
             text-align: center;
@@ -336,6 +517,7 @@
             .pipeline-flow { flex-direction: column; }
             .pipeline-arrow { transform: rotate(90deg); }
             .message-bubble { max-width: 95%; }
+            .dashboard-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
@@ -349,7 +531,7 @@
         get processed by agents, and translate back — with live metrics.
     </p>
     <div class="badge-row">
-        <span class="badge green">✓ 194 Tests Passing</span>
+        <span class="badge green">✓ 197 Tests Passing</span>
         <span class="badge blue">⚡ LALR(1) Parser</span>
         <span class="badge purple">🔮 HLF-v3 Spec</span>
     </div>
@@ -405,6 +587,104 @@
             <button onclick="sendMessage()" id="sendBtn">Translate →</button>
         </div>
     </div>
+
+    <!-- ══ LIVE DASHBOARD ══ -->
+    <div class="dashboard-grid">
+
+        <!-- Active Agent Work -->
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <span>🤖 Active Agent Work</span>
+                <span><span class="live-dot"></span>Live</span>
+            </div>
+            <div class="dash-card-body" id="agentWork">
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+            </div>
+        </div>
+
+        <!-- CI/Actions Status -->
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <span>⚙️ CI / Actions Status</span>
+                <span id="ciStatusBadge">—</span>
+            </div>
+            <div class="dash-card-body" id="ciStatus">
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+            </div>
+        </div>
+
+        <!-- Recent Commits -->
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <span>📝 Recent Commits</span>
+                <span id="commitCount">—</span>
+            </div>
+            <div class="dash-card-body" id="commitFeed">
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+                <div class="skeleton"></div>
+            </div>
+        </div>
+
+        <!-- Jules Update Cadence -->
+        <div class="dash-card">
+            <div class="dash-card-header">
+                <span>📅 Jules Update Cadence</span>
+                <span>Schedule</span>
+            </div>
+            <div class="dash-card-body" id="julesTimeline">
+                <div class="timeline-item">
+                    <div class="timeline-dot daily"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-cadence daily">Daily</div>
+                        <div>Dream Mode cycle, lint & test sweeps, HLF token audit</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-dot daily"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-cadence daily">Daily</div>
+                        <div>ALIGN Ledger compliance scan, dependency audit</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-dot weekly"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-cadence weekly">Weekly</div>
+                        <div>Architecture diagram sync, README refresh, Six-Hat review</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-dot weekly"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-cadence weekly">Weekly</div>
+                        <div>HLF grammar evolution proposal, translation metric benchmarks</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-dot monthly"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-cadence monthly">Monthly</div>
+                        <div>Full integration test sweep, Tier promotion review, model benchmark</div>
+                    </div>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-dot monthly"></div>
+                    <div class="timeline-content">
+                        <div class="timeline-cadence monthly">Monthly</div>
+                        <div>Security posture assessment, CODEOWNERS audit, release cut</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
 </div>
 
 <!-- ══ FOOTER ══ -->
@@ -413,6 +693,7 @@
         <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF">GitHub Repository</a> ·
         Sovereign Agentic OS with HLF · Built with 🤖 by the Sovereign Stack
     </p>
+    <p style="margin-top: 0.3rem; font-size: 0.7rem;">Data refreshes from GitHub public API on page load</p>
 </div>
 
 <script>
@@ -605,6 +886,133 @@ function clearAllSteps() {
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LIVE DASHBOARD — GitHub Public API Integration
+// ═══════════════════════════════════════════════════════════════
+
+const REPO_API = 'https://api.github.com/repos/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF';
+const REPO_URL = 'https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF';
+
+function timeAgo(dateStr) {
+    const seconds = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+    if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+    if (seconds < 604800) return Math.floor(seconds / 86400) + 'd ago';
+    return new Date(dateStr).toLocaleDateString();
+}
+
+async function fetchJSON(url) {
+    try {
+        const resp = await fetch(url, { headers: { 'Accept': 'application/vnd.github+json' } });
+        if (!resp.ok) throw new Error(resp.status);
+        return await resp.json();
+    } catch (e) {
+        console.warn('API fetch failed:', url, e);
+        return null;
+    }
+}
+
+// ── Active Agent Work (Open PRs) ──
+async function loadAgentWork() {
+    const container = document.getElementById('agentWork');
+    const data = await fetchJSON(`${REPO_API}/pulls?state=open&per_page=10&sort=updated&direction=desc`);
+    if (!data || data.length === 0) {
+        container.innerHTML = '<div class="empty-state">No active agent PRs — all clear ✅</div>';
+        return;
+    }
+    container.innerHTML = data.map(pr => {
+        const labels = (pr.labels || []).map(l =>
+            `<span class="pr-label" style="color: #${l.color}; border: 1px solid #${l.color};">${l.name}</span>`
+        ).join(' ');
+        const icon = pr.draft ? '📝' : '🟢';
+        return `<div class="pr-item">
+            <span class="pr-icon">${icon}</span>
+            <div class="pr-title"><a href="${pr.html_url}" target="_blank">#${pr.number} ${pr.title}</a></div>
+            ${labels}
+            <span class="ci-time">${timeAgo(pr.updated_at)}</span>
+        </div>`;
+    }).join('');
+}
+
+// ── CI / Actions Status ──
+async function loadCIStatus() {
+    const container = document.getElementById('ciStatus');
+    const badge = document.getElementById('ciStatusBadge');
+    const data = await fetchJSON(`${REPO_API}/actions/runs?per_page=6`);
+    if (!data || !data.workflow_runs) {
+        container.innerHTML = '<div class="empty-state">Unable to load CI status</div>';
+        return;
+    }
+    const runs = data.workflow_runs.slice(0, 6);
+    const latest = runs[0];
+    const statusMap = {
+        'completed': { icon: '✅', text: 'Passing' },
+        'in_progress': { icon: '🔄', text: 'Running' },
+        'queued': { icon: '⏳', text: 'Queued' },
+        'failure': { icon: '❌', text: 'Failed' }
+    };
+    const conclusionMap = {
+        'success': '✅', 'failure': '❌', 'cancelled': '⚪',
+        'skipped': '⏭️', 'neutral': '🔘', null: '🔄'
+    };
+    if (latest) {
+        const s = latest.conclusion === 'success' ? statusMap.completed : (statusMap[latest.status] || { icon: '❓', text: latest.status });
+        badge.innerHTML = `<span style="color: ${latest.conclusion === 'success' ? 'var(--accent-green)' : 'var(--accent-orange)'}; font-size: 0.75rem;">${s.icon} ${s.text}</span>`;
+    }
+    container.innerHTML = runs.map(run => {
+        const icon = conclusionMap[run.conclusion] || '🔘';
+        const name = run.name || run.display_title || 'Workflow';
+        return `<div class="ci-item">
+            <span class="ci-status">${icon}</span>
+            <span class="ci-name">${name}</span>
+            <span class="ci-time">${timeAgo(run.updated_at)}</span>
+        </div>`;
+    }).join('');
+}
+
+// ── Recent Commits ──
+async function loadCommits() {
+    const container = document.getElementById('commitFeed');
+    const counter = document.getElementById('commitCount');
+    const data = await fetchJSON(`${REPO_API}/commits?per_page=8`);
+    if (!data || data.length === 0) {
+        container.innerHTML = '<div class="empty-state">No commits found</div>';
+        return;
+    }
+    counter.textContent = `Last ${data.length}`;
+    container.innerHTML = data.map(c => {
+        const msg = (c.commit.message || '').split('\n')[0];
+        const author = c.author ? c.author.login : (c.commit.author ? c.commit.author.name : 'unknown');
+        const avatar = c.author ? c.author.avatar_url : 'https://github.githubassets.com/images/gravatars/gravatar-user-420.png';
+        const sha = c.sha.substring(0, 7);
+        return `<div class="commit-item">
+            <img class="commit-avatar" src="${avatar}" alt="${author}" loading="lazy">
+            <div class="commit-info">
+                <div class="commit-msg">${msg}</div>
+                <div class="commit-meta">
+                    <a class="commit-sha" href="${REPO_URL}/commit/${c.sha}" target="_blank">${sha}</a>
+                    · ${author} · ${timeAgo(c.commit.author.date)}
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// ── Init all dashboard sections ──
+async function initDashboard() {
+    loadAgentWork();
+    loadCIStatus();
+    loadCommits();
+}
+
+// Load on page ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDashboard);
+} else {
+    initDashboard();
 }
 </script>
 
