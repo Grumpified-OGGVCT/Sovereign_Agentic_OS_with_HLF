@@ -341,6 +341,33 @@ st.markdown(
         border: 1px solid #30363d; z-index: 100;
         box-shadow: 0 3px 6px rgba(0,0,0,0.5);
     }
+
+    /* ── Auto-Update Flashing Banner ── */
+    @keyframes pulse-update {
+        0%, 100% { opacity: 1; box-shadow: 0 0 8px rgba(255, 165, 0, 0.6); }
+        50% { opacity: 0.65; box-shadow: 0 0 18px rgba(255, 165, 0, 0.3); }
+    }
+    .update-banner {
+        animation: pulse-update 1.8s ease-in-out infinite;
+        background: linear-gradient(135deg, #2d1f00 0%, #3d2a00 100%);
+        border: 1px solid #f0a500;
+        border-radius: 8px;
+        padding: 0.6rem 1rem;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #ffd700;
+        font-weight: 600;
+    }
+    .update-banner .update-icon {
+        font-size: 1.4rem;
+        margin-right: 0.5rem;
+    }
+    .update-banner .update-text {
+        flex: 1;
+        font-size: 0.9rem;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -348,9 +375,107 @@ st.markdown(
 
 
 # ============================================================================
+# AUTO-UPDATE CHECKER
+# ============================================================================
+
+
+@st.cache_data(ttl=300)  # check every 5 minutes
+def check_for_updates() -> dict:
+    """Check if there are new commits on origin/main ahead of local HEAD."""
+    import subprocess
+
+    result = {"available": False, "commits_behind": 0, "summary": []}
+    try:
+        subprocess.run(
+            ["git", "fetch", "--quiet"],
+            capture_output=True, timeout=10,
+            cwd=str(_PROJECT_ROOT),
+        )
+        behind = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD..origin/main"],
+            capture_output=True, text=True, timeout=5,
+            cwd=str(_PROJECT_ROOT),
+        )
+        count = int(behind.stdout.strip() or 0)
+        if count > 0:
+            log = subprocess.run(
+                ["git", "log", "--oneline", f"-{min(count, 10)}", "origin/main"],
+                capture_output=True, text=True, timeout=5,
+                cwd=str(_PROJECT_ROOT),
+            )
+            result = {
+                "available": True,
+                "commits_behind": count,
+                "summary": log.stdout.strip().split("\n") if log.stdout.strip() else [],
+            }
+    except Exception:
+        pass
+    return result
+
+
+def apply_update() -> tuple[bool, str]:
+    """Pull latest changes and sync dependencies."""
+    import subprocess
+
+    try:
+        pull = subprocess.run(
+            ["git", "pull", "origin", "main"],
+            capture_output=True, text=True, timeout=60,
+            cwd=str(_PROJECT_ROOT),
+        )
+        if pull.returncode != 0:
+            return False, f"Git pull failed: {pull.stderr.strip()}"
+        sync = subprocess.run(
+            ["uv", "sync", "--all-extras"],
+            capture_output=True, text=True, timeout=120,
+            cwd=str(_PROJECT_ROOT),
+        )
+        if sync.returncode != 0:
+            return False, f"Dependency sync failed: {sync.stderr.strip()}"
+        return True, "Update applied successfully! Restart the GUI to use new features."
+    except Exception as exc:
+        return False, f"Update error: {exc}"
+
+
+# ============================================================================
 # TITLE & LIVE STATUS BAR
 # ============================================================================
 st.title("🛡️ Cognitive Security Operations Center (C-SOC)")
+
+# ── Auto-Update Banner ──
+update_info = check_for_updates()
+if update_info["available"]:
+    st.markdown(
+        f'<div class="update-banner">'
+        f'<span class="update-icon">🔔</span>'
+        f'<span class="update-text">Updates Available — '
+        f'{update_info["commits_behind"]} commit(s) behind origin/main</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    with st.expander("📋 Review & Apply Updates", expanded=False):
+        st.markdown("**Recent changes on `origin/main`:**")
+        for line in update_info.get("summary", []):
+            st.markdown(f"- `{line}`")
+        st.markdown("---")
+        col_apply, col_dismiss = st.columns(2)
+        with col_apply:
+            if st.button("✅ Apply Update", type="primary", use_container_width=True):
+                with st.spinner("Pulling latest changes and syncing dependencies..."):
+                    success, msg = apply_update()
+                if success:
+                    st.success(msg)
+                    st.cache_data.clear()
+                    st.rerun()
+                else:
+                    st.error(msg)
+                    st.warning(
+                        "⚠️ Manual resolution may be needed. Run `git status` in terminal."
+                    )
+        with col_dismiss:
+            if st.button("🔕 Dismiss", use_container_width=True):
+                st.cache_data.clear()
+
 st.markdown(
     "*This dashboard is your **Active Defense System**. "
     "It visualizes agent identity, detects deception, monitors execution state, "

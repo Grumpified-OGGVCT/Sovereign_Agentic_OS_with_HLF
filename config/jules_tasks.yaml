@@ -45,6 +45,7 @@ daily_pipeline:
   execution: sequential       # each step waits for prior to complete
   context_aware: true         # each agent reads prior agent's report
   start_time: "02:00 UTC"    # run during off-hours
+  steps:
 
   # ─── Step 1: HLF Grammar Evolver ─────────────────────────────
   - step: 1

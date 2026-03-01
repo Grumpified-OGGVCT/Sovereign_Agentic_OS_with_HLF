@@ -24,8 +24,26 @@ jobs:
           fi
           echo "OK: Production compose is clean"
 
-  lint-and-test:
+  deep-install-verify:
     needs: ensure-no-sandbox-in-prod
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies (clean)
+        run: uv sync --all-extras --frozen
+      - name: Deep Installation Verification
+        run: uv run python -m pytest tests/test_installation.py -v --tb=short
+
+  lint-and-test:
+    needs: [ensure-no-sandbox-in-prod, deep-install-verify]
     runs-on: ubuntu-latest
     permissions:
       contents: read
