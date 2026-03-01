@@ -801,6 +801,7 @@
             <button class="preset-btn" onclick="usePreset('Delegate a research task to the scribe agent')">📝 Delegate Task</button>
             <button class="preset-btn" onclick="openArchitectureModal()">⚡ Model Router ℹ️</button>
             <button class="preset-btn" onclick="usePreset('Check the ALIGN governance ledger status')">🛡️ ALIGN Check</button>
+            <button class="preset-btn" onclick="openRAGModal()" style="background: linear-gradient(135deg, rgba(188,140,255,0.15), rgba(63,185,80,0.15)); border-color: var(--accent-purple);">♾️ Infinite RAG ℹ️</button>
         </div>
 
         <!-- Input -->
@@ -1061,6 +1062,110 @@ python scripts/copilot_factory.py hlf-evolve</pre>
 OPENROUTER_API_KEY=sk-or-...
 DEFAULT_TIER=hearth</pre>
         <p style="font-size:0.75rem; color:var(--text-secondary); margin-top:0.5rem;">See <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/blob/main/config/" target="_blank" style="color:var(--accent-blue);">config/</a> and <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/blob/main/docs/HLF_PROGRESS.md" target="_blank" style="color:var(--accent-blue);">HLF_PROGRESS.md</a> for full docs.</p>
+    </div>
+</div>
+
+<!-- ══ INFINITE RAG MEMORY MATRIX MODAL ══ -->
+<div class="modal-overlay" id="ragModal" onclick="if(event.target===this)closeRAGModal()">
+    <div class="modal-content" style="max-width: 800px;">
+        <button class="modal-close" onclick="closeRAGModal()">✕</button>
+        <h3>♾️ Infinite RAG Memory Matrix</h3>
+        <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">The Sovereign OS uses a <strong>3-tier memory architecture</strong> that eliminates the context window ceiling found in traditional RAG systems.</p>
+
+        <!-- Comparison Infographic -->
+        <div style="text-align:center; margin:1rem 0;">
+            <img src="infinite_rag_comparison.png" alt="Traditional RAG vs Infinite RAG comparison" style="max-width:100%; border-radius:8px; border:1px solid var(--border);" />
+        </div>
+
+        <!-- Wiring Status -->
+        <h4 style="font-size:0.85rem; color:var(--accent-blue); margin:1.5rem 0 0.5rem;">🔌 Wiring Status</h4>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; font-size:0.78rem;">
+            <div style="padding:6px 10px; background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3); border-radius:6px;">✅ SQLite WAL Mode — Active in all services</div>
+            <div style="padding:6px 10px; background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3); border-radius:6px;">✅ MCP RAG Bridge — <code>query_memory()</code> tool wired</div>
+            <div style="padding:6px 10px; background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3); border-radius:6px;">✅ Dream State — Context compression every 03:00</div>
+            <div style="padding:6px 10px; background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3); border-radius:6px;">✅ DB Schema — fact_store + rolling_context tables</div>
+            <div style="padding:6px 10px; background:rgba(210,153,34,0.1); border:1px solid rgba(210,153,34,0.3); border-radius:6px;">🔨 Vector Embeddings — sqlite-vec install needed</div>
+            <div style="padding:6px 10px; background:rgba(210,153,34,0.1); border:1px solid rgba(210,153,34,0.3); border-radius:6px;">🔨 Redis Hot Cache — Active Context Tiering spec'd</div>
+            <div style="padding:6px 10px; background:rgba(210,153,34,0.1); border:1px solid rgba(210,153,34,0.3); border-radius:6px;">🔨 SHA-256 Dedup Cache — designed, not yet coded</div>
+            <div style="padding:6px 10px; background:rgba(210,153,34,0.1); border:1px solid rgba(210,153,34,0.3); border-radius:6px;">🔨 Fractal Summarization — qwen:7b map-reduce spec'd</div>
+        </div>
+
+        <!-- How It Works -->
+        <h4 style="font-size:0.85rem; color:var(--accent-blue); margin:1.5rem 0 0.5rem;">🏗️ How It Works vs Traditional RAG</h4>
+        <table style="width:100%; font-size:0.78rem; border-collapse:collapse; margin:0.5rem 0;">
+            <thead>
+                <tr style="border-bottom:2px solid var(--border); text-align:left;">
+                    <th style="padding:6px 8px; color:var(--text-secondary);">Dimension</th>
+                    <th style="padding:6px 8px; color:#f85149;">Traditional RAG</th>
+                    <th style="padding:6px 8px; color:#3fb950;">Infinite RAG</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:6px 8px;">Context Limit</td>
+                    <td style="padding:6px 8px;">4K–128K tokens (hard ceiling)</td>
+                    <td style="padding:6px 8px;"><strong>Unlimited</strong> — fractal compression</td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:6px 8px;">Memory</td>
+                    <td style="padding:6px 8px;">Stateless per session</td>
+                    <td style="padding:6px 8px;"><strong>Persistent</strong> — fact_store survives reboots</td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:6px 8px;">Retrieval Speed</td>
+                    <td style="padding:6px 8px;">10-100ms (vector search)</td>
+                    <td style="padding:6px 8px;"><strong>&lt;1ms</strong> — Redis hot cache pre-loads topics</td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:6px 8px;">Deduplication</td>
+                    <td style="padding:6px 8px;">None (embed same text repeatedly)</td>
+                    <td style="padding:6px 8px;"><strong>SHA-256</strong> cache eliminates redundant embeds</td>
+                </tr>
+                <tr style="border-bottom:1px solid var(--border);">
+                    <td style="padding:6px 8px;">Self-Improvement</td>
+                    <td style="padding:6px 8px;">Static — needs human re-indexing</td>
+                    <td style="padding:6px 8px;"><strong>Dream State</strong> — nightly auto-compression & rule synthesis</td>
+                </tr>
+                <tr>
+                    <td style="padding:6px 8px;">Governance</td>
+                    <td style="padding:6px 8px;">No write controls</td>
+                    <td style="padding:6px 8px;"><strong>ALIGN Ledger</strong> enforces all memory writes</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <!-- Use Cases -->
+        <h4 style="font-size:0.85rem; color:var(--accent-blue); margin:1.5rem 0 0.5rem;">📋 Use Case Comparison</h4>
+        <div class="tier-row" style="margin:0.5rem 0;">
+            <div class="tier-card">
+                <h4 style="color:var(--accent-green);">🏠 Everyday</h4>
+                <p style="text-align:left;"><strong>Traditional:</strong> Ask a question, get a one-off answer. No continuity.<br><br><strong>Infinite RAG:</strong> Agent remembers your preferences, past decisions, project context across sessions. "Remember that DB config we set up last month?" → instant recall.</p>
+            </div>
+            <div class="tier-card">
+                <h4 style="color:var(--accent-blue);">💻 Coding</h4>
+                <p style="text-align:left;"><strong>Traditional:</strong> Re-explain architecture every session. Loses context mid-refactor.<br><br><strong>Infinite RAG:</strong> Knows your entire codebase topology. Dream State synthesizes daily learnings into rules. Multi-agent swarm shares persistent facts, not tokens.</p>
+            </div>
+            <div class="tier-card">
+                <h4 style="color:var(--accent-purple);">🧬 Advanced</h4>
+                <p style="text-align:left;"><strong>Traditional:</strong> Can't handle month-long research projects or adversarial testing.<br><br><strong>Infinite RAG:</strong> Cold Parquet archive spans years. Cybernetic auto-immune system uses honeypot logs as negative training. Agent evolves its own governance rules.</p>
+            </div>
+        </div>
+
+        <!-- Future Potential -->
+        <h4 style="font-size:0.85rem; color:var(--accent-blue); margin:1.5rem 0 0.5rem;">🔮 Future Potential</h4>
+        <div style="font-size:0.78rem; color:var(--text-secondary); padding:0.75rem; background:var(--bg-tertiary); border-radius:8px; border:1px solid var(--border);">
+            <p style="margin:0 0 0.5rem;"><strong>Where this goes:</strong></p>
+            <ul style="margin:0; padding-left:1.2rem; line-height:1.8;">
+                <li><strong>Cross-agent knowledge markets</strong> — agents trade verified facts via blockchain-like confidence scoring</li>
+                <li><strong>Temporal reasoning</strong> — "What changed since last Tuesday?" queries against the cold archive</li>
+                <li><strong>Tool Forge integration</strong> — Dream State generates new Python tools from patterns in the Fact Store</li>
+                <li><strong>RAG Forgetting</strong> — intelligent pruning via 30-day decay curves maintains swarm velocity</li>
+                <li><strong>Multi-modal memory</strong> — embed images, audio, and code alongside text vectors</li>
+                <li><strong>Federated learning</strong> — forks share anonymized fact improvements back to upstream</li>
+            </ul>
+        </div>
+
+        <p style="font-size:0.72rem; color:var(--text-secondary); margin-top:1rem; text-align:center;">Architecture from <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/blob/main/Sovereign_OS_Master_Build_Plan.md#32-3-tiered-sqlite-schema--migration-management" target="_blank" rel="noopener" style="color:var(--accent-blue);">§3.2 of the Master Build Plan</a></p>
     </div>
 </div>
 
@@ -1376,6 +1481,14 @@ function openArchitectureModal() {
 }
 function closeArchitectureModal() {
     document.getElementById('routerModal').classList.remove('open');
+}
+
+// ── Infinite RAG Modal ──
+function openRAGModal() {
+    document.getElementById('ragModal').classList.add('open');
+}
+function closeRAGModal() {
+    document.getElementById('ragModal').classList.remove('open');
 }
 
 // Init quota banner on load
