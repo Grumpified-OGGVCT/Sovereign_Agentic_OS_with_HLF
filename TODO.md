@@ -1,12 +1,16 @@
-# Sovereign Agentic OS — Build Progress
+# Sovereign Agentic OS — Master Roadmap & Build Progress
 
-## Phase I-III: Design & Specification (COMPLETE)
+> Last audited: 2026-03-01 | Tests: 197 | HLF Fixtures: 6
+
+---
+
+## Phase I-III: Design & Specification ✅ COMPLETE
 - [x] Layers 1-7 deep-dive analysis and specification
 - [x] 6-Hat De Bono adversarial audit cycle
 - [x] Master Build Plan synthesis (994 lines)
 - [x] Copilot scaffold prompt generation & execution
 
-## Phase IV: Scaffold & Foundation (IN PROGRESS)
+## Phase IV: Scaffold & Foundation ✅ COMPLETE
 
 ### ACFS & Environment (Phase 1.1)
 - [x] Exact ACFS directory tree created
@@ -69,44 +73,133 @@
 
 ### Bootstrap & Tests (Phase 4.4)
 - [x] `bootstrap_all_in_one.sh` — 8-step genesis sequence with shutdown trap
-- [x] Test suite: 46/46 passing (100% green)
+- [x] Test suite: 197 tests passing
 - [x] Alembic migrations
-- [x] `scripts/hlf_token_lint.py`
 - [x] `tests/fixtures/hello_world.hlf` — update to match Appendix A.7
-- [x] `tests/fixtures/hello_world.json` — expected AST output
 
-## Phase V: The Sovereign Backend Engine (Missing Components)
-- [/] **V.1: Ollama Matrix Sync pipeline**
-    - [/] Integrate the `ollama-matrix-sync` benchmarking pipeline into the main OS.
-    - [ ] Wire the Gateway `router.py` to dispatch to Ollama dynamically based on matrix constraints.
-- [ ] **V.2: ALIGN Ledger & Host Functions Validation**
-    - [ ] Implement robust token validation in `hlfc.py` and the Gateway using `ALIGN_LEDGER.yaml`.
-    - [ ] Enforce deterministic mathematical verification of HLF tokens against the ledger.
-- [ ] **V.3: Tri-Perspective Aegis-Nexus Engine (Core Agents)**
-    - [ ] Instantiate the Sentinel Agent (Red Hat / Security & PrivEsc checks).
-    - [ ] Instantiate the Scribe Agent (White Hat / Memory & Token Bloat).
-    - [ ] Instantiate the Arbiter Agent (Blue Hat / Exception Handling & Governance).
-- [ ] **V.4: OpenClaw Strategy Integration (Appendix B)**
-    - [ ] Create the secure sandbox profile (`seccomp.json`).
-    - [ ] Implement Strategy B (Pure Tools) for approved functions, starting with `openclaw_summarize`.
-- [ ] **V.5: PR & TODO.md Sync**
-    - [x] Identify GitHub repository and sync `task.md` to `TODO.md`.
-    - [ ] Create feature branch and push all recent changes.
-    - [ ] Submit Pull Request with detailed changelog.
-- [ ] **V.6: Universal Taskbar Manager Polish**
-    - [ ] Expand `gui/tray_manager.py` with further actions (View Logs, Restart All, Open Config) to make it fully fleshed out for all OS commands.
+---
 
-- [ ] **V.7: Jules Integration (Continuous AI Agent)**
-    - [ ] Create `AGENTS.md` in repo root describing the OS architecture, agent roles, test conventions, and security invariants so Jules has full contextual awareness.
-    - [ ] **Scheduled Task: Nightly Pipeline Run** — Configure Jules to run the Ollama Matrix Sync pipeline (`--registry-db --promote`) nightly, auto-fixing any build or test failures it encounters.
-    - [ ] **Scheduled Task: HLF Test Expansion** — Weekly scheduled task: "Analyze tests/ and generate new test cases for any uncovered edge cases in bus.py, router.py, and main.py. Run pytest to verify."
-    - [ ] **Scheduled Task: ALIGN Rule Audit** — Monthly: "Review governance/ALIGN_LEDGER.yaml against known prompt injection patterns. Propose new regex rules and submit as PR."
-    - [ ] **Suggested Tasks** — Enable Jules Suggested Tasks to auto-surface TODO/FIXME comments across the codebase as actionable sessions.
-    - [ ] **CLI Scripting: Issue → Session** — Create a `scripts/jules_dispatch.sh` script that pipes GitHub issues labeled `jules` into `jules remote new --session` for automated triage.
-    - [ ] **Parallel Sessions for Test Hardening** — Use `jules remote new --parallel 3` to simultaneously generate test improvements for `test_db.py`, `test_router_v2.py`, and `test_policy.py`.
-    - [ ] **Environment Setup Script** — Create Jules environment setup that installs project deps (`uv sync`), starts Redis, and runs `pytest` as a verification gate.
+## Infrastructure Roadmap (Phases 1-5)
 
-## Phase VI: HLF Language Evolution (POST-GENESIS)
-- [ ] v0.3 — Modules, Imports & Standard Library
-- [ ] v0.4 — Byte-Code VM & Sandboxed Execution
-- [ ] v0.5 — LSP, IDE & Package Manager
+### Infra Phase 1: SQL Registry (`db.py`) ✅ COMPLETE
+- [x] Create `agents/core/db.py` (485 lines)
+- [x] Python Enums: `ModelTier` (S/A+/A/A-/B+/B/C/D), `Provider` (ollama/openrouter/cloud)
+- [x] 7 SQLite tables: `snapshots`, `models`, `model_tiers`, `user_local_inventory`, `local_model_metadata`, `agent_templates`, `model_equivalents`
+- [x] Add `policy_bundles` and `model_feedback` tables (Telemetry & Governance)
+- [x] CRUD helpers: `get_active_snapshot()`, `get_models_by_tier()`, `get_all_models()`, `get_local_inventory()`, `upsert_model()`, etc.
+- [x] Map existing `score_to_tier()` letter grades → `ModelTier` enum via `TIER_MAP`
+- [x] Unit tests for schema integrity (`tests/test_db.py`)
+
+### Infra Phase 2: Pipeline Upgrade (Global + Local Cycles) 🟡 ~40%
+- [ ] Refactor `run_pipeline()` to persist to `registry.db` alongside existing CSV artifacts
+- [ ] Implement snapshot creation and atomic promotion logic (call `create_snapshot()` + `promote_snapshot()`)
+- [ ] Add 6-hour scheduler/cron trigger
+- [x] Implement Local Inventory Heartbeat in `bus.py` (`sync_inventory()` endpoint)
+- [x] Heartbeat calls `fetch_tags(LOCAL_OLLAMA)` → upserts `user_local_inventory`
+
+### Infra Phase 3: Routing Engine (The Invariant) ✅ COMPLETE
+- [x] Replace `route_intent()` with `route_request()` in `router.py` (160 lines)
+- [x] Implement 3-Phase Walk: Cloud Tiers S→D → Local Inventory → OpenRouter Handoff
+- [x] Implement Pre-Routing Hooks (Specialized Overrides: devstral/qwen3-vl)
+- [x] Implement Uncensored Lane (mistral-large-3 primary, dolphin-mistral-24b fallback)
+- [x] Integrate existing `_is_cloud()`, `check_vram_threshold()`, `consume_gas_async()`
+- [x] `AgentProfile` dataclass (10 fields: model, provider, tier, system_prompt, tools, restrictions, routing_trace, gas_remaining, confidence)
+- [x] Tests: `test_router_v2.py` — 8 tests
+
+### Infra Phase 4: Agent OS Wiring (Provisioning) 🟡 ~75%
+- [x] Refactor `main.py` `_ollama_generate()` → `_ollama_generate_v2()` consuming `route_request()` output
+- [x] Refactor `execute_intent()` to apply Agent Profile (model, provider, system_prompt, restrictions)
+- [ ] Wire `ALSLogger` for `ROUTING_DECISION` events (governance audit trail)
+
+### Infra Phase 5: GUI & Governance ❌ ~5%
+- [ ] Add Transparency Panel to `gui/app.py` (routing trace, snapshot version, tier display)
+- [ ] Add Registry Management controls (trigger sync, view inventory, view model catalog)
+- [ ] Add thumbs-up/down feedback to `model_feedback` table (CRUD exists in db.py, needs GUI surface)
+- [ ] End-to-end verification (pipeline → registry → router → executor → GUI)
+
+---
+
+## HLF Language Roadmap (Phases 3, 5.1-5.3)
+
+### HLF Phase 3: Core Language (~65% complete)
+- [x] LALR(1) parser via Lark
+- [x] 6 statement types in grammar
+- [x] Immutable SET bindings with duplicate detection
+- [x] Two-pass compilation (env collection → var expansion)
+- [x] Ω / Omega terminator
+- [x] 5 pure built-in functions
+- [ ] Runtime interpreter with gas metering
+- [ ] Error-code propagation via RESULT
+- [x] Regex validation gate (`validate_hlf`)
+- [x] HLF linter middleware (token, gas, unused vars)
+- [ ] `dictionary.json` arity/type enforcement at parse-time
+- [ ] `hls.yaml` formal grammar spec (machine-readable BNF)
+- [x] ALIGN enforcement middleware (`sentinel_gate.py`)
+- [x] Nonce/ULID replay protection
+- [x] Legacy Bridge Module (`decompress_hlf_to_rest`)
+
+### HLF Phase 5.1: v0.3 Modules & Host Functions (~25% complete)
+- [x] MODULE and IMPORT grammar rules
+- [x] MODULE and IMPORT AST transformer
+- [x] Tier-aware execution (hearth/forge/sovereign)
+- [x] Host function dispatch architecture (ACTION → dispatcher)
+- [x] 7 host function stubs documented
+- [ ] Module runtime file loading + namespace merge
+- [ ] Host function registry (`governance/host_functions.json`) — live dispatch
+- [ ] OCI module distribution
+- [ ] Module checksum validation
+- [ ] ALIGN Rule R-008 (block raw OpenClaw keys)
+
+### HLF Phase 5.2: v0.4 Byte-Code VM (0% — Future)
+- [ ] Stack-machine byte-code compiler (`hlfc --emit-bytecode`)
+- [ ] 32-instruction opcode set (PUSH, POP, CALL, RET, JMP, etc.)
+- [ ] `.hlb` binary format (HLFv04 magic + LE uint32 opcodes)
+- [ ] Wasm sandbox integration
+
+### HLF Phase 5.3: v0.5 LSP, IDE & Package Manager (0% — Future)
+- [ ] Language Server Protocol (LSP) for HLF
+- [ ] IDE extensions (VS Code, Neovim)
+- [ ] Package manager for HLF modules
+- [ ] HLF REPL
+
+---
+
+## Sovereign Backend Engine (Extended)
+
+### V.1: Ollama Matrix Sync Pipeline
+- [x] Integrate the `ollama-matrix-sync` benchmarking pipeline into the main OS
+- [ ] Wire the Gateway `router.py` to dispatch to Ollama dynamically based on matrix constraints (→ Infra Phase 2)
+
+### V.2: ALIGN Ledger & Host Functions Validation
+- [ ] Implement robust token validation in `hlfc.py` using `ALIGN_LEDGER.yaml`
+- [ ] Enforce deterministic mathematical verification of HLF tokens against the ledger
+
+### V.3: Tri-Perspective Aegis-Nexus Engine (Core Agents)
+- [ ] Instantiate the Sentinel Agent (Red Hat / Security & PrivEsc checks)
+- [ ] Instantiate the Scribe Agent (White Hat / Memory & Token Bloat)
+- [ ] Instantiate the Arbiter Agent (Blue Hat / Exception Handling & Governance)
+
+### V.4: OpenClaw Strategy Integration (Appendix B)
+- [ ] Create the secure sandbox profile (`seccomp.json`)
+- [ ] Implement Strategy B (Pure Tools) for approved functions
+
+### V.5: Jules Integration (Continuous AI Agent) ✅ COMPLETE
+- [x] Create `AGENTS.md` in repo root
+- [x] `config/jules_tasks.yaml` with nightly/weekly/monthly schedules
+- [x] `scripts/jules_dispatch.sh` — Issue → Session automation
+- [x] CoVE + Six Hats review templates
+- [x] 10-step daily pipeline configuration
+
+### V.6: Metrics & Benchmarking ✅ COMPLETE
+- [x] `scripts/hlf_metrics.py` — codebase scanner → `docs/metrics.json`
+- [x] `scripts/hlf_benchmark.py` — tiktoken compression benchmark → `docs/benchmark.json`
+- [x] 5 domain-specific `.hlf` test fixtures
+- [x] `docs/HLF_PROGRESS.md` — progress tracking for Jules agent sync
+
+### V.7: Live Demo & Documentation ✅ COMPLETE
+- [x] GitHub Pages demo (`docs/index.html`) with dark mode
+- [x] Model Router architecture popup
+- [x] Infinite RAG Memory Matrix popup with HLF×RAG synergy
+- [x] Translation quota system + owner exemption
+- [x] Generated infographics (system architecture, registry flow, Jules pipeline, RAG comparison)
+- [x] README overhaul with honest benchmark data + live demo links
