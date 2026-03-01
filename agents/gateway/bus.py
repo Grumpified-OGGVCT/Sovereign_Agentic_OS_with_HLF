@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import time
+from contextlib import asynccontextmanager
 from typing import Optional
 
 import redis.asyncio as aioredis
@@ -17,6 +18,7 @@ from hlf import validate_hlf_heuristic
 from hlf.hlfc import compile as hlfc_compile, format_correction, HlfSyntaxError
 from agents.gateway.sentinel_gate import enforce_align
 from agents.gateway.router import consume_gas_async, verify_gas_limit, record_intent_activity
+from agents.gateway.matrix_sync.scheduler import start_scheduler, stop_scheduler, get_scheduler_status
 import httpx
 
 try:
@@ -42,7 +44,20 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):  # type: ignore[type-arg]
+    """Start the pipeline scheduler on startup; stop it on shutdown."""
+    start_scheduler()
+    try:
+        yield
+    finally:
+        stop_scheduler()
+
+
 app = FastAPI(
+    lifespan=_lifespan,
     title="Sovereign Gateway Bus",
     version="2.0.0",
     description=(
@@ -103,6 +118,26 @@ class IntentResponse(BaseModel):
 async def health() -> dict:
     """Check Gateway Bus health. Returns `{"status": "ok"}` when operational."""
     return {"status": "ok"}
+
+
+@app.get(
+    "/health/scheduler",
+    tags=["Health"],
+    summary="Pipeline Scheduler Health Check",
+    description=(
+        "Returns the current status of the APScheduler pipeline background job.\n\n"
+        "Key fields:\n"
+        "- **running** — whether the scheduler process is active\n"
+        "- **interval_hours** — configured fire interval (from `pipeline_scheduler.interval_hours` "
+        "in `config/settings.json`)\n"
+        "- **last_run_status** — `ok`, `error`, or `never_run`\n"
+        "- **next_run_time** — Unix timestamp of the next scheduled run"
+    ),
+    response_description="Scheduler status object.",
+)
+async def scheduler_health() -> dict:
+    """Return pipeline scheduler status (interval, last run, next run, errors)."""
+    return get_scheduler_status()
 
 
 @app.post(
