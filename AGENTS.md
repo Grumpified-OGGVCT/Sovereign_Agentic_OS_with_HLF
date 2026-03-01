@@ -1,11 +1,12 @@
-# AGENTS.md — Jules Contextual Guide
+# AGENTS.md — Agent Contextual Guide
 
-> This file helps [Jules](https://jules.google/) understand the Sovereign Agentic OS with HLF repository.
+> This file helps ALL agents (Jules, Copilot, Antigravity, Gemini CLI, etc.) understand the Sovereign Agentic OS with HLF repository.
+> **Grammar Version: v0.4.0** | **Last Updated: 2026-03-01** | **RFC: 9005 v3.0 + 9007**
 
 ## Architecture Overview
 
 This is a **Sovereign Agentic OS** — a multi-layer AI operating system built around the
-**Hieroglyphic Language Format (HLF)**, a compressed DSL for AI-to-AI communication.
+**Hieroglyphic Language Format (HLF)**, a Turing-complete mathematical proof language for AI-to-AI communication.
 
 | Layer | Name | Key Files |
 |-------|------|-----------|
@@ -120,20 +121,68 @@ Jules MUST track and integrate upgraded Gemini models and services.
 4. **API key management** — Ensure Gemini API keys are properly stored in `.env` and handled by `Settings` classes
 5. **Fallback chains** — Gemini models should participate in the 3-phase tier walk where appropriate
 
+## HLF Grammar Codex (v0.4.0 — MANDATORY READING)
+
+All agents MUST be aware of the current HLF grammar state before composing or modifying HLF.
+
+### Current Operator Catalog
+
+| Operator | Glyph | Purpose | RFC |
+|----------|-------|---------|-----|
+| Tool Execution | `↦ τ()` | Execute named tool | 9005 §4.1 |
+| Conditional | `⊎ ⇒ ⇌` | If/then/else branching | 9005 §3.2 |
+| Negation | `¬` | Logical NOT | 9005 §3.1 |
+| Intersection | `∩` | Logical AND | 9005 §3.1 |
+| Union | `∪` | Logical OR | 9005 §3.1 |
+| Assignment | `←` | Bind value to name | 9005 §5.1 |
+| Type Annotation | `:: 𝕊/ℕ/𝔹/𝕁/𝔸` | Declare value type | 9005 §2.3 |
+| Parallel | `∥` | Concurrent execution | 9005 §6.1 |
+| Sync Barrier | `⋈` | Wait-then-execute | 9005 §6.2 |
+| Pass-by-Ref | `&` | Mutable reference | 9005 §5.3 |
+| Struct | `≡` | Define typed struct | 9007 §2.1 |
+| Epistemic | `_{ρ:val}` | Confidence score | 9005 §7 |
+| Glyphs | `⌘ Ж ∇ ⩕ ⨝ Δ ~ §` | Statement modifiers | Core |
+
+Full reference: **`docs/HLF_GRAMMAR_REFERENCE.md`**
+
+### Self-Correcting Feedback Loop (Iterative Intervention Engine)
+
+When an agent sends malformed HLF, the system:
+1. Compiles the HLF via `hlfc.compile()`
+2. On failure, calls `format_correction(source, error)` to generate structured feedback
+3. Returns the correction to the offending agent with:
+   - The specific error message
+   - The complete valid operator catalog
+   - A human-readable explanation
+   - A suggestion for how to fix it
+4. The agent retries with corrected syntax
+5. If still failing after 3 attempts, escalates to human operator
+
+Agents MUST handle `format_correction()` responses and self-adapt.
+
+### InsAIts V2 Transparency Mandate
+
+Every AST node includes a `human_readable` field. Agents MUST:
+- Preserve `human_readable` in all downstream processing
+- Use it for audit logging and human-facing displays
+- Never strip or modify the transparency field
+
 ## HLF Agent Maximization
 
-The Jules agent handling HLF and related components MUST be maximized for usefulness and power.
+All agents handling HLF components MUST be maximized for usefulness and power.
 
 ### Rules
 
-1. **Grammar evolution** — Actively propose new HLF tags, syntax extensions, and expressive power improvements
-2. **Compiler hardening** — Expand `hlfc.py` test coverage, edge case handling, and error messages
-3. **Linter expansion** — Add new lint rules to `hlflint.py` for security, performance, and best practices
-4. **Formatter improvements** — Enhance `hlffmt.py` for canonical formatting and readability
-5. **Runtime capabilities** — Expand `hlfrun.py` with new built-in functions, action types, and host function bindings
-6. **Test corpus growth** — Continuously expand the HLF test corpus with real-world examples, edge cases, and adversarial inputs
-7. **Documentation** — Keep HLF documentation current with every grammar change
-8. **Never simplify** — HLF changes MUST be additive. Never remove syntax, reduce expressiveness, or simplify existing capabilities.
+1. **Grammar awareness** — Check `docs/HLF_GRAMMAR_REFERENCE.md` BEFORE composing HLF
+2. **Grammar evolution** — Actively propose new HLF tags, syntax extensions, and expressive power improvements
+3. **Compiler hardening** — Expand `hlfc.py` test coverage, edge case handling, and error messages
+4. **Linter expansion** — Add new lint rules to `hlflint.py` for security, performance, and best practices
+5. **Formatter improvements** — Enhance `hlffmt.py` for canonical formatting and readability
+6. **Runtime capabilities** — Expand `hlfrun.py` with new built-in functions, action types, and host function bindings
+7. **Test corpus growth** — Continuously expand the HLF test corpus with real-world examples, edge cases, and adversarial inputs
+8. **Documentation** — Keep `docs/HLF_GRAMMAR_REFERENCE.md` current with every grammar change
+9. **Error feedback** — Use `format_correction()` for self-correcting feedback when compilation fails
+10. **Never simplify** — HLF changes MUST be additive. Never remove syntax, reduce expressiveness, or simplify existing capabilities.
 
 ## Anti-Reduction Checklist (MANDATORY for every Jules PR)
 

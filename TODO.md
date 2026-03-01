@@ -1,6 +1,6 @@
 # Sovereign Agentic OS — Master Roadmap & Build Progress
 
-> Last audited: 2026-03-01 | Tests: 197 | HLF Fixtures: 6
+> Last audited: 2026-03-01 | Tests: 197 | HLF Fixtures: 7 | Grammar: v0.4.0
 
 ---
 
@@ -121,13 +121,20 @@
 
 ## HLF Language Roadmap (Phases 3, 5.1-5.3)
 
-### HLF Phase 3: Core Language (~65% complete)
+### HLF Phase 3: Core Language (~85% complete)
 - [x] LALR(1) parser via Lark
-- [x] 6 statement types in grammar
+- [x] 14 statement types in grammar (v0.4.0)
 - [x] Immutable SET bindings with duplicate detection
 - [x] Two-pass compilation (env collection → var expansion)
 - [x] Ω / Omega terminator
 - [x] 5 pure built-in functions
+- [x] RFC 9005 operators: ↦τ, ⊎⇒⇌, ¬∩∪, ←, ::, ∥, ⋈, &, _{ρ:val}
+- [x] RFC 9007 operators: ≡ (struct)
+- [x] Glyph prefixes: ⌘ Ж ∇ ⩕ ⨝ Δ ~ § (now parsed, not ignored)
+- [x] Math expressions: +, -, *, /, comparisons
+- [x] InsAIts V2 human_readable on every AST node
+- [x] format_correction() — Iterative Intervention Engine
+- [x] docs/HLF_GRAMMAR_REFERENCE.md — authoritative operator catalog
 - [ ] Runtime interpreter with gas metering
 - [ ] Error-code propagation via RESULT
 - [x] Regex validation gate (`validate_hlf`)
@@ -174,18 +181,19 @@
 
 | Metric | Current Value | Source |
 | --- | --- | --- |
-| Grammar statement types | 6 | `hlfc.py` `_GRAMMAR` |
-| Terminal types | 7 | `hlfc.py` `_GRAMMAR` |
+| Grammar statement types | 14 | `hlfc.py` `_GRAMMAR` |
+| RFC 9005/9007 operators | 13 | `hlfc.py` `_GRAMMAR` |
+| Terminal types | 10 | `hlfc.py` `_GRAMMAR` |
 | Built-in functions | 5 | `hlfrun.py` `_BUILTIN_FUNCTIONS` |
 | Host function stubs | 7 | `hlfrun.py` docstring |
-| Toolchain size (lines) | ~649 | `hlf/*.py` |
-| Test count (total) | 200 | pytest |
-| Test count (HLF-specific) | 14 | `test_hlf.py` |
+| Toolchain size (lines) | ~680+ | `hlf/*.py` |
+| Test count (total) | 200+ | pytest |
+| Test count (HLF-specific) | 15 | `test_hlf.py` |
 | Test pass rate | 100% | CI |
-| Fixture files | 6 | `tests/fixtures/` |
+| Fixture files | 7 | `tests/fixtures/` |
 | Dictionary tags | 7 | `dictionary.json` |
-| Registered glyphs | 4 | `dictionary.json` |
-| Compiler version | 0.3.0 | `hlfc.compile()` |
+| Registered glyphs | 8 | `hlfc.py` GLYPH_PREFIX |
+| Compiler version | 0.4.0 | `hlfc.compile()` |
 
 ---
 
