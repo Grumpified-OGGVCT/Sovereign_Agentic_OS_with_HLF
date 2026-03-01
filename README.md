@@ -13,6 +13,71 @@
 
 A **Spec-Driven Development (SDD)** project for a Sovereign Agentic OS with a custom DSL called **HLF (Hieroglyphic Logic Framework)**. This framework forms a zero-trust, completely isolated orchestration environment designed for robust multi-agent execution at scale.
 
+---
+
+## ⚠️ Why You Should NEVER Run AI Agents Naked on Your System
+
+> **Every AI coding agent running today — Copilot, Claude Code, Cursor, Aider, Jules, Antigravity — operates with essentially unlimited access to your filesystem, network, and shell.** There is no sandbox. No audit trail. No kill switch. You are one hallucinated `rm -rf /` away from total system destruction.
+
+### The Problem: Agents Are Powerful. And Uncontrolled.
+
+Modern AI agents can write code, execute shell commands, read your files, make HTTP requests, and spawn processes. Most frameworks give them **full host access** with nothing but a "are you sure?" prompt between the AI and your production database. That's not engineering — that's hope-based security.
+
+**Real attack vectors that exist today:**
+
+| Attack | What Happens | Naked Agent | Sovereign OS |
+|--------|-------------|-------------|--------------|
+| **Prompt Injection** | Malicious instructions hidden in data | Agent executes blindly | ALIGN Ledger regex blocks + `403 Forbidden` |
+| **Infinite Loop / DDoS** | Agent burns your API budget in minutes | No limit, runs forever | Gas Budget (`⩕`) + Redis token bucket = hard stop |
+| **Privilege Escalation** | Agent accesses `/etc/shadow` or `docker.sock` | Full host access | Seccomp deny-list + ACFS confinement + air-gap |
+| **Supply Chain Poisoning** | Compromised package installed silently | `pip install` runs freely | SHA-256 content pinning + SLSA-3 provenance |
+| **Replay Attack** | Old command re-executed maliciously | No deduplication | ULID nonce protection with 600s TTL |
+| **Silent Data Exfiltration** | Agent sends your code to external servers | Unrestricted network | Air-Gapped Egress Proxy — agents have **zero** outbound internet |
+| **Memory Poisoning** | Corrupted context influences future decisions | No memory governance | Vector Race Protection + Merkle-chained audit trail |
+| **Runaway Spending** | Cloud API calls spiral out of control | No cost tracking | Per-tier gas buckets replenished nightly via cron |
+
+### The Solution: A 6-Gate Security Pipeline
+
+Every intent — whether from a human, an agent, or another AI — passes through **6 deterministic validation gates** before it can execute anything:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Gate 1: validate_hlf()     → Regex structural validation       │
+│  Gate 2: hlfc.compile()     → LALR(1) parse + type checking     │
+│  Gate 3: hlflint.lint()     → Token budget + gas + unused vars  │
+│  Gate 4: ALIGN Enforcement  → Immutable regex block rules       │
+│  Gate 5: Gas Budget         → Per-intent + global tier bucket   │
+│  Gate 6: Nonce Check        → ULID replay protection via Redis  │
+└─────────────────────────────────────────────────────────────────┘
+         ↓ PASSES ALL 6        ↓ FAILS ANY GATE
+    Execute via Dapr mTLS      HTTP 403/409/422/429 + ALS log
+```
+
+> **Traditional agent frameworks skip Gates 1–3 entirely** and require custom middleware for Gates 4–6. The Sovereign OS enforces all six by default, for every agent, every time.
+
+### What You Get
+
+| Capability | Naked Agent | Sovereign OS |
+|-----------|-------------|--------------|
+| Filesystem access | Unrestricted | ACFS + `chmod 555` governance = read-only by default |
+| Network access | Full internet | Air-gapped proxy, allowlist-only outbound |
+| Shell execution | Direct `os.system()` | AST validation → `ast_validator.py` blocks injection |
+| Audit trail | Maybe some logs | Merkle-chained, SHA-256 hashed, non-repudiable ALS |
+| Cost control | None | Gas metering per-intent + global per-tier bucket |
+| Agent identity | Anonymous | KYA (Know Your Agent) with SPIFFE/x509 certs |
+| Multi-agent coordination | Ad-hoc | Dapr pub/sub + Redis streams + DAG chronology |
+| Memory governance | Context window only | 3-tier Infinite RAG (hot/warm/cold) with forgetting curves |
+| Self-improvement | None | Nightly Dream State + DSPy regression testing |
+| Kill switch | Close the terminal | Dead Man's Switch: auto-severs network after 3 panics in 5 min |
+
+### The Bottom Line
+
+> **If your AI agent can `rm -rf /` your system and the only thing stopping it is the model's alignment training, you don't have security — you have a prayer.**
+>
+> The Sovereign OS wraps every agent in 7 architectural layers of mathematically verifiable, cryptographically auditable, zero-trust isolation. Your agents become more powerful precisely *because* they're constrained.
+
+---
+
 ## 🏗️ Architecture
 
 ![Sovereign Agentic Stack Preview](assets/slide_1.png)
