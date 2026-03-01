@@ -1,101 +1,235 @@
-# Jules Scheduled & Suggested Task Configuration
-# ================================================
-# This file defines the automated task schedules for Google Jules.
-# Run via: jules schedule --config config/jules_tasks.yaml
-# Or manually trigger: jules run --task <task-name>
+# ═══════════════════════════════════════════════════════════════════
+# Jules Autonomous Pipeline — Daily Sequential Task Configuration
+# ═══════════════════════════════════════════════════════════════════
+#
+# EXECUTION MODEL:
+#   - All tasks run DAILY in strict sequential order (1 → 10)
+#   - Each agent inherits context from the previous agent's output
+#   - Auto-apply if clean (no conflicts, all tests pass, no breaking changes)
+#   - Notify user ONLY when breaking/conflicting changes are detected
+#   - README update is the FINAL capstone step every cycle
+#
+# MERGE POLICY:
+#   auto_merge:
+#     enabled: true
+#     conditions:
+#       - all_tests_pass: true
+#       - no_merge_conflicts: true
+#       - no_breaking_changes: true
+#       - cove_validation: "compact"   # full for >200 line changes
+#       - six_hats_review: true
+#     on_conflict: "notify_user"       # pause and alert the user
+#     on_breaking_change: "notify_user" # never auto-merge breaking changes
+#     on_clean: "auto_apply"           # merge + push without user input
+#
+# ─── Merge Policy ────────────────────────────────────────────────
+merge_policy:
+  auto_apply_when_clean: true
+  notify_user_on:
+    - merge_conflict
+    - breaking_change
+    - test_failure
+    - coverage_decrease
+    - file_deletion_attempt
+    - feature_simplification_attempt
+  auto_publish: true          # push to origin/main after auto-merge
+  require_six_hats: true      # every PR goes through hats
+  require_cove: "compact"     # "compact" for <200 lines, "full" for >200
 
-# ─── Nightly Tasks ────────────────────────────────────────────────
-nightly:
-  schedule: "0 2 * * *"  # 2:00 AM daily
-  tasks:
+# ═══════════════════════════════════════════════════════════════════
+# DAILY SEQUENTIAL PIPELINE — Agents execute in order (1 → 10)
+# Each agent receives the output/context of the previous agent
+# ═══════════════════════════════════════════════════════════════════
+daily_pipeline:
+  frequency: daily
+  execution: sequential       # each step waits for prior to complete
+  context_aware: true         # each agent reads prior agent's report
+  start_time: "02:00 UTC"    # run during off-hours
 
-    - name: pipeline-sync
-      description: "Run ollama-matrix-sync pipeline and sync results to SQL Registry"
-      commands:
-        - "cd ollama-matrix-sync && uv run python pipeline.py --registry-db ../agents/core/registry.db --promote"
-      invariants:
-        - "test_count >= baseline"
-        - "no_file_deletion"
-      on_failure: "create-issue"
+  # ─── Step 1: HLF Grammar Evolver ─────────────────────────────
+  - step: 1
+    agent: hlf-grammar-evolver
+    description: "Evolve HLF grammar — propose new tags, syntax extensions, expressive power improvements. Always additive, never remove."
+    targets:
+      - "hlf/hlfc.py"
+      - "hlf/hlflint.py"
+      - "hlf/hlffmt.py"
+      - "hlf/hlfrun.py"
+      - "governance/hlf_grammar.lark"
+    commands:
+      - "uv run python -m pytest tests/ -v -k 'hlf or hlfc or parse or lint or fmt' --tb=short"
+    invariants:
+      - never_remove_syntax
+      - additive_only
+      - expand_test_corpus
+    six_hats_review: true
+    output: "reports/daily/hlf-grammar-evolution.md"
 
-    - name: model-health-check
-      description: "Verify all registered models respond to /api/tags"
-      commands:
-        - "uv run python -c \"from agents.core.db import RegistryDB; db = RegistryDB(); print(db.list_models())\""
-      invariants:
-        - "no_schema_change"
+  # ─── Step 2: Dream Cycle Enhancer ─────────────────────────────
+  - step: 2
+    agent: dream-cycle-enhancer
+    description: "Enhance Dream Cycle processing — improve hat_engine, dream_state, and cognitive loop quality. Add new dream patterns, expand hat analysis depth."
+    depends_on: hlf-grammar-evolver
+    targets:
+      - "agents/core/dream_state.py"
+      - "agents/core/hat_engine.py"
+    commands:
+      - "uv run python -m pytest tests/ -v -k 'dream or hat' --tb=short"
+    invariants:
+      - never_simplify_cognitive_loops
+      - additive_only
+    six_hats_review: true
+    output: "reports/daily/dream-cycle-enhancement.md"
 
-    - name: regression-suite
-      description: "Run full test suite and report any regressions"
-      commands:
-        - "uv run python -m pytest tests/ -v --tb=short --junitxml=reports/nightly.xml"
-      invariants:
-        - "test_count >= 132"
-        - "pass_rate >= 0.99"
-      on_failure: "create-issue --label regression"
+  # ─── Step 3: ALIGN Hardener ───────────────────────────────────
+  - step: 3
+    agent: align-hardener
+    description: "Harden ALIGN governance — tighten sentinel rules, expand ledger coverage, add new alignment checks. Never weaken existing rules."
+    depends_on: dream-cycle-enhancer
+    targets:
+      - "governance/ALIGN_LEDGER.yaml"
+      - "agents/gateway/sentinel_gate.py"
+    commands:
+      - "uv run python -m pytest tests/ -v -k 'align or sentinel or policy' --tb=short"
+    invariants:
+      - never_weaken_governance
+      - never_remove_alignment_rules
+      - additive_only
+    six_hats_review: true
+    output: "reports/daily/align-hardening.md"
 
-# ─── Weekly Tasks ─────────────────────────────────────────────────
-weekly:
-  schedule: "0 3 * 1"  # 3:00 AM every Monday
-  tasks:
+  # ─── Step 4: Transparency Assessor ────────────────────────────
+  - step: 4
+    agent: transparency-assessor
+    description: "Assess and enhance system-wide transparency — GUI agent visibility, real-time HLF translation panels, routing trace visualization, ALS log streams, adjustable user levels (minimal/standard/detailed)."
+    depends_on: align-hardener
+    targets:
+      - "gui/app.py"
+      - "agents/core/logger.py"
+      - "agents/gateway/router.py"
+    commands:
+      - "uv run python -m pytest tests/ -v -k 'gui or app or log' --tb=short"
+    invariants:
+      - never_reduce_visibility
+      - never_hide_agent_actions
+      - additive_only
+    checks:
+      - "All agent actions visible in GUI"
+      - "HLF real-time translation panels active"
+      - "Routing trace visualization functional"
+      - "ALS log stream accessible"
+      - "User level toggle (minimal/standard/detailed) working"
+      - "Inter-agent communication logged and displayable"
+    six_hats_review: true
+    output: "reports/daily/transparency-assessment.md"
 
-    - name: hlf-grammar-tests
-      description: "Run HLF compiler, linter, formatter against expanded test corpus"
-      commands:
-        - "uv run python -m pytest tests/test_hlfc.py tests/test_hlflint.py tests/test_hlffmt.py -v"
-      invariants:
-        - "no_test_deletion"
-        - "coverage >= baseline"
+  # ─── Step 5: GUI Feature Builder ──────────────────────────────
+  - step: 5
+    agent: gui-feature-builder
+    description: "Build and enhance GUI features — new panels, visualizations, security indicators, interaction improvements. Always additive, always transparent."
+    depends_on: transparency-assessor
+    targets:
+      - "gui/app.py"
+      - "gui/"
+    commands:
+      - "uv run python -m pytest tests/ -v -k 'gui or app' --tb=short"
+    invariants:
+      - never_remove_gui_features
+      - maintain_transparency_panels
+      - additive_only
+    six_hats_review: true
+    output: "reports/daily/gui-feature-build.md"
 
-    - name: hlf-grammar-expansion
-      description: "Analyze TODO items for HLF grammar expansion opportunities"
-      commands:
-        - "grep -rn 'TODO.*HLF\\|FIXME.*HLF\\|TODO.*grammar' hlf/ agents/ tests/"
-      output: "suggested-tasks"
+  # ─── Step 6: Gemini Model Integrator ──────────────────────────
+  - step: 6
+    agent: gemini-model-integrator
+    description: "Track and integrate upgraded Gemini models and services — add new models to registry, update tier walk, benchmark via ollama-matrix-sync. Include vision, code execution, grounding services."
+    depends_on: gui-feature-builder
+    targets:
+      - "agents/core/db.py"
+      - "agents/gateway/router.py"
+      - "config/settings.json"
+    commands:
+      - "uv run python -m pytest tests/test_db.py tests/test_router_v2.py -v --tb=short"
+    invariants:
+      - proper_api_key_management
+      - tier_walk_integrity
+    six_hats_review: true
+    output: "reports/daily/gemini-integration.md"
 
-    - name: dependency-audit
-      description: "Check for vulnerable dependencies"
-      commands:
-        - "uv run pip-audit --format json --output reports/pip-audit.json"
-      on_failure: "create-issue --label security"
+  # ─── Step 7: Self-Capability Tracker ──────────────────────────
+  - step: 7
+    agent: self-capability-tracker
+    description: "Update Jules capability manifest — what Jules CAN do, CANNOT yet do, and COULD do with enhancements. Propose enhancement issues with label 'jules-enhancement'. Never overstate capabilities."
+    depends_on: gemini-model-integrator
+    targets:
+      - "config/jules_capabilities.yaml"
+      - "reports/jules_capability_log.md"
+    auto_create_issues: true
+    issue_label: "jules-enhancement"
+    invariants:
+      - never_overstate_capabilities
+      - must_pass_six_hats
+    six_hats_review: true
+    output: "reports/daily/self-capability-update.md"
 
-    - name: linter-sweep
-      description: "Run ruff and markdownlint across codebase"
-      commands:
-        - "uv run ruff check . --output-format json > reports/ruff.json"
-      invariants:
-        - "error_count <= baseline"
+  # ─── Step 8: CI Fixer ─────────────────────────────────────────
+  - step: 8
+    agent: ci-fixer
+    description: "Fix any CI failures from today's pipeline — resolve test failures, workflow issues, dependency problems. Event-triggered by any failure in steps 1-7."
+    depends_on: self-capability-tracker
+    trigger: on_failure     # also runs if any prior step had CI issues
+    targets:
+      - ".github/workflows/"
+      - "pyproject.toml"
+      - "any failing file"
+    commands:
+      - "uv run python -m pytest tests/ -v --tb=short"
+      - "uv run ruff check . --fix"
+    invariants:
+      - never_delete_tests
+      - never_reduce_coverage
+    six_hats_review: true
+    output: "reports/daily/ci-fixes.md"
 
-# ─── Monthly Tasks ────────────────────────────────────────────────
-monthly:
-  schedule: "0 4 1 * *"  # 4:00 AM, 1st of each month
-  tasks:
+  # ─── Step 9: HLF Maximizer ────────────────────────────────────
+  - step: 9
+    agent: hlf-maximizer
+    description: "Maximize HLF agent power — expand compiler test coverage, add linter rules, grow test corpus with adversarial inputs, keep docs current. Final HLF quality gate."
+    depends_on: ci-fixer
+    targets:
+      - "hlf/"
+      - "tests/"
+      - "docs/"
+    commands:
+      - "uv run python -m pytest tests/ -v --tb=short"
+    invariants:
+      - test_count_gte_baseline
+      - coverage_gte_baseline
+      - never_simplify_hlf
+      - additive_only
+    six_hats_review: true
+    output: "reports/daily/hlf-maximization.md"
 
-    - name: align-governance-audit
-      description: "Full ALIGN ledger audit — verify sentinel gate rules, Merkle chain integrity"
-      commands:
-        - "uv run python -m pytest tests/test_policy.py tests/test_sentinel.py -v"
-        - "uv run python -c \"from agents.core.sentinel_gate import enforce_align; print('ALIGN gate operational')\""
-      invariants:
-        - "no_align_rule_weakened"
-        - "merkle_chain_intact"
+  # ─── Step 10: README Updater (CAPSTONE) ───────────────────────
+  - step: 10
+    agent: readme-updater
+    description: "Final capstone — update README.md to reflect ALL changes from today's pipeline run. Ensure architecture diagrams, feature lists, governance sections, and tech stack are current. This is the public face of the project."
+    depends_on: hlf-maximizer
+    targets:
+      - "README.md"
+      - "docs/"
+    invariants:
+      - never_remove_readme_sections
+      - reflect_all_daily_changes
+      - additive_only
+    six_hats_review: true
+    output: "reports/daily/readme-update.md"
+    capstone: true            # marks this as the final step
 
-    - name: cove-full-audit
-      description: "Run full 12-dimension CoVE validation against current codebase"
-      template: "governance/templates/cove_full_validation.md"
-      output: "reports/cove-monthly.md"
-
-    - name: six-hats-review
-      description: "Run Six Thinking Hats analysis on recent changes"
-      template: "governance/templates/six_hats_review.md"
-      output: "reports/six-hats-monthly.md"
-
-    - name: registry-integrity
-      description: "Verify SQL registry schema integrity and data consistency"
-      commands:
-        - "uv run python -c \"from agents.core.db import RegistryDB; db = RegistryDB(); db.verify_integrity()\""
-
-# ─── Suggested Tasks (Auto-Surface) ──────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# Suggested Tasks (Auto-Surface between runs)
+# ═══════════════════════════════════════════════════════════════════
 suggested:
   enabled: true
   scan_patterns:
@@ -110,10 +244,12 @@ suggested:
     - ".venv/"
     - "__pycache__/"
     - "copilot_changes.diff"
-  auto_create_issues: false  # Surface only, don't auto-create
+  auto_create_issues: false
   min_priority: "medium"
 
-# ─── Global Invariants ────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════
+# Global Invariants (Apply to ALL pipeline steps)
+# ═══════════════════════════════════════════════════════════════════
 global_invariants:
   no_test_deletion: true
   no_coverage_reduction: true
@@ -126,99 +262,21 @@ global_invariants:
   no_transparency_reduction: true
   no_feature_simplification: true
   six_hats_on_all_prs: true
+  no_scope_reduction: true
+  no_reductive_changes: true
 
-# ─── Transparency Assessment Track ───────────────────────────────
-transparency:
-  frequency: weekly
-  description: "Assess and enhance system-wide transparency (GUI, logging, agent visibility)"
-  tasks:
-    - name: gui-transparency-audit
-      description: "Audit gui/app.py for agent visibility coverage — ensure routing traces, model selections, HLF translations, and ALS log streams are visible"
-      commands:
-        - "uv run python -m pytest tests/ -v -k 'gui or app' --tb=short"
-      invariants:
-        - "never_reduce_visibility"
-        - "additive_only"
-      output: "reports/transparency-audit.md"
-      six_hats_review: true
-
-    - name: user-level-check
-      description: "Verify adjustable user levels (minimal/standard/detailed) exist and function correctly for resource and token governance"
-      commands:
-        - "grep -r 'user_level\\|verbosity\\|token_budget' gui/ agents/ --include='*.py' -l"
-
-    - name: inter-agent-communication-log
-      description: "Verify all agent-to-agent messages are logged and displayable in GUI"
-      commands:
-        - "grep -r 'ALSLogger\\|agent_message\\|routing_trace' agents/ --include='*.py' -c"
-
-    - name: hlf-translation-visibility
-      description: "Check real-time HLF translation panels are active and showing natural-language equivalents"
-
-# ─── Self-Capability Tracking Track ──────────────────────────────
-self_capability:
-  frequency: bi-weekly
-  description: "Jules maintains and updates its own capability manifest"
-  tasks:
-    - name: capability-manifest-update
-      description: "Review and update config/jules_capabilities.yaml — what Jules CAN do, CANNOT yet do, and COULD do with enhancements"
-      output: "config/jules_capabilities.yaml"
-      six_hats_review: true
-
-    - name: enhancement-proposal-scan
-      description: "Identify opportunities to expand Jules usefulness — create GitHub issues with label 'jules-enhancement'"
-      auto_create_issues: true
-      issue_label: "jules-enhancement"
-      invariants:
-        - "must_pass_six_hats"
-        - "never_overstate"
-
-    - name: capability-growth-log
-      description: "Update reports/jules_capability_log.md with any new capabilities gained"
-      output: "reports/jules_capability_log.md"
-
-# ─── Gemini Model Integration Track ─────────────────────────────
-gemini_integration:
-  frequency: weekly
-  description: "Track and integrate upgraded Gemini models and services"
-  tasks:
-    - name: gemini-model-check
-      description: "Check for new Gemini model releases (2.5 Pro, Flash, etc.) and add to SQL registry with proper tiers"
-      commands:
-        - "uv run python -c \"from agents.core.db import RegistryDB; db = RegistryDB(); print(db.list_models(provider='gemini'))\""
-
-    - name: gemini-service-integration
-      description: "Assess Gemini-specific services (vision, code exec, grounding) for integration points"
-
-    - name: gemini-tier-walk-audit
-      description: "Verify Gemini models participate correctly in 3-phase tier walk and fallback chains"
-      commands:
-        - "uv run python -m pytest tests/test_router_v2.py -v --tb=short"
-
-# ─── HLF Maximization Track ─────────────────────────────────────
-hlf_maximization:
-  frequency: weekly
-  description: "Maximize usefulness and power of HLF agent and related components"
-  tasks:
-    - name: hlf-grammar-evolution
-      description: "Propose new HLF tags, syntax extensions, expressive power improvements — always additive"
-      invariants:
-        - "never_remove_syntax"
-        - "additive_only"
-      six_hats_review: true
-
-    - name: hlf-compiler-hardening
-      description: "Expand hlfc.py test coverage, edge cases, and error messages"
-      commands:
-        - "uv run python -m pytest tests/ -v -k 'hlf or hlfc or parse' --tb=short"
-
-    - name: hlf-linter-expansion
-      description: "Add new lint rules to hlflint.py for security, performance, best practices"
-
-    - name: hlf-test-corpus-growth
-      description: "Expand HLF test corpus with real-world examples, edge cases, adversarial inputs"
-      output: "reports/hlf-test-corpus.md"
-
-    - name: hlf-documentation-sync
-      description: "Ensure HLF docs are current with every grammar change"
-
+# ═══════════════════════════════════════════════════════════════════
+# Anti-Reduction Checklist (Enforced on every PR before merge)
+# ═══════════════════════════════════════════════════════════════════
+anti_reduction_checklist:
+  - "No files deleted"
+  - "No tests removed or weakened"
+  - "No features simplified or scope-reduced"
+  - "No transparency features hidden or removed"
+  - "No governance rules weakened"
+  - "No model capabilities reduced"
+  - "Coverage >= baseline"
+  - "Test count >= baseline"
+  - "Six Hats review completed"
+  - "CoVE validation passed (compact or full)"
+  - "README updated to reflect changes"
