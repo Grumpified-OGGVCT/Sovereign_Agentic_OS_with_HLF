@@ -5,14 +5,11 @@ HLF Sovereign GUI v2.0: Visualizes Identity, Deception, State, and Threats.
 Connects to the live Gateway Bus (/health, /api/v1/intent) and Redis for
 real-time metrics. Falls back gracefully when services are unavailable.
 """
-import json
-import time
-from pathlib import Path
 
-import csv
 import json
 import os
 import urllib.request
+from pathlib import Path
 
 import httpx
 import pandas as pd
@@ -44,6 +41,7 @@ _MATRIX_DIR = _PROJECT_ROOT.parent / "ollama-matrix-sync" / "out" / "latest"
 # HELPER FUNCTIONS — Real API Calls with Graceful Fallbacks
 # ============================================================================
 
+
 @st.cache_data(ttl=5)
 def check_gateway_health() -> dict:
     """Check if the Gateway Bus is alive by hitting /health."""
@@ -53,17 +51,20 @@ def check_gateway_health() -> dict:
     except Exception:
         return {"status": "unreachable"}
 
+
 @st.cache_data(ttl=10)
 def get_align_rules() -> list[dict]:
     """Load ALIGN ledger rules from disk as structured dicts."""
     try:
         if _ALIGN_LEDGER.exists():
             import yaml
+
             data = yaml.safe_load(_ALIGN_LEDGER.read_text())
             return data.get("rules", [])
     except Exception:
         pass
     return []
+
 
 def get_merkle_chain_status() -> dict:
     """Read the ALS Merkle chain status from last_hash.txt."""
@@ -79,13 +80,16 @@ def get_merkle_chain_status() -> dict:
         pass
     return {"status": "no chain", "last_hash": "seed (0x00...)", "full_hash": "0" * 64}
 
+
 def check_redis() -> tuple[bool, object | None]:
     """Check Redis connectivity. Returns (is_active, redis_client_or_None)."""
     try:
         import redis
+
         redis_pw = os.environ.get("REDIS_PASSWORD", "")
         r = redis.Redis(
-            host=REDIS_HOST, port=REDIS_PORT,
+            host=REDIS_HOST,
+            port=REDIS_PORT,
             password=redis_pw or None,
             decode_responses=True,
         )
@@ -93,6 +97,7 @@ def check_redis() -> tuple[bool, object | None]:
         return True, r
     except Exception:
         return False, None
+
 
 @st.cache_data(ttl=15)
 def fetch_ollama_models() -> list[dict]:
@@ -120,6 +125,7 @@ def fetch_ollama_models() -> list[dict]:
     except Exception:
         return []
 
+
 @st.cache_data(ttl=60)
 def get_matrix_catalog() -> pd.DataFrame | None:
     """Load the latest model_catalog.csv from ollama-matrix-sync output."""
@@ -130,6 +136,7 @@ def get_matrix_catalog() -> pd.DataFrame | None:
     except Exception:
         pass
     return None
+
 
 def get_host_function_count() -> int:
     """Count registered host functions from governance/host_functions.json."""
@@ -151,7 +158,8 @@ st.set_page_config(
     layout="wide",
 )
 
-st.markdown("""
+st.markdown(
+    """
 <style>
     /* ── Base Theme ── */
     .stApp { background-color: #0d1117; color: #c9d1d9; }
@@ -316,7 +324,9 @@ st.markdown("""
         box-shadow: 0 3px 6px rgba(0,0,0,0.5);
     }
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
 
 # ============================================================================
@@ -345,35 +355,32 @@ with status_cols[0]:
             label="Gateway Bus",
             value=gw_status,
             help="Checks the /health endpoint of the HLF Gateway Bus at localhost:40404. "
-                 "The Gateway enforces rate limiting, ALIGN rules, HLF validation, and nonce replay protection.",
+            "The Gateway enforces rate limiting, ALIGN rules, HLF validation, and nonce replay protection.",
         )
-with status_cols[1]:
-    with st.container(border=True):
-        st.metric(
-            label="Redis",
-            value="🟢 Active" if redis_active else "🔴 Down",
-            help="Redis stores the rate-limiter counters, gas bucket state, and the "
-                 "nonce replay cache. When Redis is down, the system falls back to "
-                 "in-memory counters with reduced durability.",
-        )
-with status_cols[2]:
-    with st.container(border=True):
-        st.metric(
-            label="ALS Merkle Chain",
-            value=merkle["last_hash"],
-            help="The Agentic Log Standard (ALS) links every log entry with a SHA-256 "
-                 "hash chain. This cryptographic trace-ID makes logs tamper-evident. "
-                 f"Full hash: {merkle['full_hash']}",
-        )
-with status_cols[3]:
-    with st.container(border=True):
-        st.metric(
-            label="Host Functions",
-            value=str(host_fn_count),
-            help="Number of registered host functions in governance/host_functions.json. "
-                 "These are the actions HLF programs can invoke (READ, WRITE, SLEEP, etc.). "
-                 "Each function has tier restrictions and backend routing.",
-        )
+with status_cols[1], st.container(border=True):
+    st.metric(
+        label="Redis",
+        value="🟢 Active" if redis_active else "🔴 Down",
+        help="Redis stores the rate-limiter counters, gas bucket state, and the "
+        "nonce replay cache. When Redis is down, the system falls back to "
+        "in-memory counters with reduced durability.",
+    )
+with status_cols[2], st.container(border=True):
+    st.metric(
+        label="ALS Merkle Chain",
+        value=merkle["last_hash"],
+        help="The Agentic Log Standard (ALS) links every log entry with a SHA-256 "
+        "hash chain. This cryptographic trace-ID makes logs tamper-evident. "
+        f"Full hash: {merkle['full_hash']}",
+    )
+with status_cols[3], st.container(border=True):
+    st.metric(
+        label="Host Functions",
+        value=str(host_fn_count),
+        help="Number of registered host functions in governance/host_functions.json. "
+        "These are the actions HLF programs can invoke (READ, WRITE, SLEEP, etc.). "
+        "Each function has tier restrictions and backend routing.",
+    )
 with status_cols[4]:
     ollama_status = f"🟢 {len(ollama_models)} models" if ollama_models else "🔴 Offline"
     with st.container(border=True):
@@ -381,8 +388,8 @@ with status_cols[4]:
             label="Ollama Matrix",
             value=ollama_status,
             help=f"Live connection to Ollama at {OLLAMA_HOST}. "
-                 "The Ollama Matrix manages local LLM models for text→HLF compilation. "
-                 "Models are benchmarked and scored by the ollama-matrix-sync pipeline.",
+            "The Ollama Matrix manages local LLM models for text→HLF compilation. "
+            "Models are benchmarked and scored by the ollama-matrix-sync pipeline.",
         )
 
 st.markdown("---")
@@ -401,8 +408,8 @@ with st.sidebar:
         ["hearth", "forge", "sovereign"],
         index=0,
         help="**Hearth** (Tier 1): Local dev, limited gas (1,000 tokens/day). "
-             "**Forge** (Tier 2): Docker swarm, 10K gas/day. "
-             "**Sovereign** (Tier 3): Full Kubernetes, 100K gas/day with mTLS.",
+        "**Forge** (Tier 2): Docker swarm, 10K gas/day. "
+        "**Sovereign** (Tier 3): Full Kubernetes, 100K gas/day with mTLS.",
     )
     st.markdown("---")
     st.subheader("📜 ALIGN Ledger Rules")
@@ -414,22 +421,22 @@ with st.sidebar:
     if align_rules:
         for rule in align_rules:
             if isinstance(rule, dict):
-                rid = rule.get('id', '?')
-                name = rule.get('name', 'Unnamed')
-                action = rule.get('action', 'UNKNOWN')
+                rid = rule.get("id", "?")
+                name = rule.get("name", "Unnamed")
+                action = rule.get("action", "UNKNOWN")
                 # Color-code the action badge
-                if 'QUARANTINE' in action:
-                    action_cls = 'action-drop'
-                elif 'HUMAN' in action:
-                    action_cls = 'action-human'
+                if "QUARANTINE" in action:
+                    action_cls = "action-drop"
+                elif "HUMAN" in action:
+                    action_cls = "action-human"
                 else:
-                    action_cls = 'action-default'
+                    action_cls = "action-default"
                 st.markdown(
                     f'<div class="align-rule">'
                     f'<span class="rule-id">{rid}</span> '
                     f'<span class="rule-name">{name}</span> '
                     f'<span class="rule-action {action_cls}">{action}</span>'
-                    f'</div>',
+                    f"</div>",
                     unsafe_allow_html=True,
                 )
             else:
@@ -451,8 +458,8 @@ with st.sidebar:
             ["☁️ Cloud", "💾 Local", "📋 All"],
             horizontal=True,
             help="**Cloud**: API-routed models (no local storage). "
-                 "**Local**: Downloaded models (air-gap safe). "
-                 "**All**: Complete registry.",
+            "**Local**: Downloaded models (air-gap safe). "
+            "**All**: Complete registry.",
         )
 
         if view_mode == "💾 Local":
@@ -467,16 +474,19 @@ with st.sidebar:
 
         if display_models:
             import pandas as _pd
+
             model_rows = []
             for m in display_models:
                 is_cloud = "cloud" in m["name"].lower()
-                model_rows.append({
-                    "Model": m["name"],
-                    "Type": "☁️" if is_cloud else "💾",
-                    "Params": m["params"] if not is_cloud else "—",
-                    "Size": f"{m['size_gb']}G" if m['size_gb'] > 0 else "API",
-                    "Quant": m["quant"] if not is_cloud else "Full",
-                })
+                model_rows.append(
+                    {
+                        "Model": m["name"],
+                        "Type": "☁️" if is_cloud else "💾",
+                        "Params": m["params"] if not is_cloud else "—",
+                        "Size": f"{m['size_gb']}G" if m["size_gb"] > 0 else "API",
+                        "Quant": m["quant"] if not is_cloud else "Full",
+                    }
+                )
             model_df = _pd.DataFrame(model_rows)
             st.dataframe(
                 model_df,
@@ -546,15 +556,15 @@ with left_pane:
     st.subheader(
         "🌳 Cognitive Security Tree",
         help="The CST shows every agent in the system as a secured identity node. "
-             "Each agent has a SPIFFE ID (cryptographic identity) and an integrity hash. "
-             "If an agent's code changes mid-session, the tree flags it as compromised.",
+        "Each agent has a SPIFFE ID (cryptographic identity) and an integrity hash. "
+        "If an agent's code changes mid-session, the tree flags it as compromised.",
     )
 
     st.markdown(
-        '<p>Each card below is a '
+        "<p>Each card below is a "
         '<span class="tech-term" data-tooltip="Know Your Agent — '
         'cryptographic identity verification for each AI agent">KYA</span> '
-        'Provenance Card. Hover over technical terms for explanations.</p>',
+        "Provenance Card. Hover over technical terms for explanations.</p>",
         unsafe_allow_html=True,
     )
 
@@ -562,8 +572,8 @@ with left_pane:
         "Enable Threat Lens",
         value=True,
         help="When enabled, agent nodes are color-coded by the Aegis-Nexus "
-             "tri-perspective engine: Red = exploit paths, Blue = active defenses, "
-             "White = business impact. Disabled = identity-only view.",
+        "tri-perspective engine: Red = exploit paths, Blue = active defenses, "
+        "White = business impact. Disabled = identity-only view.",
     )
 
     # Agent cards — these will be dynamic once the agent registry is live
@@ -571,7 +581,7 @@ with left_pane:
         st.markdown(
             '<span class="tech-term" data-tooltip="A SPIFFE ID is a cryptographic '
             'identity (like a digital passport) for each microservice or agent">'
-            'SPIFFE ID</span>: `spiffe://sovereign.os/ns/core/sa/logi-01`',
+            "SPIFFE ID</span>: `spiffe://sovereign.os/ns/core/sa/logi-01`",
             unsafe_allow_html=True,
         )
         st.markdown("**Role:** Standard Inference — processes HLF intents")
@@ -583,7 +593,7 @@ with left_pane:
         st.markdown(
             '<span class="tech-term" data-tooltip="SPIFFE ID — unique cryptographic '
             'identity for this agent">SPIFFE ID</span>: '
-            '`spiffe://sovereign.os/ns/sys/sa/admin-bot`',
+            "`spiffe://sovereign.os/ns/sys/sa/admin-bot`",
             unsafe_allow_html=True,
         )
         st.warning(
@@ -603,7 +613,7 @@ with left_pane:
         st.markdown(
             '<span class="tech-term" data-tooltip="SPIFFE ID — unique cryptographic '
             'identity for this agent">SPIFFE ID</span>: '
-            '`spiffe://sovereign.os/ns/ext/sa/scraper-99`',
+            "`spiffe://sovereign.os/ns/ext/sa/scraper-99`",
             unsafe_allow_html=True,
         )
         st.error(
@@ -620,12 +630,16 @@ with center_canvas:
     st.subheader(
         "⚙️ A2UI Lifecycle Orchestrator",
         help="A2UI = Agent-to-User-Interface. This pane lets you chat with "
-             "agents, dispatch HLF commands, and monitor swarm execution.",
+        "agents, dispatch HLF commands, and monitor swarm execution.",
     )
 
-    chat_tab, dispatch_tab, swarm_tab = st.tabs([
-        "💬 Agent Chat", "🚀 Intent Dispatch", "🚦 Swarm State",
-    ])
+    chat_tab, dispatch_tab, swarm_tab = st.tabs(
+        [
+            "💬 Agent Chat",
+            "🚀 Intent Dispatch",
+            "🚦 Swarm State",
+        ]
+    )
 
     # ================================================================
     # TAB 1: AGENT CHAT
@@ -635,20 +649,26 @@ with center_canvas:
         chat_top_left, chat_top_right = st.columns([2, 1])
 
         # Build cloud model list from the already-fetched models
-        cloud_model_names = sorted(
-            [m["name"] for m in ollama_models if "cloud" in m["name"].lower()]
-        ) if ollama_models else []
+        cloud_model_names = (
+            sorted([m["name"] for m in ollama_models if "cloud" in m["name"].lower()]) if ollama_models else []
+        )
         # Fallback if Ollama is offline
         if not cloud_model_names:
             cloud_model_names = [
-                "kimi-k2.5:cloud", "glm-5:cloud", "minimax-m2.5:cloud",
-                "qwen3.5:cloud", "gpt-oss:120b-cloud",
+                "kimi-k2.5:cloud",
+                "glm-5:cloud",
+                "minimax-m2.5:cloud",
+                "qwen3.5:cloud",
+                "gpt-oss:120b-cloud",
             ]
 
         # OpenClaw-compatible models (subset that supports agent/tool use)
         OPENCLAW_MODELS = {
-            "kimi-k2.5:cloud", "glm-5:cloud", "minimax-m2.5:cloud",
-            "qwen3.5:cloud", "qwen3.5:397b-cloud",
+            "kimi-k2.5:cloud",
+            "glm-5:cloud",
+            "minimax-m2.5:cloud",
+            "qwen3.5:cloud",
+            "qwen3.5:397b-cloud",
         }
 
         with chat_top_left:
@@ -657,8 +677,8 @@ with center_canvas:
                 cloud_model_names,
                 index=0,
                 help="Select the cloud model for the conversation. "
-                     "OpenClaw-compatible models (marked 🔧) support tool "
-                     "calling and web search via Ollama 0.17+.",
+                "OpenClaw-compatible models (marked 🔧) support tool "
+                "calling and web search via Ollama 0.17+.",
                 format_func=lambda m: f"🔧 {m}" if m in OPENCLAW_MODELS else m,
             )
 
@@ -667,31 +687,32 @@ with center_canvas:
             if st.button(
                 "🐾 Launch OpenClaw",
                 help="Launches an OpenClaw agent session. This pre-selects an "
-                     "OpenClaw-compatible model (e.g. Kimi-K2.5) and loads a "
-                     "system prompt optimized for agentic tool-use. Equivalent "
-                     "to running `ollama launch openclaw` from the terminal.",
+                "OpenClaw-compatible model (e.g. Kimi-K2.5) and loads a "
+                "system prompt optimized for agentic tool-use. Equivalent "
+                "to running `ollama launch openclaw` from the terminal.",
                 use_container_width=True,
             ):
                 # Pre-select the best available OpenClaw model
-                for oc_model in ["kimi-k2.5:cloud", "glm-5:cloud",
-                                 "minimax-m2.5:cloud", "qwen3.5:cloud"]:
+                for oc_model in ["kimi-k2.5:cloud", "glm-5:cloud", "minimax-m2.5:cloud", "qwen3.5:cloud"]:
                     if oc_model in cloud_model_names:
                         st.session_state["chat_model"] = oc_model
                         break
                 st.session_state["openclaw_active"] = True
-                st.session_state["chat_messages"] = [{
-                    "role": "system",
-                    "content": (
-                        "You are OpenClaw, an AI agent running inside the "
-                        "Sovereign Agentic OS. You can help users with tasks, "
-                        "code analysis, security reviews, and system operations. "
-                        "You operate under ALIGN governance rules that prohibit: "
-                        "running as root, exfiltrating data, modifying audit logs, "
-                        "or executing without permission. You have web search "
-                        "capabilities when using cloud models. Be helpful, direct, "
-                        "and transparent about your capabilities."
-                    ),
-                }]
+                st.session_state["chat_messages"] = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are OpenClaw, an AI agent running inside the "
+                            "Sovereign Agentic OS. You can help users with tasks, "
+                            "code analysis, security reviews, and system operations. "
+                            "You operate under ALIGN governance rules that prohibit: "
+                            "running as root, exfiltrating data, modifying audit logs, "
+                            "or executing without permission. You have web search "
+                            "capabilities when using cloud models. Be helpful, direct, "
+                            "and transparent about your capabilities."
+                        ),
+                    }
+                ]
                 st.rerun()
 
         # Show OpenClaw status badge
@@ -711,14 +732,22 @@ with center_canvas:
 
         # --- ALIGN content filter (client-side blocklist check) ---
         align_rules = get_align_rules()
+
         def check_align(msg: str) -> str | None:
             """Check message against ALIGN blocklist. Returns block reason or None."""
             msg_lower = msg.lower()
             # Static blocklist for core safety patterns
             blocklist = [
-                "sudo", "rm -rf", "as root", "__import__",
-                "exfiltrat", "audit log", "delete.*log",
-                "raw shell", "eval(", "exec(",
+                "sudo",
+                "rm -rf",
+                "as root",
+                "__import__",
+                "exfiltrat",
+                "audit log",
+                "delete.*log",
+                "raw shell",
+                "eval(",
+                "exec(",
             ]
             for blocked in blocklist:
                 if blocked in msg_lower:
@@ -735,6 +764,7 @@ with center_canvas:
                     return f"ALIGN Rule Violation: `{blocked}` — {rule_label}"
             # Also check ALIGN regex patterns from rules
             import re as _re
+
             for rule in align_rules:
                 if isinstance(rule, dict):
                     regex = rule.get("regex_block", "")
@@ -753,11 +783,17 @@ with center_canvas:
         # --- Render conversation history ---
         chat_container = st.container(height=400)
         with chat_container:
-            for msg in st.session_state["chat_messages"]:
-                if msg["role"] == "system":
-                    continue  # Don't show system prompt in UI
-                with st.chat_message(msg["role"]):
-                    st.markdown(msg["content"])
+            visible_messages = [m for m in st.session_state["chat_messages"] if m["role"] != "system"]
+            if not visible_messages:
+                st.info(
+                    "👋 **Welcome to the Agent Chat!**\n\n"
+                    "Type a message below to start a conversation, or click "
+                    "**🐾 Launch OpenClaw** to load the agentic system prompt."
+                )
+            else:
+                for msg in visible_messages:
+                    with st.chat_message(msg["role"]):
+                        st.markdown(msg["content"])
 
         # --- Chat input ---
         user_input = st.chat_input(
@@ -779,185 +815,169 @@ with center_canvas:
                             "The Sovereign OS Sentinel Gate prevents this "
                             "message from reaching the agent."
                         )
-                st.session_state["chat_messages"].append(
-                    {"role": "user", "content": user_input}
-                )
+                st.session_state["chat_messages"].append({"role": "user", "content": user_input})
                 st.session_state["chat_messages"].append(
                     {"role": "assistant", "content": f"🚫 ALIGN BLOCKED: {violation}"}
                 )
             else:
                 # 2. Add user message
-                st.session_state["chat_messages"].append(
-                    {"role": "user", "content": user_input}
-                )
-                with chat_container:
-                    with st.chat_message("user"):
-                        st.markdown(user_input)
+                st.session_state["chat_messages"].append({"role": "user", "content": user_input})
+                with chat_container, st.chat_message("user"):
+                    st.markdown(user_input)
 
                 # 3. Call Ollama /api/chat
                 # Filter only user/assistant/system messages for the API
                 api_messages = [
                     {"role": m["role"], "content": m["content"]}
                     for m in st.session_state["chat_messages"]
-                    if m["role"] in ("user", "assistant", "system")
-                    and not m["content"].startswith("🚫")
+                    if m["role"] in ("user", "assistant", "system") and not m["content"].startswith("🚫")
                 ]
 
-                with chat_container:
-                    with st.chat_message("assistant"):
-                        with st.spinner("Thinking..."):
-                            try:
-                                chat_payload = json.dumps({
-                                    "model": active_model,
-                                    "messages": api_messages,
-                                    "stream": False,
-                                    "options": {
-                                        "temperature": 0.7,
-                                        "num_ctx": 4096,
-                                    },
-                                }).encode()
+                with chat_container, st.chat_message("assistant"), st.spinner("Thinking..."):
+                    try:
+                        chat_payload = json.dumps(
+                            {
+                                "model": active_model,
+                                "messages": api_messages,
+                                "stream": False,
+                                "options": {
+                                    "temperature": 0.7,
+                                    "num_ctx": 4096,
+                                },
+                            }
+                        ).encode()
 
-                                chat_req = urllib.request.Request(
-                                    f"{OLLAMA_HOST}/api/chat",
-                                    data=chat_payload,
-                                    headers={"Content-Type": "application/json"},
-                                    method="POST",
-                                )
-                                with urllib.request.urlopen(
-                                    chat_req, timeout=120
-                                ) as chat_resp:
-                                    chat_data = _json.loads(
-                                        chat_resp.read().decode()
-                                    )
+                        chat_req = urllib.request.Request(
+                            f"{OLLAMA_HOST}/api/chat",
+                            data=chat_payload,
+                            headers={"Content-Type": "application/json"},
+                            method="POST",
+                        )
+                        with urllib.request.urlopen(chat_req, timeout=120) as chat_resp:
+                            chat_data = json.loads(chat_resp.read().decode())
 
-                                reply = chat_data.get(
-                                    "message", {}
-                                ).get("content", "").strip()
-                                if not reply:
-                                    reply = "(Empty response from model)"
+                        reply = chat_data.get("message", {}).get("content", "").strip()
+                        if not reply:
+                            reply = "(Empty response from model)"
 
-                                st.markdown(reply)
-                                st.session_state["chat_messages"].append(
-                                    {"role": "assistant", "content": reply}
-                                )
-                            except Exception as chat_err:
-                                err_msg = (
-                                    f"⚠️ Could not reach Ollama at "
-                                    f"`{OLLAMA_HOST}`.\n\n"
-                                    f"**Error:** `{chat_err}`\n\n"
-                                    "Make sure Ollama is running and the "
-                                    "selected model is available."
-                                )
-                                st.error(err_msg)
-                                st.session_state["chat_messages"].append(
-                                    {"role": "assistant", "content": err_msg}
-                                )
+                        st.markdown(reply)
+                        st.session_state["chat_messages"].append({"role": "assistant", "content": reply})
+                    except Exception as chat_err:
+                        err_msg = (
+                            f"⚠️ Could not reach Ollama at "
+                            f"`{OLLAMA_HOST}`.\n\n"
+                            f"**Error:** `{chat_err}`\n\n"
+                            "Make sure Ollama is running and the "
+                            "selected model is available."
+                        )
+                        st.error(err_msg)
+                        st.session_state["chat_messages"].append({"role": "assistant", "content": err_msg})
 
         # Clear chat button
-        if st.session_state.get("chat_messages"):
-            if st.button("🗑️ Clear Conversation", key="clear_chat"):
-                st.session_state["chat_messages"] = []
-                st.session_state.pop("openclaw_active", None)
-                st.session_state.pop("chat_model", None)
-                st.rerun()
+        if st.session_state.get("chat_messages") and st.button(
+            "🗑️ Clear Conversation",
+            key="clear_chat",
+            help="Clears the current conversation history. This action cannot be undone.",
+        ):
+            st.session_state["chat_messages"] = []
+            st.session_state.pop("openclaw_active", None)
+            st.session_state.pop("chat_model", None)
+            st.rerun()
 
     # ================================================================
     # TAB 2: INTENT DISPATCH (existing code)
     # ================================================================
-    with dispatch_tab:
-        with st.container(border=True):
-            st.markdown(
-                "**Dispatch an Intent to the OS**  \n"
-                "Type an HLF program (starts with `[HLF-v3]`) or plain English. "
-                "Plain English will be compiled to HLF by Ollama automatically."
+    with dispatch_tab, st.container(border=True):
+        st.markdown(
+            "**Dispatch an Intent to the OS**  \n"
+            "Type an HLF program (starts with `[HLF-v3]`) or plain English. "
+            "Plain English will be compiled to HLF by Ollama automatically."
+        )
+        intent_input = st.text_area(
+            "Command Input",
+            placeholder=(
+                "HLF example:  [HLF-v3]\\n[INTENT] analyze /security/seccomp.json\\n"
+                '[RESULT] code=0 message="ok"\\nΩ\\n\n\n'
+                "English example:  Review the seccomp files for vulnerabilities"
+            ),
+            height=100,
+            help="**HLF mode**: Paste a full HLF-v3 program. The Gateway will validate "
+            "the syntax, check ALIGN rules, and enforce gas limits before executing.\n\n"
+            "**Text mode**: Type plain English. The system calls the local Ollama instance "
+            "to auto-generate an HLF program from your request.",
+        )
+        col_dispatch, col_tier = st.columns([1, 2])
+        with col_dispatch:
+            dispatch_btn = st.button(
+                "🚀 Dispatch",
+                help="Sends the command to the Gateway Bus at localhost:40404. "
+                "The Gateway applies: rate limiting → HLF syntax validation → "
+                "ALIGN ledger check → nonce replay protection → Dapr routing.",
+                disabled=not bool(intent_input.strip()),
             )
-            intent_input = st.text_area(
-                "Command Input",
-                placeholder=(
-                    "HLF example:  [HLF-v3]\\n[INTENT] analyze /security/seccomp.json\\n"
-                    "[RESULT] code=0 message=\"ok\"\\nΩ\\n\n\n"
-                    "English example:  Review the seccomp files for vulnerabilities"
-                ),
-                height=100,
-                help="**HLF mode**: Paste a full HLF-v3 program. The Gateway will validate "
-                     "the syntax, check ALIGN rules, and enforce gas limits before executing.\n\n"
-                     "**Text mode**: Type plain English. The system calls the local Ollama instance "
-                     "to auto-generate an HLF program from your request.",
-            )
-            col_dispatch, col_tier = st.columns([1, 2])
-            with col_dispatch:
-                dispatch_btn = st.button(
-                    "🚀 Dispatch",
-                    help="Sends the command to the Gateway Bus at localhost:40404. "
-                         "The Gateway applies: rate limiting → HLF syntax validation → "
-                         "ALIGN ledger check → nonce replay protection → Dapr routing.",
-                )
-            with col_tier:
-                st.caption(f"Active tier: **{tier_selection}** | Gateway: {gw_status}")
+        with col_tier:
+            st.caption(f"Active tier: **{tier_selection}** | Gateway: {gw_status}")
 
-            if dispatch_btn and intent_input:
-                # Determine mode: HLF (starts with [HLF) or text
-                if intent_input.strip().startswith("[HLF"):
-                    payload = {"hlf": intent_input.strip()}
-                    mode_label = "HLF"
-                else:
-                    payload = {"text": intent_input.strip()}
-                    mode_label = "Text (Ollama auto-compile)"
+        if dispatch_btn and intent_input:
+            # Determine mode: HLF (starts with [HLF) or text
+            if intent_input.strip().startswith("[HLF"):
+                payload = {"hlf": intent_input.strip()}
+                mode_label = "HLF"
+            else:
+                payload = {"text": intent_input.strip()}
+                mode_label = "Text (Ollama auto-compile)"
 
-                with st.spinner(f"Dispatching ({mode_label})..."):
-                    try:
-                        response = httpx.post(
-                            f"{GATEWAY_URL}/api/v1/intent",
-                            json=payload,
-                            timeout=10.0,
+            with st.spinner(f"Dispatching ({mode_label})..."):
+                try:
+                    response = httpx.post(
+                        f"{GATEWAY_URL}/api/v1/intent",
+                        json=payload,
+                        timeout=10.0,
+                    )
+                    if response.status_code == 202:
+                        data = response.json()
+                        st.success(f"✅ Intent accepted (HTTP 202). Trace ID: `{data.get('trace_id', 'N/A')}`")
+                        with st.expander("View Gateway Response"):
+                            st.json(data)
+                    elif response.status_code == 422:
+                        st.error(
+                            "❌ **Syntax Error (HTTP 422)**: The HLF program has invalid syntax. "
+                            f"Details: {response.json().get('detail', 'Unknown error')}"
                         )
-                        if response.status_code == 202:
-                            data = response.json()
-                            st.success(
-                                f"✅ Intent accepted (HTTP 202). "
-                                f"Trace ID: `{data.get('trace_id', 'N/A')}`"
-                            )
-                            with st.expander("View Gateway Response"):
-                                st.json(data)
-                        elif response.status_code == 422:
-                            st.error(
-                                "❌ **Syntax Error (HTTP 422)**: The HLF program has invalid syntax. "
-                                f"Details: {response.json().get('detail', 'Unknown error')}"
-                            )
-                        elif response.status_code == 403:
-                            st.error(
-                                "🚫 **ALIGN Blocked (HTTP 403)**: The intent matches a safety rule "
-                                "in the ALIGN ledger. This action is prohibited by governance policy."
-                            )
-                        elif response.status_code == 429:
-                            detail = response.json().get("detail", "")
-                            if "gas" in detail.lower():
-                                st.warning(
-                                    "⛽ **Gas Exhausted (HTTP 429)**: The daily gas budget for "
-                                    f"tier '{tier_selection}' has been consumed. "
-                                    "Wait for the nightly replenish or upgrade your tier."
-                                )
-                            else:
-                                st.warning(
-                                    "🚦 **Rate Limited (HTTP 429)**: Too many requests per minute. "
-                                    "The system enforces a 50 req/min limit to prevent abuse."
-                                )
-                        elif response.status_code == 409:
+                    elif response.status_code == 403:
+                        st.error(
+                            "🚫 **ALIGN Blocked (HTTP 403)**: The intent matches a safety rule "
+                            "in the ALIGN ledger. This action is prohibited by governance policy."
+                        )
+                    elif response.status_code == 429:
+                        detail = response.json().get("detail", "")
+                        if "gas" in detail.lower():
                             st.warning(
-                                "🔁 **Replay Detected (HTTP 409)**: This intent has already been "
-                                "processed. Each intent must include a unique nonce."
+                                "⛽ **Gas Exhausted (HTTP 429)**: The daily gas budget for "
+                                f"tier '{tier_selection}' has been consumed. "
+                                "Wait for the nightly replenish or upgrade your tier."
                             )
                         else:
-                            st.error(f"Unexpected response: HTTP {response.status_code}")
-                            st.json(response.json())
-                    except httpx.ConnectError:
-                        st.error(
-                            "🔴 **Gateway Unreachable**: Cannot connect to the Gateway Bus "
-                            f"at {GATEWAY_URL}. Make sure the gateway is running "
-                            "(uvicorn agents.gateway.bus:app --port 40404)."
+                            st.warning(
+                                "🚦 **Rate Limited (HTTP 429)**: Too many requests per minute. "
+                                "The system enforces a 50 req/min limit to prevent abuse."
+                            )
+                    elif response.status_code == 409:
+                        st.warning(
+                            "🔁 **Replay Detected (HTTP 409)**: This intent has already been "
+                            "processed. Each intent must include a unique nonce."
                         )
-                    except Exception as e:
-                        st.error(f"Dispatch error: {e}")
+                    else:
+                        st.error(f"Unexpected response: HTTP {response.status_code}")
+                        st.json(response.json())
+                except httpx.ConnectError:
+                    st.error(
+                        "🔴 **Gateway Unreachable**: Cannot connect to the Gateway Bus "
+                        f"at {GATEWAY_URL}. Make sure the gateway is running "
+                        "(uvicorn agents.gateway.bus:app --port 40404)."
+                    )
+                except Exception as e:
+                    st.error(f"Dispatch error: {e}")
 
     # ================================================================
     # TAB 3: SWARM STATE (existing code)
@@ -966,8 +986,8 @@ with center_canvas:
         st.markdown(
             "### 🚦 Swarm State Machine",
             help="Shows the current lifecycle state of all active agents. "
-                 "Working = actively processing, Input-Required = paused, "
-                 "Exception = hit a logic gate or hallucination.",
+            "Working = actively processing, Input-Required = paused, "
+            "Exception = hit a logic gate or hallucination.",
         )
         st.caption(
             "These values will be live when agents are connected to the Redis stream. "
@@ -1001,7 +1021,7 @@ with center_canvas:
                     "Data Payload",
                     placeholder="e.g., CHG-9921 or a file path",
                     help="Enter the specific data the agent is requesting. "
-                         "This will be injected into the HLF packet stream.",
+                    "This will be injected into the HLF packet stream.",
                 )
                 submit = st.form_submit_button("Inject & Resume")
                 if submit and ticket_id:
@@ -1021,8 +1041,8 @@ with center_canvas:
         st.markdown(
             "### 🌙 Dream Mode",
             help="Dream Mode runs a 5-stage pipeline: context compression, "
-                 "trace archival, HLF practice, Six Thinking Hats analysis, "
-                 "and results persistence. Can run on schedule (3AM) or manually.",
+            "trace archival, HLF practice, Six Thinking Hats analysis, "
+            "and results persistence. Can run on schedule (3AM) or manually.",
         )
 
         # Manual trigger button
@@ -1032,6 +1052,7 @@ with center_canvas:
                 with st.spinner("🌙 Dream Cycle running... (this may take 1–3 min)"):
                     try:
                         from agents.core.dream_state import run_dream_cycle
+
                         dream_report = run_dream_cycle(manual=True)
                         st.session_state["last_dream_report"] = dream_report
                     except Exception as e:
@@ -1041,14 +1062,14 @@ with center_canvas:
         dream_report = st.session_state.get("last_dream_report")
         if dream_report:
             with dream_cols[1]:
-                dur = getattr(dream_report, 'duration_seconds', 0)
+                dur = getattr(dream_report, "duration_seconds", 0)
                 st.metric("Duration", f"{dur:.1f}s")
 
             # HLF Practice Results
-            hlf_p = getattr(dream_report, 'hlf_practiced', 0)
-            hlf_passed = getattr(dream_report, 'hlf_passed', 0)
-            comp_in = getattr(dream_report, 'context_compressed_chars', 0)
-            comp_out = getattr(dream_report, 'context_result_chars', 0)
+            hlf_p = getattr(dream_report, "hlf_practiced", 0)
+            hlf_passed = getattr(dream_report, "hlf_passed", 0)
+            comp_in = getattr(dream_report, "context_compressed_chars", 0)
+            comp_out = getattr(dream_report, "context_result_chars", 0)
 
             r1, r2 = st.columns(2)
             with r1:
@@ -1058,18 +1079,22 @@ with center_canvas:
                 st.metric("Compression", f"{int(ratio * 100)}%")
 
             # Hat Findings
-            hat_reports = getattr(dream_report, 'hat_reports', [])
+            hat_reports = getattr(dream_report, "hat_reports", [])
             if hat_reports:
                 st.markdown("**🎩 Hat Findings:**")
                 hat_colors = {
-                    "red": "🔴", "black": "⚫", "white": "⚪",
-                    "yellow": "🟡", "green": "🟢", "blue": "🔵",
+                    "red": "🔴",
+                    "black": "⚫",
+                    "white": "⚪",
+                    "yellow": "🟡",
+                    "green": "🟢",
+                    "blue": "🔵",
                 }
                 for hr in hat_reports:
-                    hat_name = hr.get('hat', '?')
-                    emoji = hat_colors.get(hat_name, '🎩')
-                    count = hr.get('findings_count', 0)
-                    err = hr.get('error')
+                    hat_name = hr.get("hat", "?")
+                    emoji = hat_colors.get(hat_name, "🎩")
+                    count = hr.get("findings_count", 0)
+                    err = hr.get("error")
                     if err:
                         st.caption(f"{emoji} **{hat_name.title()}**: ⚠️ {err}")
                     elif count > 0:
@@ -1078,7 +1103,7 @@ with center_canvas:
                         st.caption(f"{emoji} **{hat_name.title()}**: ✅ No issues")
 
             # Summary
-            summary = getattr(dream_report, 'summary', '')
+            summary = getattr(dream_report, "summary", "")
             if summary:
                 st.success(summary)
         else:
@@ -1096,8 +1121,8 @@ with right_pane:
     st.subheader(
         "🔍 Glass-Box Truth",
         help="The Glass-Box layer ensures full transparency. Every action is "
-             "cryptographically verifiable and semantically auditable. "
-             "This pane detects alignment faking, scope creep, and goal hijacking.",
+        "cryptographically verifiable and semantically auditable. "
+        "This pane detects alignment faking, scope creep, and goal hijacking.",
     )
 
     # --- Anchor Drift Gauge ---
@@ -1122,8 +1147,9 @@ with right_pane:
         color = "Safe" if drift_val >= 0.85 else "⚠️ Drifting"
         st.progress(drift_val, text=f"Semantic Similarity ({int(drift_val * 100)}%) — {color}")
     else:
-        st.caption("No active goal anchor set. Drift monitoring will activate when an "
-                   "agent is processing a multi-step intent.")
+        st.caption(
+            "No active goal anchor set. Drift monitoring will activate when an agent is processing a multi-step intent."
+        )
 
     st.markdown("---")
 
@@ -1163,19 +1189,23 @@ with right_pane:
     # --- Trace-ID Forensics ---
     st.markdown(
         '<p><span class="tech-term" data-tooltip="Every log entry is linked by a '
-        'SHA-256 hash chain (Merkle chain). This makes the audit log tamper-evident '
+        "SHA-256 hash chain (Merkle chain). This makes the audit log tamper-evident "
         '— any modification breaks the chain.">Trace-ID Forensics</span></p>',
         unsafe_allow_html=True,
     )
     merkle = get_merkle_chain_status()
     if merkle["status"] == "active":
-        st.markdown(f"**Chain Status:** 🟢 Active")
+        st.markdown("**Chain Status:** 🟢 Active")
         st.code(f"Last Hash: {merkle['full_hash']}", language="text")
-        st.caption("This hash links to the previous log entry. "
-                   "Verify integrity by recomputing the chain from the ALS trace file.")
+        st.caption(
+            "This hash links to the previous log entry. "
+            "Verify integrity by recomputing the chain from the ALS trace file."
+        )
     else:
-        st.caption("Merkle chain not yet initialized. Submit an intent through "
-                   "the Gateway to start the cryptographic audit trail.")
+        st.caption(
+            "Merkle chain not yet initialized. Submit an intent through "
+            "the Gateway to start the cryptographic audit trail."
+        )
 
 
 # ============================================================================
