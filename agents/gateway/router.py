@@ -21,8 +21,9 @@ class Settings(BaseSettings):
     primary_model: str = "qwen3-vl:32b-cloud"
     reasoning_model: str = "qwen-max"
     summarization_model: str = "qwen:7b"
+    openrouter_api_key: str = ""
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": ".env", "extra": "ignore"}
 
 
 settings = Settings()
@@ -166,3 +167,213 @@ def mediate_web_search(payload: dict[str, Any]) -> dict[str, Any]:
         del payload["web_search"]
         payload["_reroute_web_search"] = True
     return payload
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 3 — Registry-Aware Routing Engine
+# ─────────────────────────────────────────────────────────────────────────
+import sys
+from dataclasses import dataclass, field
+from pathlib import Path
+
+
+@dataclass
+class AgentProfile:
+    """Rich routing result — replaces the bare model-name string."""
+    model: str                          # Selected model ID
+    provider: str = "ollama"            # "ollama" | "openrouter" | "cloud"
+    tier: str = "D"                     # Tier of selected model
+    system_prompt: str = ""             # From agent_templates or default
+    tools: list[str] = field(default_factory=list)
+    restrictions: dict[str, Any] = field(default_factory=dict)
+    routing_trace: list[dict[str, Any]] = field(default_factory=list)
+    gas_remaining: int = -1             # Post-consumption gas balance
+    confidence: float = 0.5             # Router confidence in selection
+
+
+# Tier walk order — Cloud-First isolation invariant
+_TIER_WALK_ORDER = ["S", "A+", "A", "A-", "B+", "B", "C", "D"]
+
+# Specialized intent overrides (checked BEFORE tier walk)
+_SPECIALIZATION_PATTERNS: dict[str, list[str]] = {
+    "coding": ["code", "debug", "refactor", "compile", "ast", "symbol", "lint"],
+    "visual": ["image", "ocr", "visual", "screenshot", "photo", "diagram"],
+    "uncensored": ["uncensored", "unfiltered", "unrestricted"],
+}
+
+
+def _try_import_db():
+    """Lazy-import db module from agents.core to avoid circular imports."""
+    try:
+        from agents.core.db import (
+            get_db, db_path, init_db,
+            get_models_by_tier, get_local_inventory,
+            get_agent_template, get_equivalents,
+        )
+        return get_db, db_path, init_db, get_models_by_tier, get_local_inventory, get_agent_template, get_equivalents
+    except ImportError:
+        return None
+
+
+def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None = None) -> AgentProfile:
+    """
+    Registry-aware 3-Phase Tier Walk router.  Returns a full AgentProfile.
+
+    Phase 1: Cloud Tier Walk — query registry for best model per-tier
+    Phase 2: Local Inventory Fallback — if cloud walk exhausted
+    Phase 3: OpenRouter Handoff — if both cloud and local fail
+
+    Falls back to legacy route_intent() if the registry is unavailable.
+    """
+    trace: list[dict[str, Any]] = []
+    meta = metadata or {}
+    text_lower = intent_text.lower()
+
+    # ── Specialization Pre-Routing Hooks ──────────────────────────────
+    specialization = None
+    for spec_name, keywords in _SPECIALIZATION_PATTERNS.items():
+        if any(kw in text_lower for kw in keywords):
+            specialization = spec_name
+            trace.append({"step": "specialization", "match": spec_name, "keywords": keywords})
+            break
+
+    # ── Try registry-backed routing ───────────────────────────────────
+    db_imports = _try_import_db()
+    if db_imports is None:
+        # Registry not available — graceful fallback to legacy router
+        legacy_model = route_intent(intent_text, ast)
+        trace.append({"step": "fallback", "reason": "db_import_failed", "model": legacy_model})
+        return AgentProfile(
+            model=legacy_model,
+            provider="cloud" if _is_cloud(legacy_model) else "ollama",
+            routing_trace=trace,
+            confidence=0.3,
+        )
+
+    get_db, db_path, init_db, get_models_by_tier, get_local_inventory, get_agent_template, get_equivalents = db_imports
+
+    registry = db_path()
+    if not registry.exists():
+        legacy_model = route_intent(intent_text, ast)
+        trace.append({"step": "fallback", "reason": "registry_not_found", "model": legacy_model})
+        return AgentProfile(
+            model=legacy_model,
+            provider="cloud" if _is_cloud(legacy_model) else "ollama",
+            routing_trace=trace,
+            confidence=0.3,
+        )
+
+    init_db(registry)
+
+    try:
+        with get_db(registry) as conn:
+            # ── Phase 1: Cloud Tier Walk ──────────────────────────────
+            selected_model = None
+            selected_tier = None
+
+            for tier in _TIER_WALK_ORDER:
+                candidates = get_models_by_tier(conn, tier)
+                trace.append({
+                    "step": "tier_walk",
+                    "tier": tier,
+                    "candidates": len(candidates),
+                })
+
+                for candidate in candidates:
+                    model_id = candidate["model_id"]
+                    # Cloud-First isolation: skip local-only models in cloud walk
+                    if check_vram_threshold(model_id):
+                        selected_model = model_id
+                        selected_tier = tier
+                        trace.append({"step": "selected", "phase": "cloud", "model": model_id, "tier": tier})
+                        break
+
+                if selected_model:
+                    break
+
+            # ── Phase 2: Local Inventory Fallback ─────────────────────
+            if selected_model is None:
+                local_models = get_local_inventory(conn)
+                trace.append({"step": "local_fallback", "available": len(local_models)})
+
+                if local_models:
+                    # Pick the first (most recently seen) local model
+                    selected_model = local_models[0]["model_id"]
+                    selected_tier = "local"
+                    trace.append({"step": "selected", "phase": "local", "model": selected_model})
+
+            # ── Phase 3: OpenRouter Handoff ────────────────────────────
+            if selected_model is None:
+                # Check for OpenRouter equivalents of the primary model
+                equivs = get_equivalents(conn, settings.primary_model)
+                or_hit = next((e for e in equivs if e["provider"] == "openrouter"), None)
+                if or_hit:
+                    selected_model = or_hit["provider_model_id"]
+                    selected_tier = "openrouter"
+                    trace.append({"step": "selected", "phase": "openrouter", "model": selected_model})
+
+            # ── Ultimate fallback ─────────────────────────────────────
+            if selected_model is None:
+                selected_model = route_intent(intent_text, ast)
+                selected_tier = "fallback"
+                trace.append({"step": "fallback", "reason": "all_phases_exhausted", "model": selected_model})
+
+            # ── Specialization override (if match found earlier) ──────
+            if specialization == "coding":
+                # Prefer devstral-small-2 or reasoning_model for coding
+                coding_candidates = [
+                    m["model_id"] for m in get_local_inventory(conn)
+                    if "devstral" in m["model_id"].lower()
+                ]
+                if coding_candidates:
+                    selected_model = coding_candidates[0]
+                    trace.append({"step": "override", "specialization": "coding", "model": selected_model})
+                else:
+                    selected_model = settings.reasoning_model
+                    trace.append({"step": "override", "specialization": "coding_fallback", "model": selected_model})
+
+            elif specialization == "visual":
+                selected_model = settings.primary_model
+                trace.append({"step": "override", "specialization": "visual", "model": selected_model})
+
+            # ── Load agent template if available ──────────────────────
+            system_prompt = ""
+            tools: list[str] = []
+            restrictions: dict[str, Any] = {}
+
+            if specialization:
+                template = get_agent_template(conn, specialization)
+                if template:
+                    system_prompt = template["system_prompt"]
+                    tools = json.loads(template["tools_json"]) if template["tools_json"] else []
+                    restrictions = json.loads(template["restrictions_json"]) if template["restrictions_json"] else {}
+                    trace.append({"step": "template_loaded", "name": specialization})
+
+            # Determine provider
+            provider = "ollama"
+            if _is_cloud(selected_model):
+                provider = "cloud"
+            elif selected_tier == "openrouter":
+                provider = "openrouter"
+
+            return AgentProfile(
+                model=selected_model,
+                provider=provider,
+                tier=selected_tier or "D",
+                system_prompt=system_prompt,
+                tools=tools,
+                restrictions=restrictions,
+                routing_trace=trace,
+                confidence=0.9 if selected_tier in ("S", "A+", "A") else 0.7 if selected_tier in ("A-", "B+") else 0.5,
+            )
+
+    except Exception as exc:
+        # Registry query failed — graceful fallback
+        legacy_model = route_intent(intent_text, ast)
+        trace.append({"step": "fallback", "reason": f"registry_error: {exc}", "model": legacy_model})
+        return AgentProfile(
+            model=legacy_model,
+            provider="cloud" if _is_cloud(legacy_model) else "ollama",
+            routing_trace=trace,
+            confidence=0.2,
+        )

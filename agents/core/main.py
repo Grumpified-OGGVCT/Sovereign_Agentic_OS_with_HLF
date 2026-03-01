@@ -23,6 +23,15 @@ import httpx
 from agents.core.logger import ALSLogger
 
 _logger = ALSLogger(agent_role="agent-executor", goal_id="boot")
+
+
+def _try_route_request():
+    """Lazy import of route_request to avoid circular imports."""
+    try:
+        from agents.gateway.router import route_request, AgentProfile
+        return route_request, AgentProfile
+    except ImportError:
+        return None, None
 _SYSTEM_PROMPT_PATH = (
     Path(__file__).parent.parent.parent
     / "governance"
@@ -120,6 +129,76 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# AgentProfile-aware inference (Phase 4 v2)
+# --------------------------------------------------------------------------- #
+
+def _ollama_generate_v2(text: str, profile: Any) -> str:
+    """
+    Like _ollama_generate but applies AgentProfile fields:
+      - profile.model       → model ID
+      - profile.provider    → "ollama" | "openrouter" | "cloud"
+      - profile.system_prompt → system message override
+      - profile.restrictions → max_tokens, temperature, etc.
+    Falls back to _ollama_generate() if profile is minimal.
+    """
+    model = profile.model
+    system_prompt = profile.system_prompt or ""
+    if not system_prompt and _SYSTEM_PROMPT_PATH.exists():
+        system_prompt = _SYSTEM_PROMPT_PATH.read_text().strip()
+
+    restrictions = profile.restrictions or {}
+    temperature = restrictions.get("temperature", 0.0)
+    max_tokens = restrictions.get("max_tokens", 2048)
+
+    # --- OpenRouter provider path ---
+    if profile.provider == "openrouter":
+        api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENROUTER_API")
+        if not api_key:
+            _logger.log("OPENROUTER_NO_KEY", {"model": model}, anomaly_score=0.5)
+            return _ollama_generate(text, model=model)
+        _logger.log("OPENROUTER_INFERENCE_START", {"model": model})
+        resp = httpx.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "X-Title": "Sovereign OS Autonomous Runner",
+            },
+            json={
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": text},
+                ],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+            timeout=60.0,
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"].strip()
+
+    # --- Cloud provider path ---
+    if profile.provider == "cloud":
+        return _ollama_generate(text, model=model)
+
+    # --- Local Ollama path (default) ---
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://ollama-matrix:11434")
+    payload = {
+        "model": model.replace(":cloud", ""),
+        "system": system_prompt,
+        "prompt": text,
+        "stream": False,
+        "options": {
+            "temperature": temperature,
+            "num_ctx": max_tokens,
+        },
+    }
+    resp = httpx.post(f"{ollama_host}/api/generate", json=payload, timeout=60.0)
+    resp.raise_for_status()
+    return resp.json().get("response", "").strip()
+
+
+# --------------------------------------------------------------------------- #
 # Intent execution pipeline
 # --------------------------------------------------------------------------- #
 
@@ -140,6 +219,35 @@ def execute_intent(payload: dict) -> dict:
     max_gas = int(os.environ.get("MAX_GAS_LIMIT", "10"))
     request_id = payload.get("request_id", "unknown")
 
+    # --- Phase 4: Registry-aware model routing ---
+    route_request_fn, AgentProfileCls = _try_route_request()
+    profile = None
+    if route_request_fn is not None:
+        text_for_routing = payload.get("text", "")
+        if text_for_routing:
+            try:
+                profile = route_request_fn(text_for_routing, payload)
+                _logger.log(
+                    "ROUTE_DECISION",
+                    {
+                        "request_id": request_id,
+                        "model": profile.model,
+                        "provider": profile.provider,
+                        "tier": profile.tier,
+                        "confidence": profile.confidence,
+                        "gas_remaining": profile.gas_remaining,
+                        "trace": profile.routing_trace,
+                    },
+                    confidence_score=profile.confidence,
+                )
+            except Exception as exc:
+                _logger.log(
+                    "ROUTE_DECISION_ERROR",
+                    {"request_id": request_id, "error": str(exc)},
+                    anomaly_score=0.4,
+                )
+                # Fall through to legacy path
+
     ast = payload.get("ast")
 
     if ast is None:
@@ -148,7 +256,11 @@ def execute_intent(payload: dict) -> dict:
         if not text:
             return {"code": 1, "message": "no text or ast in payload", "gas_used": 0}
         try:
-            hlf_response = _ollama_generate(text)
+            # Use AgentProfile-aware inference if available, else legacy
+            if profile is not None:
+                hlf_response = _ollama_generate_v2(text, profile)
+            else:
+                hlf_response = _ollama_generate(text)
             _logger.log(
                 "OLLAMA_RESPONSE",
                 {"request_id": request_id, "preview": hlf_response[:120]},
@@ -170,6 +282,7 @@ def execute_intent(payload: dict) -> dict:
                 "request_id": request_id,
                 "code": result["code"],
                 "gas_used": result["gas_used"],
+                "routed_model": profile.model if profile else "env_default",
             },
         )
         return result

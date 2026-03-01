@@ -186,6 +186,87 @@ For deploying the Agent OS autonomously in cloud environments (e.g., GitHub Acti
 
 *See the `Automated_Runner_Setup_Guide.md` in the docs folder for the exhaustive implementation details and custom action configurations.*
 
+---
+
+## 🗄️ Autonomous Model & Agent Registry
+
+The OS includes a **SQL-backed Model & Agent Registry** (`agents/core/db.py`) that replaces keyword-based routing with a data-driven tier-walk algorithm.
+
+### How It Works
+
+```mermaid
+graph LR
+    Pipeline["Ollama Matrix Sync<br/>(Nightly Pipeline)"] -->|scores & tiers| Registry["SQL Registry<br/>(SQLite WAL)"]
+    Heartbeat["Inventory Sync<br/>(/api/v1/inventory/sync)"] -->|local models| Registry
+    Registry -->|tier walk| Router["route_request()"]
+    Router -->|AgentProfile| Executor["execute_intent()<br/>(main.py)"]
+    Executor -->|applies profile| Ollama["Ollama / OpenRouter<br/>(Inference)"]
+```
+
+### 3-Phase Tier Walk
+
+| Phase | Strategy | Source |
+|-------|----------|--------|
+| **1. Cloud Walk** | S → A+ → A → A- → B+ descent | `models` table (active snapshot) |
+| **2. Local Fallback** | Best available local model | `user_local_inventory` table |
+| **3. OpenRouter Handoff** | Cross-provider equivalent | `model_equivalents` table |
+
+### AgentProfile (returned by `route_request()`)
+
+Every routing decision returns a structured `AgentProfile` dataclass containing: the selected model, provider, tier, system prompt, available tools, restrictions, a full routing trace (ALS-auditable), gas remaining, and a confidence score. The legacy `route_intent()` function is preserved for backward compatibility.
+
+### Registry Tables (9 total)
+
+| Table | Purpose |
+|-------|---------|
+| `snapshots` | Pipeline run metadata & promotion state |
+| `models` | Global model catalog (per-snapshot) |
+| `model_tiers` | Historical tier changes |
+| `user_local_inventory` | Local Ollama models (heartbeat-synced) |
+| `local_model_metadata` | Extended local model info (digest, quant) |
+| `agent_templates` | Pre-built agent configurations |
+| `model_equivalents` | Cross-provider model mappings |
+| `policy_bundles` | Governance rule bundles |
+| `model_feedback` | Per-interaction quality signals |
+
+---
+
+## 🤖 Jules Autonomous Integration
+
+The OS leverages **[Google Jules](https://jules.google)** as an autonomous maintenance and evolution agent. Jules is configured via `AGENTS.md` (in repo root) to understand the full system architecture before making any changes.
+
+### Architecture Overview
+
+![Jules Orchestrator Hub — 7 integration areas with triggers and outputs](docs/jules_architecture.png)
+
+### Automated Improvement Flow
+
+![Jules Automated HLF Improvement Cycle — trigger → analysis → parallel execution → verification → PR](docs/jules_flow.png)
+
+### Integration Areas
+
+| Role | Trigger | Frequency | What It Touches |
+|------|---------|-----------|-----------------|
+| **HLF Grammar Evolver** | Scheduled | Weekly | `hlfc.py`, `hlflint.py`, `hlffmt.py` |
+| **Dream Cycle Enhancer** | Scheduled | Bi-weekly | `dream_state.py`, `hat_engine.py` |
+| **Pipeline Operator** | Scheduled | Nightly | `pipeline.py`, `registry.db` |
+| **ALIGN Hardener** | Scheduled | Monthly | `ALIGN_LEDGER.yaml`, `sentinel_gate.py` |
+| **GUI Feature Builder** | Scheduled | Weekly | `gui/app.py` |
+| **CI Fixer** | Event | On failure | `.github/workflows/`, any failing file |
+| **Dependency Updater** | Scheduled | Weekly | `pyproject.toml` |
+
+### Safety Invariants (Non-Negotiable)
+
+| Invariant | Enforcement |
+|-----------|-------------|
+| No test deletion | LLMJudge checks diffs for removed test files |
+| No coverage reduction | Scheduled `pytest --cov` baseline comparison |
+| No simplification | `AGENTS.md` explicitly forbids reductive changes |
+| Additive-only | Every Jules prompt includes "Do NOT delete or simplify" |
+| 4GB RAM constraint | Layer 1 compliance enforced in `AGENTS.md` |
+
+---
+
 ## 📚 Official Design Documents & Blueprints
 
 Dive deeper into the comprehensive design documentation that informs the OS specifications:
@@ -202,12 +283,15 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 | API | FastAPI + Uvicorn |
 | Message Bus | Redis Streams |
 | Storage | SQLite (WAL mode) |
+| Registry | `agents/core/db.py` (9-table schema) |
 | Containers | Docker Compose |
 | Pub/Sub | Dapr |
-| Backend | Ollama |
+| Backend | Ollama + OpenRouter |
 | ML Optimization | DSPy |
 | Parser | Lark LALR(1) |
 | Package Manager | uv |
+| Autonomous Agent | Google Jules |
+| MCP Server | Antigravity + Jules MCP |
 
 ## 🛠️ Local Development
 
