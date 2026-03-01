@@ -2,6 +2,39 @@
 
 You are initializing `Agent_OS_with_HLF`. This is a Spec-Driven Development (SDD) project for a Sovereign Agentic OS with a custom DSL called HLF (Hieroglyphic Logic Framework). Scaffold the ENTIRE repo structure and populate all files. Follow these rules precisely.
 
+## MODEL-AGNOSTIC POLICY (READ FIRST — MANDATORY)
+
+This project uses **Ollama-first inference** with **OpenRouter as cloud fallback**.
+The MoMA Router auto-selects from a **model matrix** defined in `config/settings.json`
+per deployment tier. Users who fork this project may use ANY models.
+
+### Absolute Rules
+1. **NEVER hardcode specific model names** in code, docs, tests, or comments.
+   - ❌ BAD: `model = "GPT-4o"`, `"use deepseek-v3"`, `"Claude can..."`, `"Llama-3..."`
+   - ✅ GOOD: `settings["models"]["primary"]`, `$PRIMARY_MODEL`, `"the tier's model matrix"`
+2. **Always reference models via config**: `PRIMARY_MODEL`, `REASONING_MODEL`,
+   `SUMMARIZATION_MODEL`, `EMBEDDING_MODEL` from `.env` / `settings.json`.
+3. **The allowed model matrix** is in `config/settings.json` → `ollama_allowed_models`.
+   Never assume which models are available — always check the matrix.
+4. **Cloud fallback**: Models with `:cloud` suffix route through OpenRouter.
+   Local models route through Ollama. The router handles this automatically.
+
+### Banned Patterns (CI will fail if these appear as project model references)
+`GPT-4o`, `GPT-4`, `GPT-3.5`, `Claude`, `deepseek`, `Llama`, `Mistral`, `Gemini`, `Grok`,
+`Anthropic`, `OpenAI` (as a model provider this project uses — comparison docs are OK).
+
+## ANTI-DEVOLUTION RULES (CRITICAL)
+
+Code quality must NEVER decrease. Every PR must satisfy:
+1. **No test removals** — tests can only be added or strengthened, never deleted.
+2. **No type hint removals** — all public functions must have type hints.
+3. **No security bypass** — ALIGN Ledger rules are immutable at runtime.
+4. **No hardcoded values** — all config flows through `.env` → `settings.json`.
+5. **No memory budget violations** — services must stay under 4GB RAM.
+6. **HLF intents must parse** — `hlfc.compile()` is the only valid parser, no raw regex.
+7. **All PRs must pass CI** — `pytest`, `ruff`, `hlf_token_lint.py`, model whitelist.
+8. **No import of banned modules** — `os.system`, `subprocess.call`, `eval()`, `exec()`.
+
 ## RULES
 1. NO HALLUCINATION — do not invent tools, dirs, or libs not listed here.
 2. Use `uv` for Python (pyproject.toml + uv.lock), `pnpm` for Node.js.
