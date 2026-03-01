@@ -227,3 +227,76 @@ data/redis/
 
 # Observability dynamic hashes
 observability/openllmetry/last_hash.txt
+
+# ═══════════════════════════════════════════════════════════════
+# SOVEREIGN OS — Project-specific ignores (sensitive/user-config)
+# ═══════════════════════════════════════════════════════════════
+
+# --- API Keys & Credentials ---
+*.key
+*.pem
+*.cert
+*.crt
+credentials.json
+credentials.yaml
+credentials.yml
+secrets.toml
+.secrets/
+config/local_overrides.json
+config/local_overrides.yaml
+
+# --- Streamlit Secrets ---
+.streamlit/secrets.toml
+
+# --- Antigravity / Gemini Brain Data ---
+.gemini/
+.antigravity/
+
+# --- Runtime Databases ---
+*.db
+*.sqlite
+*.sqlite3
+!tests/fixtures/*.db
+registry.db
+sovereign_registry.db
+
+# --- Redis Persistence ---
+dump.rdb
+appendonly.aof
+*.rdb
+
+# --- Docker Volumes / Runtime ---
+docker-data/
+volumes/
+
+# --- Model Cache / Ollama Local ---
+models/
+.ollama/
+
+# --- Agent Runtime Logs & State ---
+agent_state/
+agent_logs/
+*.pid
+*.sock
+
+# --- User-specific / Machine-specific Config ---
+.env.local
+.env.*.local
+.env.production
+.env.staging
+config/user_settings.json
+config/user_settings.yaml
+
+# --- OS-specific ---
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# --- IDE specific ---
+.idea/
+*.iml
+.vscode/settings.json
+.vscode/launch.json

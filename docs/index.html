@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HLF Translation Pipeline — Sovereign Agentic OS</title>
+    <meta name="description" content="Interactive demo of the Hieroglyphic Logic Framework (HLF) translation pipeline. Watch natural language transform into deterministic agent instructions and back.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --text-primary: #c9d1d9;
+            --text-secondary: #8b949e;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-orange: #d29922;
+            --accent-red: #f85149;
+            --accent-purple: #bc8cff;
+            --accent-gold: #ffd700;
+            --border: #30363d;
+            --glow-blue: rgba(88, 166, 255, 0.3);
+            --glow-green: rgba(63, 185, 80, 0.3);
+            --font-sans: 'Inter', -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* ── Hero Section ── */
+        .hero {
+            text-align: center;
+            padding: 3rem 1.5rem 2rem;
+            background: linear-gradient(180deg, #0d1117 0%, #161b22 100%);
+            border-bottom: 1px solid var(--border);
+        }
+        .hero h1 {
+            font-size: 2.2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        .hero .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.05rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .hero .badge-row {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            border: 1px solid var(--border);
+            background: var(--bg-tertiary);
+        }
+        .badge.green { color: var(--accent-green); border-color: var(--accent-green); }
+        .badge.blue { color: var(--accent-blue); border-color: var(--accent-blue); }
+        .badge.purple { color: var(--accent-purple); border-color: var(--accent-purple); }
+
+        /* ── Pipeline Visualization ── */
+        .pipeline-flow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.3rem;
+            padding: 1.5rem;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .pipeline-step {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: 1px solid var(--border);
+            background: var(--bg-tertiary);
+        }
+        .pipeline-step.active {
+            border-color: var(--accent-blue);
+            box-shadow: 0 0 12px var(--glow-blue);
+            color: var(--accent-blue);
+        }
+        .pipeline-step.done {
+            border-color: var(--accent-green);
+            color: var(--accent-green);
+        }
+        .pipeline-arrow {
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+        }
+
+        /* ── Main Container ── */
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        /* ── Chat Experience ── */
+        .chat-container {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--bg-secondary);
+        }
+        .chat-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem 1rem;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+        }
+        .chat-header h3 { font-size: 0.95rem; }
+        .chat-body {
+            padding: 1rem;
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        /* ── Messages ── */
+        .message {
+            margin-bottom: 1rem;
+            animation: fadeIn 0.4s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .message-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.3rem;
+        }
+        .message-label.user { color: var(--accent-blue); }
+        .message-label.system { color: var(--accent-orange); }
+        .message-label.hlf { color: var(--accent-purple); }
+        .message-label.agent { color: var(--accent-green); }
+        .message-label.metrics { color: var(--accent-gold); }
+
+        .message-bubble {
+            padding: 0.8rem 1rem;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            max-width: 85%;
+        }
+        .message.user .message-bubble {
+            background: linear-gradient(135deg, #1a3a5c, #1c2d42);
+            border: 1px solid rgba(88, 166, 255, 0.3);
+            margin-left: auto;
+        }
+        .message.system .message-bubble {
+            background: linear-gradient(135deg, #2d2a17, #332d1a);
+            border: 1px solid rgba(210, 153, 34, 0.3);
+        }
+        .message.hlf .message-bubble {
+            background: linear-gradient(135deg, #2a1f3d, #241a35);
+            border: 1px solid rgba(188, 140, 255, 0.3);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+        }
+        .message.agent .message-bubble {
+            background: linear-gradient(135deg, #1a2d1a, #1c331c);
+            border: 1px solid rgba(63, 185, 80, 0.3);
+        }
+
+        /* ── Metrics Panel ── */
+        .metrics-panel {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.5rem;
+            padding: 0.8rem 1rem;
+            border-radius: 10px;
+            background: linear-gradient(135deg, #2d2400, #332a00);
+            border: 1px solid rgba(255, 215, 0, 0.2);
+        }
+        .metric-item {
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            font-family: var(--font-mono);
+        }
+        .metric-value.green { color: var(--accent-green); }
+        .metric-value.blue { color: var(--accent-blue); }
+        .metric-value.gold { color: var(--accent-gold); }
+        .metric-value.purple { color: var(--accent-purple); }
+        .metric-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        /* ── Input Area ── */
+        .input-area {
+            display: flex;
+            gap: 0.5rem;
+            padding: 0.8rem 1rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg-tertiary);
+        }
+        .input-area input {
+            flex: 1;
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-area input:focus {
+            border-color: var(--accent-blue);
+        }
+        .input-area input::placeholder {
+            color: var(--text-secondary);
+        }
+        .input-area button {
+            padding: 0.6rem 1.2rem;
+            border-radius: 8px;
+            border: none;
+            background: linear-gradient(135deg, #1f6feb, #388bfd);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .input-area button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px var(--glow-blue);
+        }
+        .input-area button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* ── Preset Buttons ── */
+        .presets {
+            display: flex;
+            gap: 0.4rem;
+            padding: 0.6rem 1rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg-secondary);
+            flex-wrap: wrap;
+        }
+        .preset-btn {
+            padding: 0.3rem 0.7rem;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .preset-btn:hover {
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+        }
+
+        /* ── Typing indicator ── */
+        .typing-indicator {
+            display: inline-flex;
+            gap: 4px;
+            padding: 0.5rem 0.8rem;
+        }
+        .typing-indicator span {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            animation: blink 1.4s infinite both;
+        }
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blink {
+            0%, 80%, 100% { opacity: 0.3; }
+            40% { opacity: 1; }
+        }
+
+        /* ── Footer ── */
+        .footer {
+            text-align: center;
+            padding: 2rem 1rem;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+        .footer a {
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+        .footer a:hover { text-decoration: underline; }
+
+        /* ── Responsive ── */
+        @media (max-width: 600px) {
+            .hero h1 { font-size: 1.6rem; }
+            .pipeline-flow { flex-direction: column; }
+            .pipeline-arrow { transform: rotate(90deg); }
+            .message-bubble { max-width: 95%; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ══ HERO ══ -->
+<section class="hero">
+    <h1>🔮 HLF Translation Pipeline</h1>
+    <p class="subtitle">
+        Watch natural language transform into deterministic hieroglyphic instructions,
+        get processed by agents, and translate back — with live metrics.
+    </p>
+    <div class="badge-row">
+        <span class="badge green">✓ 194 Tests Passing</span>
+        <span class="badge blue">⚡ LALR(1) Parser</span>
+        <span class="badge purple">🔮 HLF-v3 Spec</span>
+    </div>
+</section>
+
+<!-- ══ PIPELINE FLOW ══ -->
+<div class="pipeline-flow" id="pipeline">
+    <div class="pipeline-step" id="step-nlp">💬 NLP Input</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-step" id="step-compile">⚙️ HLF Compile</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-step" id="step-validate">🛡️ ALIGN Gate</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-step" id="step-execute">🤖 Agent Execute</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-step" id="step-response">📝 HLF Response</div>
+    <span class="pipeline-arrow">→</span>
+    <div class="pipeline-step" id="step-decode">💬 NLP Output</div>
+</div>
+
+<!-- ══ MAIN CONTAINER ══ -->
+<div class="container">
+    <div class="chat-container">
+        <div class="chat-header">
+            <h3>🛡️ Sovereign OS — HLF Chat Demo</h3>
+            <span style="color: var(--accent-green); font-size: 0.8rem;">● Connected</span>
+        </div>
+
+        <div class="chat-body" id="chatBody">
+            <div class="message system">
+                <div class="message-label system">⚙️ System</div>
+                <div class="message-bubble">
+                    Welcome to the HLF Translation Pipeline demo. Type a natural language command
+                    and watch it get compiled into HLF hieroglyphic symbols, validated against
+                    the ALIGN Ledger, executed by the agent, and translated back.
+                </div>
+            </div>
+        </div>
+
+        <!-- Presets -->
+        <div class="presets">
+            <button class="preset-btn" onclick="usePreset('Scan the security config for vulnerabilities')">🔒 Security Scan</button>
+            <button class="preset-btn" onclick="usePreset('Summarize the latest agent activity logs')">📊 Log Summary</button>
+            <button class="preset-btn" onclick="usePreset('Delegate a research task to the scribe agent')">📝 Delegate Task</button>
+            <button class="preset-btn" onclick="usePreset('Route this to the fastest local model')">⚡ Model Route</button>
+            <button class="preset-btn" onclick="usePreset('Check the ALIGN governance ledger status')">🛡️ ALIGN Check</button>
+        </div>
+
+        <!-- Input -->
+        <div class="input-area">
+            <input type="text" id="userInput" placeholder="Type a command in natural language..."
+                   onkeydown="if(event.key==='Enter')sendMessage()">
+            <button onclick="sendMessage()" id="sendBtn">Translate →</button>
+        </div>
+    </div>
+</div>
+
+<!-- ══ FOOTER ══ -->
+<div class="footer">
+    <p>
+        <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF">GitHub Repository</a> ·
+        Sovereign Agentic OS with HLF · Built with 🤖 by the Sovereign Stack
+    </p>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// HLF Translation Demo — Simulated Pipeline
+// ═══════════════════════════════════════════════════════════════
+
+const HLF_TEMPLATES = {
+    security: {
+        hlf: `[HLF-v3]\nΔ analyze /security/seccomp.json\n Ж [CONSTRAINT] mode="ro"\nЖ [EXPECT] vulnerability_shorthand\n⨝ [VOTE] consensus="strict"\nΩ`,
+        response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [DATA] vulns=0 status="clean"\n ∇ [DETAIL] "No CVEs detected in seccomp policy"\nΩ`,
+        response_nlp: "Security scan complete. No vulnerabilities detected in the seccomp configuration. All policy rules are properly constrained and no CVEs were found.",
+        metrics: { tokens_in: 8, tokens_hlf: 5, compression: "62%", parse_ms: 0.3, validate_ms: 1.2, exec_ms: 45 }
+    },
+    summary: {
+        hlf: `[HLF-v3]\n⌘ [DELEGATE] agent="scribe" goal="summarize"\n ∇ [SOURCE] /logs/agent_activity_latest.log\n ⩕ [PRIORITY] level="medium"\nЖ [ASSERT] max_tokens=2048\nΩ`,
+        response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [SUMMARY] entries=47 timespan="24h"\n ∇ [DETAIL] "47 events logged. 12 intents processed, 3 delegations, 0 errors."\nΩ`,
+        response_nlp: "Activity summary: 47 events in the last 24 hours. 12 intents processed, 3 task delegations completed, zero errors. All agents are operating within normal parameters.",
+        metrics: { tokens_in: 9, tokens_hlf: 6, compression: "67%", parse_ms: 0.4, validate_ms: 0.8, exec_ms: 120 }
+    },
+    delegate: {
+        hlf: `[HLF-v3]\n⌘ [DELEGATE] agent="scribe" goal="fractal_summarize"\n ∇ [SOURCE] /data/raw_research.txt\n ⩕ [PRIORITY] level="high"\nЖ [ASSERT] vram_limit="8GB"\nΩ`,
+        response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [STATUS] agent="scribe" state="accepted"\n ∇ [ETA] "~3 minutes based on 8GB VRAM allocation"\nΩ`,
+        response_nlp: "Task delegated to the Scribe agent. The fractal summarization job has been accepted and is running with high priority. Estimated completion: ~3 minutes with 8GB VRAM allocated.",
+        metrics: { tokens_in: 10, tokens_hlf: 6, compression: "60%", parse_ms: 0.5, validate_ms: 1.0, exec_ms: 8 }
+    },
+    route: {
+        hlf: `[HLF-v3]\n⌘ [ROUTE] target="local_ollama"\n Δ [MODEL] name="qwen:7b"\n ∇ [PARAM] temperature=0.0\nЖ [CONSTRAINT] latency_max="500ms"\nΩ`,
+        response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [ROUTED] model="qwen:7b" backend="ollama"\n ∇ [PERF] latency=142ms tokens_per_sec=38.4\nΩ`,
+        response_nlp: "Routed to local Ollama instance running qwen:7b. Connection established with 142ms latency and 38.4 tokens/second throughput — well within the 500ms constraint.",
+        metrics: { tokens_in: 9, tokens_hlf: 6, compression: "67%", parse_ms: 0.2, validate_ms: 0.5, exec_ms: 142 }
+    },
+    align: {
+        hlf: `[HLF-v3]\nΔ query /governance/ALIGN_LEDGER.yaml\n Ж [CONSTRAINT] mode="ro"\nЖ [EXPECT] governance_status\n⨝ [VOTE] consensus="quorum"\nΩ`,
+        response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [GOVERNANCE] rules=12 active=12 violations=0\n ∇ [DETAIL] "All 12 ALIGN rules enforced. Zero violations in last 24h."\nΩ`,
+        response_nlp: "ALIGN Ledger status: All 12 governance rules are active and enforced. Zero violations detected in the last 24 hours. The governance layer is fully operational.",
+        metrics: { tokens_in: 10, tokens_hlf: 6, compression: "60%", parse_ms: 0.3, validate_ms: 2.1, exec_ms: 15 }
+    }
+};
+
+function detectTemplate(text) {
+    const lower = text.toLowerCase();
+    if (lower.includes('security') || lower.includes('scan') || lower.includes('vuln')) return 'security';
+    if (lower.includes('summar') || lower.includes('log') || lower.includes('activity')) return 'summary';
+    if (lower.includes('delegate') || lower.includes('research') || lower.includes('scribe')) return 'delegate';
+    if (lower.includes('route') || lower.includes('model') || lower.includes('fast')) return 'route';
+    if (lower.includes('align') || lower.includes('govern') || lower.includes('ledger')) return 'align';
+    return 'security'; // default
+}
+
+function usePreset(text) {
+    document.getElementById('userInput').value = text;
+    sendMessage();
+}
+
+async function sendMessage() {
+    const input = document.getElementById('userInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    input.value = '';
+    document.getElementById('sendBtn').disabled = true;
+
+    const template = HLF_TEMPLATES[detectTemplate(text)];
+    const chatBody = document.getElementById('chatBody');
+
+    // Step 1: Show user message
+    addMessage('user', '💬 You', text);
+    setActiveStep('step-nlp');
+    await delay(600);
+
+    // Step 2: Show HLF compilation
+    setActiveStep('step-compile');
+    addMessage('hlf', '⚙️ HLF Compiled (NLP → Hieroglyphics)', template.hlf);
+    await delay(800);
+
+    // Step 3: ALIGN validation
+    setActiveStep('step-validate');
+    addMessage('system', '🛡️ ALIGN Gate', '✅ All governance rules pass. Intent cleared for execution.');
+    await delay(600);
+
+    // Step 4: Agent execution
+    setActiveStep('step-execute');
+    addTypingIndicator();
+    await delay(1200);
+    removeTypingIndicator();
+
+    // Step 5: HLF Response
+    setActiveStep('step-response');
+    addMessage('hlf', '📝 Agent Response (HLF)', template.response_hlf);
+    await delay(600);
+
+    // Step 6: Decoded NLP response
+    setActiveStep('step-decode');
+    addMessage('agent', '🤖 Agent (HLF → NLP)', template.response_nlp);
+    await delay(400);
+
+    // Step 7: Metrics
+    addMetrics(template.metrics);
+    clearAllSteps();
+
+    document.getElementById('sendBtn').disabled = false;
+    chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function addMessage(type, label, text) {
+    const chatBody = document.getElementById('chatBody');
+    const msg = document.createElement('div');
+    msg.className = `message ${type}`;
+    msg.innerHTML = `
+        <div class="message-label ${type}">${label}</div>
+        <div class="message-bubble">${text}</div>
+    `;
+    chatBody.appendChild(msg);
+    chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function addMetrics(m) {
+    const chatBody = document.getElementById('chatBody');
+    const msg = document.createElement('div');
+    msg.className = 'message';
+    msg.innerHTML = `
+        <div class="message-label metrics">📊 Translation Metrics</div>
+        <div class="metrics-panel">
+            <div class="metric-item">
+                <div class="metric-value blue">${m.tokens_in}</div>
+                <div class="metric-label">NLP Tokens</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-value purple">${m.tokens_hlf}</div>
+                <div class="metric-label">HLF Tokens</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-value green">${m.compression}</div>
+                <div class="metric-label">Compression</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-value gold">${m.parse_ms}ms</div>
+                <div class="metric-label">Parse Time</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-value gold">${m.validate_ms}ms</div>
+                <div class="metric-label">ALIGN Gate</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-value gold">${m.exec_ms}ms</div>
+                <div class="metric-label">Execution</div>
+            </div>
+        </div>
+    `;
+    chatBody.appendChild(msg);
+    chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function addTypingIndicator() {
+    const chatBody = document.getElementById('chatBody');
+    const indicator = document.createElement('div');
+    indicator.id = 'typingIndicator';
+    indicator.className = 'message agent';
+    indicator.innerHTML = `
+        <div class="message-label agent">🤖 Agent</div>
+        <div class="message-bubble">
+            <div class="typing-indicator"><span></span><span></span><span></span></div>
+        </div>
+    `;
+    chatBody.appendChild(indicator);
+    chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function removeTypingIndicator() {
+    const el = document.getElementById('typingIndicator');
+    if (el) el.remove();
+}
+
+function setActiveStep(id) {
+    document.querySelectorAll('.pipeline-step').forEach(s => {
+        if (s.classList.contains('active')) {
+            s.classList.remove('active');
+            s.classList.add('done');
+        }
+    });
+    document.getElementById(id).classList.add('active');
+}
+
+function clearAllSteps() {
+    document.querySelectorAll('.pipeline-step').forEach(s => {
+        s.classList.remove('active', 'done');
+    });
+}
+
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+</script>
+
+</body>
+</html>

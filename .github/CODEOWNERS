@@ -1,0 +1,22 @@
+# CODEOWNERS — Sovereign Agentic OS with HLF
+# Defines code ownership for review requirements on PRs.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default owner for all files
+*                               @Grumpified-OGGVCT
+
+# Core infrastructure — requires review
+agents/core/                    @Grumpified-OGGVCT
+agents/gateway/                 @Grumpified-OGGVCT
+hlf/                            @Grumpified-OGGVCT
+
+# Governance — highest scrutiny
+governance/                     @Grumpified-OGGVCT
+governance/ALIGN_LEDGER.yaml    @Grumpified-OGGVCT
+
+# CI/CD — must be reviewed
+.github/                        @Grumpified-OGGVCT
+
+# Security-sensitive config
+config/                         @Grumpified-OGGVCT
+.env*                           @Grumpified-OGGVCT
