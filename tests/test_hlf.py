@@ -34,7 +34,7 @@ class TestValidateHlf:
 class TestHlfCompile:
     def test_hello_world_fixture(self, hello_hlf: str) -> None:
         ast = hlfc_compile(hello_hlf)
-        assert ast["version"] == "0.3.0"
+        assert ast["version"] == "0.4.0"
         assert isinstance(ast["program"], list)
         assert len(ast["program"]) > 0
 
