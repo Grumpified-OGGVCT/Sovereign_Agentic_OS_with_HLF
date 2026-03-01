@@ -42,7 +42,7 @@ jobs:
       - name: Run HLF token lint
         run: uv run python scripts/hlf_token_lint.py
       - name: Run pytest
-        run: uv run pytest tests/ -v
+        run: uv run python -m pytest tests/ -v
 
   validate-models:
     needs: ensure-no-sandbox-in-prod
