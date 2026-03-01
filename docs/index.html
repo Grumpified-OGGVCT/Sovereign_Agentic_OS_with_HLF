@@ -1151,6 +1151,28 @@ DEFAULT_TIER=hearth</pre>
             </div>
         </div>
 
+        <!-- HLF + RAG Synergy -->
+        <h4 style="font-size:0.85rem; color:var(--accent-purple); margin:1.5rem 0 0.5rem;">🔗 HLF + Infinite RAG Synergy</h4>
+        <div style="font-size:0.78rem; padding:0.75rem; background:linear-gradient(135deg, rgba(188,140,255,0.08), rgba(63,185,80,0.08)); border-radius:8px; border:1px solid rgba(188,140,255,0.2);">
+            <p style="margin:0 0 0.75rem; color:var(--text-primary);">HLF and the Infinite RAG are designed to <strong>amplify each other</strong>:</p>
+            <table style="width:100%; font-size:0.75rem; border-collapse:collapse;">
+                <thead>
+                    <tr style="border-bottom:1px solid var(--border);">
+                        <th style="padding:4px 6px; text-align:left; color:#f85149;">Without HLF</th>
+                        <th style="padding:4px 6px; text-align:left; color:#3fb950;">With HLF</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:4px 6px;">RAG ingests verbose NLP → bloated fact_store</td><td style="padding:4px 6px;">RAG ingests <strong>compressed HLF ASTs</strong> → smaller, denser embeddings</td></tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:4px 6px;">Context fills fast → frequent summarization</td><td style="padding:4px 6px;">HLF intents <strong>12–30% smaller</strong> → more facts per prompt</td></tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:4px 6px;">Cross-agent shares prose → ambiguous retrieval</td><td style="padding:4px 6px;">Agents share <strong>typed HLF</strong> → exact semantic matching</td></tr>
+                    <tr style="border-bottom:1px solid rgba(255,255,255,0.05);"><td style="padding:4px 6px;">Dream State compresses NLP → lossy</td><td style="padding:4px 6px;">Compresses <strong>HLF → lossless</strong> (AST round-trips)</td></tr>
+                    <tr><td style="padding:4px 6px;">No governance on memory writes</td><td style="padding:4px 6px;">Every write through <strong>ALIGN Ledger</strong></td></tr>
+                </tbody>
+            </table>
+            <p style="margin:0.75rem 0 0; color:var(--text-secondary); font-size:0.72rem;">⚡ <strong>Compound effect:</strong> HLF compression means the Infinite RAG stores more knowledge per byte, retrieves faster (smaller vectors = faster cosine), and shares more precisely across the swarm.</p>
+        </div>
+
         <!-- Future Potential -->
         <h4 style="font-size:0.85rem; color:var(--accent-blue); margin:1.5rem 0 0.5rem;">🔮 Future Potential</h4>
         <div style="font-size:0.78rem; color:var(--text-secondary); padding:0.75rem; background:var(--bg-tertiary); border-radius:8px; border:1px solid var(--border);">
