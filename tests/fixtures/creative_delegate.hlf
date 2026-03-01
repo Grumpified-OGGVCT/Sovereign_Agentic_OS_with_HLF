@@ -1,0 +1,10 @@
+[HLF-v3]
+[SET] AGENT scribe
+[SET] GOAL fractal_summarize
+[SET] SOURCE /data/raw_research.txt
+⌘ [DELEGATE] agent="${AGENT}" goal="${GOAL}"
+  ∇ [SOURCE] ${SOURCE}
+  ⩕ [PRIORITY] level="high"
+  Ж [ASSERT] vram_limit="8GB"
+[RESULT] code=0 message="delegated"
+Ω

@@ -1,0 +1,9 @@
+[HLF-v3]
+[SET] TARGET /security/seccomp.json
+[SET] MODE ro
+Δ [INTENT] analyze ${TARGET}
+  Ж [CONSTRAINT] mode="${MODE}"
+  Ж [EXPECT] vulnerability_shorthand
+⨝ [VOTE] consensus="strict"
+[RESULT] code=0 message="scan_complete"
+Ω

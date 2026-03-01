@@ -1,0 +1,74 @@
+{
+  "generated_at": "2026-03-01T19:12:11.101716+00:00",
+  "tokenizer": "tiktoken_cl100k_base",
+  "case_count": 6,
+  "overall": {
+    "total_nlp_tokens": 663,
+    "total_hlf_tokens": 580,
+    "overall_compression_pct": 12.5,
+    "total_saved": 83,
+    "swarm_5_total_saved": 415
+  },
+  "cases": [
+    {
+      "name": "Security Audit",
+      "domain": "DevOps",
+      "nlp_tokens": 105,
+      "hlf_tokens": 78,
+      "compression_pct": 25.7,
+      "tokens_saved": 27,
+      "swarm_5_saved": 135,
+      "hlf_source": "tests\\fixtures\\seccomp_audit.hlf"
+    },
+    {
+      "name": "Content Delegation",
+      "domain": "Creative",
+      "nlp_tokens": 115,
+      "hlf_tokens": 101,
+      "compression_pct": 12.2,
+      "tokens_saved": 14,
+      "swarm_5_saved": 70,
+      "hlf_source": "tests\\fixtures\\creative_delegate.hlf"
+    },
+    {
+      "name": "Stack Deployment",
+      "domain": "Architecture",
+      "nlp_tokens": 104,
+      "hlf_tokens": 109,
+      "compression_pct": -4.8,
+      "tokens_saved": -5,
+      "swarm_5_saved": -25,
+      "hlf_source": "tests\\fixtures\\deploy_stack.hlf"
+    },
+    {
+      "name": "Database Migration",
+      "domain": "Data",
+      "nlp_tokens": 139,
+      "hlf_tokens": 122,
+      "compression_pct": 12.2,
+      "tokens_saved": 17,
+      "swarm_5_saved": 85,
+      "hlf_source": "tests\\fixtures\\db_migration.hlf"
+    },
+    {
+      "name": "Log Analysis",
+      "domain": "Observability",
+      "nlp_tokens": 129,
+      "hlf_tokens": 120,
+      "compression_pct": 7.0,
+      "tokens_saved": 9,
+      "swarm_5_saved": 45,
+      "hlf_source": "tests\\fixtures\\log_analysis.hlf"
+    },
+    {
+      "name": "Hello World",
+      "domain": "Baseline",
+      "nlp_tokens": 71,
+      "hlf_tokens": 50,
+      "compression_pct": 29.6,
+      "tokens_saved": 21,
+      "swarm_5_saved": 105,
+      "hlf_source": "tests\\fixtures\\hello_world.hlf"
+    }
+  ]
+}

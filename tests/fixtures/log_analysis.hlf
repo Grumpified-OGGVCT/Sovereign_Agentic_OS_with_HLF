@@ -1,0 +1,11 @@
+[HLF-v3]
+[SET] LOG_PATH /logs/agent_activity_latest.log
+[SET] TIMESPAN 24h
+⌘ [DELEGATE] agent="scribe" goal="summarize"
+  ∇ [SOURCE] ${LOG_PATH}
+  Ж [CONSTRAINT] timespan="${TIMESPAN}"
+  Ж [ASSERT] max_tokens=2048
+  ⩕ [PRIORITY] level="medium"
+⨝ [VOTE] consensus="quorum"
+[RESULT] code=0 message="summary_ready"
+Ω

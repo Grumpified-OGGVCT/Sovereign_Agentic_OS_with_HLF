@@ -1,0 +1,65 @@
+{
+  "generated_at": "2026-03-01T19:13:03.927246+00:00",
+  "compiler_version": "0.3.0",
+  "grammar": {
+    "statement_types": 12,
+    "terminal_types": 8,
+    "ignored_glyphs": 5
+  },
+  "runtime": {
+    "builtin_functions": 5,
+    "builtin_names": [
+      "HASH",
+      "BASE64_ENCODE",
+      "BASE64_DECODE",
+      "NOW",
+      "UUID"
+    ],
+    "host_function_stubs": 8,
+    "host_function_names": [
+      "READ",
+      "WRITE",
+      "SPAWN",
+      "SLEEP",
+      "HTTP_GET",
+      "WEB_SEARCH",
+      "OPENCLAW_SUMMARIZE",
+      "requires"
+    ]
+  },
+  "toolchain": {
+    "total_lines": 691,
+    "files": {
+      "__init__.py": 46,
+      "hlfc.py": 244,
+      "hlffmt.py": 76,
+      "hlflint.py": 83,
+      "hlfrun.py": 242
+    }
+  },
+  "tests": {
+    "test_files": 14,
+    "total_tests_collected": 197,
+    "hlf_specific_tests": 15
+  },
+  "fixtures": {
+    "count": 6,
+    "files": [
+      "creative_delegate.hlf",
+      "db_migration.hlf",
+      "deploy_stack.hlf",
+      "hello_world.hlf",
+      "log_analysis.hlf",
+      "seccomp_audit.hlf"
+    ]
+  },
+  "dictionary": {
+    "tag_count": 16,
+    "glyph_count": 7
+  },
+  "syntax_scopes": 7,
+  "token_budgets": {
+    "per_intent": 30,
+    "per_file": 1500
+  }
+}

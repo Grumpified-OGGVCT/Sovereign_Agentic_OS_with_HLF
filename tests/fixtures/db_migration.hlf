@@ -1,0 +1,12 @@
+[HLF-v3]
+[SET] DB_NAME user_profiles
+[SET] VERSION v2.3
+Δ [INTENT] migrate ${DB_NAME} to ${VERSION}
+  Ж [CONSTRAINT] backup_first="true"
+  Ж [CONSTRAINT] max_downtime="30s"
+  Ж [EXPECT] migration_status
+  ∇ [PARAM] dry_run="false"
+  ⩕ [PRIORITY] level="high"
+[FUNCTION] HASH sha256 "${DB_NAME}_${VERSION}"
+[RESULT] code=0 message="migration_complete"
+Ω
