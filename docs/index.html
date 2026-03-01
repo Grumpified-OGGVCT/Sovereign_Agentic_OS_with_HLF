@@ -498,6 +498,116 @@
             50% { opacity: 0.6; box-shadow: 0 0 6px 3px rgba(63, 185, 80, 0.2); }
         }
 
+        /* ── Quota Banner ── */
+        .quota-banner {
+            padding: 0.6rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.82rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }
+        .quota-banner.warning {
+            background: linear-gradient(135deg, #332a00, #2d2400);
+            border: 1px solid rgba(210, 153, 34, 0.4);
+            color: var(--accent-orange);
+        }
+        .quota-banner.exhausted {
+            background: linear-gradient(135deg, #3d1a1a, #331515);
+            border: 1px solid rgba(248, 81, 73, 0.4);
+            color: var(--accent-red);
+        }
+        .quota-banner.unlimited {
+            background: linear-gradient(135deg, #1a2d1a, #1c331c);
+            border: 1px solid rgba(63, 185, 80, 0.3);
+            color: var(--accent-green);
+        }
+        .quota-banner a {
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .quota-banner a:hover { text-decoration: underline; }
+
+        /* ── Fork Guide Section ── */
+        .fork-guide {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-secondary);
+            margin-top: 1.5rem;
+            overflow: hidden;
+        }
+        .fork-guide-header {
+            padding: 0.8rem 1rem;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border);
+            font-weight: 600;
+            font-size: 0.95rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .fork-guide-header:hover { background: #282e36; }
+        .fork-guide-body {
+            padding: 1.2rem 1.5rem;
+            font-size: 0.85rem;
+            line-height: 1.7;
+            display: none;
+        }
+        .fork-guide-body.open { display: block; }
+        .fork-guide-body h4 {
+            color: var(--accent-blue);
+            margin: 1rem 0 0.3rem;
+            font-size: 0.9rem;
+        }
+        .fork-guide-body h4:first-child { margin-top: 0; }
+        .fork-guide-body code {
+            font-family: var(--font-mono);
+            background: var(--bg-tertiary);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: var(--accent-purple);
+        }
+        .fork-guide-body pre {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.8rem 1rem;
+            overflow-x: auto;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            margin: 0.5rem 0;
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+        .fork-guide-body ul {
+            padding-left: 1.2rem;
+            margin: 0.3rem 0;
+        }
+        .fork-guide-body li {
+            margin-bottom: 0.2rem;
+        }
+        .benefit-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 0.6rem;
+            margin: 0.5rem 0;
+        }
+        .benefit-item {
+            padding: 0.6rem 0.8rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-tertiary);
+            font-size: 0.8rem;
+        }
+        .benefit-item strong {
+            color: var(--accent-green);
+        }
+
         /* ── Footer ── */
         .footer {
             text-align: center;
@@ -554,6 +664,7 @@
 
 <!-- ══ MAIN CONTAINER ══ -->
 <div class="container">
+    <div id="quotaBanner"></div>
     <div class="chat-container">
         <div class="chat-header">
             <h3>🛡️ Sovereign OS — HLF Chat Demo</h3>
@@ -687,6 +798,95 @@
     </div>
 </div>
 
+<!-- ══ FORK YOUR OWN SWARM ══ -->
+<div class="container" style="padding-top: 0;">
+    <div class="fork-guide">
+        <div class="fork-guide-header" onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('.chevron').textContent = this.nextElementSibling.classList.contains('open') ? '▼' : '▶'">
+            <span>🚀 Fork Your Own Swarm — Unlimited Translations & Agent Evolution</span>
+            <span class="chevron">▶</span>
+        </div>
+        <div class="fork-guide-body">
+            <p>This live demo limits translations to <strong>5 per day</strong> to conserve shared resources.
+            Fork the repo and deploy your own instance for <strong>unlimited translations</strong>,
+            your own Jules agent swarm, and the ability to contribute HLF grammar evolutions back to the canonical spec.</p>
+
+            <h4>🔮 Why Fork? — The HLF Value Proposition</h4>
+            <div class="benefit-grid">
+                <div class="benefit-item"><strong>60-67%</strong> token compression vs natural language</div>
+                <div class="benefit-item"><strong>Sub-ms</strong> deterministic LALR(1) parsing</div>
+                <div class="benefit-item"><strong>Zero-trust</strong> security built into the grammar</div>
+                <div class="benefit-item"><strong>Swarm evolution</strong> — agents improve the language itself</div>
+            </div>
+            <p>Each fork running its own agent swarm contributes to exponential language improvement.
+            Your agents propose grammar evolutions (RFC 9006), which get validated and merged upstream,
+            making HLF better for <em>everyone</em> — for programming, product creation, and multi-agent orchestration.</p>
+
+            <h4>📋 Step 1 — Fork & Clone</h4>
+<pre>gh repo fork Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF --clone
+cd Sovereign_Agentic_OS_with_HLF
+uv sync</pre>
+
+            <h4>🔑 Step 2 — Configure API Keys & Services</h4>
+            <p>Copy the template and fill in your credentials:</p>
+<pre>cp .env.example .env</pre>
+            <p>Required keys in your <code>.env</code> file:</p>
+            <ul>
+                <li><code>REDIS_PASSWORD</code> — Redis auth (for gateway message bus)</li>
+                <li><code>OPENROUTER_API_KEY</code> — Cloud model access (Sovereign tier)</li>
+                <li><code>GITHUB_TOKEN</code> — For Copilot factory / agent dispatch</li>
+            </ul>
+            <p>Optional but recommended:</p>
+            <ul>
+                <li><code>OLLAMA_HOST</code> — Local model endpoint (default: <code>http://localhost:11434</code>)</li>
+                <li><code>SLACK_WEBHOOK_URL</code> — Agent alert notifications</li>
+                <li><code>STREAMLIT_SECRET_KEY</code> — GUI session encryption</li>
+            </ul>
+            <p>⚠️ <strong>Never commit your <code>.env</code> file</strong> — it's already gitignored with 70+ rules.</p>
+            <p>Save all keys in <code>.env</code> at the project root. The system auto-loads them via <code>python-dotenv</code>.</p>
+
+            <h4>🤖 Step 3 — Set Up Your Jules Agent Swarm</h4>
+            <p>Jules is your autonomous maintenance & evolution agent. To set up your own upgraded swarm:</p>
+            <ol>
+                <li>Go to <a href="https://jules.google.com" target="_blank" rel="noopener">jules.google.com</a> and connect your forked repo</li>
+                <li>Define task pipelines in <code>config/jules_tasks.yaml</code></li>
+                <li>Configure agent cadence (daily lint sweeps, weekly architecture reviews, monthly benchmarks)</li>
+                <li>Jules will auto-create PRs with HLF grammar proposals, test fixes, and dependency audits</li>
+            </ol>
+            <p>With your own swarm, you get:</p>
+            <ul>
+                <li>🔄 <strong>Daily:</strong> Dream Mode cycles, HLF token audits, ALIGN compliance scans</li>
+                <li>📊 <strong>Weekly:</strong> Architecture sync, README refresh, translation metric benchmarks</li>
+                <li>🏗️ <strong>Monthly:</strong> Full integration sweeps, tier promotion reviews, release cuts</li>
+            </ul>
+
+            <h4>🚀 Step 4 — Deploy Your GitHub Pages Instance</h4>
+<pre># Enable GitHub Pages (Settings → Pages → Source: GitHub Actions → Static HTML)
+# Set path to ./docs
+# Your translations are now unlimited — no quota on self-hosted forks!</pre>
+
+            <h4>⚡ Step 5 — Launch the Copilot Factory</h4>
+<pre># List available agent task templates
+python scripts/copilot_factory.py list-templates
+
+# Dispatch an HLF test agent (dry run first)
+python scripts/copilot_factory.py hlf-test --dry-run
+
+# Create a live Copilot agent issue
+python scripts/copilot_factory.py hlf-evolve</pre>
+
+            <h4>📚 Source Documentation</h4>
+            <p>Read the full HLF specification and architecture docs in the repo:</p>
+            <ul>
+                <li><code>source_knowlwedge/HLF_The_Hieroglyphic_Logic_Framework_for_Agentic_Orchestration.md</code></li>
+                <li><code>source_knowlwedge/RFC_9005_The_HLF_Native_Language_Specification_v3.0.md</code></li>
+                <li><code>source_knowlwedge/The_HLF_v3.0_Protocol_Transparent_Compression_in_Systems_Programming.md</code></li>
+                <li><code>build_notes/HLF_Core_A_Sovereign_Architecture_for_Secure_Agentic_OS.md</code></li>
+                <li><code>AGENTS.md</code> — Security invariants and test conventions</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
 <!-- ══ FOOTER ══ -->
 <div class="footer">
     <p>
@@ -753,6 +953,14 @@ async function sendMessage() {
     const input = document.getElementById('userInput');
     const text = input.value.trim();
     if (!text) return;
+
+    // ── Quota Check ──
+    if (!checkQuota()) {
+        addMessage('system', '⚠️ Quota Reached', `You\'ve used all 5 daily translations on this live demo. <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/fork" target="_blank" style="color: var(--accent-blue);">Fork the repo</a> and deploy your own instance for unlimited translations! Click the "Fork Your Own Swarm" section below for setup instructions.`);
+        return;
+    }
+    incrementQuota();
+    updateQuotaBanner();
 
     input.value = '';
     document.getElementById('sendBtn').disabled = true;
@@ -889,7 +1097,88 @@ function delay(ms) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// LIVE DASHBOARD — GitHub Public API Integration
+// QUOTA SYSTEM — 5 translations/day on upstream, unlimited on forks
+// ═══════════════════════════════════════════════════════════════
+
+const UPSTREAM_HOST = 'grumpified-oggvct.github.io';
+const DAILY_LIMIT = 5;
+const QUOTA_KEY = 'hlf_demo_quota';
+
+function isUpstream() {
+    return window.location.hostname.toLowerCase() === UPSTREAM_HOST;
+}
+
+function getQuotaData() {
+    try {
+        const raw = localStorage.getItem(QUOTA_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+    } catch { return null; }
+}
+
+function getTodayKey() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function getUsedToday() {
+    const data = getQuotaData();
+    if (!data || data.date !== getTodayKey()) return 0;
+    return data.count || 0;
+}
+
+function checkQuota() {
+    if (!isUpstream()) return true; // forks have no quota
+    return getUsedToday() < DAILY_LIMIT;
+}
+
+function incrementQuota() {
+    if (!isUpstream()) return;
+    const today = getTodayKey();
+    const data = getQuotaData();
+    const count = (data && data.date === today) ? (data.count || 0) + 1 : 1;
+    localStorage.setItem(QUOTA_KEY, JSON.stringify({ date: today, count }));
+}
+
+function getRemainingQuota() {
+    if (!isUpstream()) return Infinity;
+    return Math.max(0, DAILY_LIMIT - getUsedToday());
+}
+
+function updateQuotaBanner() {
+    const container = document.getElementById('quotaBanner');
+    if (!container) return;
+
+    if (!isUpstream()) {
+        container.innerHTML = `<div class="quota-banner unlimited">✅ Self-hosted fork detected — unlimited translations enabled</div>`;
+        return;
+    }
+
+    const remaining = getRemainingQuota();
+    const used = getUsedToday();
+
+    if (remaining === 0) {
+        container.innerHTML = `<div class="quota-banner exhausted">
+            <span>🚫 Daily quota reached (${used}/${DAILY_LIMIT}). Resets at midnight UTC.</span>
+            <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/fork" target="_blank">Fork for unlimited →</a>
+        </div>`;
+    } else if (remaining <= 2) {
+        container.innerHTML = `<div class="quota-banner warning">
+            <span>⚠️ ${remaining} translation${remaining === 1 ? '' : 's'} remaining today (${used}/${DAILY_LIMIT})</span>
+            <a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/fork" target="_blank">Fork for unlimited →</a>
+        </div>`;
+    } else {
+        container.innerHTML = `<div class="quota-banner" style="background: var(--bg-tertiary); border: 1px solid var(--border); color: var(--text-secondary);">
+            <span>💬 ${remaining}/${DAILY_LIMIT} translations remaining today</span>
+        </div>`;
+    }
+}
+
+// Init quota banner on load
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', updateQuotaBanner);
+} else {
+    updateQuotaBanner();
+}
 // ═══════════════════════════════════════════════════════════════
 
 const REPO_API = 'https://api.github.com/repos/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF';
