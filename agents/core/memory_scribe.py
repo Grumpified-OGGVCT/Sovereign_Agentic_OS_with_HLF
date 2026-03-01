@@ -55,6 +55,8 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             fifo_blob TEXT NOT NULL,
             token_count INTEGER NOT NULL DEFAULT 0
         );
+        CREATE INDEX IF NOT EXISTS idx_rolling_context_timestamp ON rolling_context(timestamp);
+
         CREATE TABLE IF NOT EXISTS fact_store (
             entity_id TEXT NOT NULL,
             vector_embedding TEXT,

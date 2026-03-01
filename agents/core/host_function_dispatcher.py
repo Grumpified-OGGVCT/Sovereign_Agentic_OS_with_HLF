@@ -19,6 +19,7 @@ Security guarantees enforced here:
 from __future__ import annotations
 
 import hashlib
+import functools
 import json
 import os
 import time
@@ -114,6 +115,15 @@ def _exec_builtin(name: str, args: list) -> Any:
     raise RuntimeError(f"No builtin implementation for host function '{name}'")
 
 
+@functools.lru_cache(maxsize=4)
+def _get_base_dir(base_dir_env: str) -> Path:
+    """Cache the BASE_DIR resolution to avoid repeated disk I/O on every file access."""
+    try:
+        return Path(base_dir_env).resolve(strict=False)
+    except PermissionError:
+        return Path(base_dir_env).absolute()
+
+
 def _acfs_path(raw: str) -> Path:
     """
     Resolve *raw* against BASE_DIR and verify it stays within the ACFS tree.
@@ -123,13 +133,13 @@ def _acfs_path(raw: str) -> Path:
     bypass where BASE_DIR=/tmp/base and target=/tmp/base_evil/... would pass
     a naive string check.
     """
+    base = _get_base_dir(os.environ.get("BASE_DIR", "/app"))
     try:
-        base = Path(os.environ.get("BASE_DIR", "/app")).resolve(strict=False)
         target = (base / raw.lstrip("/")).resolve(strict=False)
     except PermissionError:
         # Windows volume-locked symlinks may trigger PermissionError on resolve()
-        base = Path(os.environ.get("BASE_DIR", "/app")).absolute()
         target = (base / raw.lstrip("/")).absolute()
+
     if not target.is_relative_to(base):
         raise PermissionError(
             f"ACFS confinement violation: '{raw}' resolves outside BASE_DIR"
