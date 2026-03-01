@@ -192,16 +192,13 @@ For deploying the Agent OS autonomously in cloud environments (e.g., GitHub Acti
 
 The OS includes a **SQL-backed Model & Agent Registry** (`agents/core/db.py`) that replaces keyword-based routing with a data-driven tier-walk algorithm.
 
-### How It Works
+### System Architecture
 
-```mermaid
-graph LR
-    Pipeline["Ollama Matrix Sync<br/>(Nightly Pipeline)"] -->|scores & tiers| Registry["SQL Registry<br/>(SQLite WAL)"]
-    Heartbeat["Inventory Sync<br/>(/api/v1/inventory/sync)"] -->|local models| Registry
-    Registry -->|tier walk| Router["route_request()"]
-    Router -->|AgentProfile| Executor["execute_intent()<br/>(main.py)"]
-    Executor -->|applies profile| Ollama["Ollama / OpenRouter<br/>(Inference)"]
-```
+![Full system architecture — 6 layers from UI to foundation with autonomous operations panel](docs/system_architecture.png)
+
+### Registry & Router Flow
+
+![3-Phase Tier Walk: Cloud → Local → OpenRouter returning AgentProfile](docs/registry_router_flow.png)
 
 ### 3-Phase Tier Walk
 
@@ -235,13 +232,9 @@ Every routing decision returns a structured `AgentProfile` dataclass containing:
 
 The OS leverages **[Google Jules](https://jules.google)** as an autonomous maintenance and evolution agent. Jules is configured via `AGENTS.md` (in repo root) to understand the full system architecture before making any changes.
 
-### Architecture Overview
+### Governance Pipeline
 
-![Jules Orchestrator Hub — 7 integration areas with triggers and outputs](docs/jules_architecture.png)
-
-### Automated Improvement Flow
-
-![Jules Automated HLF Improvement Cycle — trigger → analysis → parallel execution → verification → PR](docs/jules_flow.png)
+![Jules Governance Pipeline — nightly/weekly/monthly orbital tracks with quality gates](docs/jules_governance_pipeline.png)
 
 ### Integration Areas
 
@@ -254,6 +247,25 @@ The OS leverages **[Google Jules](https://jules.google)** as an autonomous maint
 | **GUI Feature Builder** | Scheduled | Weekly | `gui/app.py` |
 | **CI Fixer** | Event | On failure | `.github/workflows/`, any failing file |
 | **Dependency Updater** | Scheduled | Weekly | `pyproject.toml` |
+
+### Scheduled Task Configuration
+
+Automated tasks are defined in `config/jules_tasks.yaml`:
+
+- **Nightly:** Pipeline sync, model health check, regression suite
+- **Weekly:** HLF grammar tests, dependency audit, linter sweep
+- **Monthly:** ALIGN governance audit, CoVE full validation, Six Hats review
+- **Suggested Tasks:** Auto-surface `TODO`/`FIXME`/`HACK`/`SECURITY` comments
+
+Issue-to-Jules automation: `scripts/jules_dispatch.sh <issue-number>` (supports `--dry-run`)
+
+### Quality Gates
+
+| Gate | Template | Scope |
+|------|----------|-------|
+| **CoVE Full** (12-dimension) | `governance/templates/cove_full_validation.md` | Major changes, security PRs |
+| **CoVE Compact** (8-step) | `governance/templates/cove_compact_validation.md` | Small changes (< 200 lines) |
+| **Six Hats Review** | `governance/templates/six_hats_review.md` | Every Jules PR |
 
 ### Safety Invariants (Non-Negotiable)
 

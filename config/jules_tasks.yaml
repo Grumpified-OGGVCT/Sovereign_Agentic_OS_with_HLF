@@ -1,0 +1,125 @@
+# Jules Scheduled & Suggested Task Configuration
+# ================================================
+# This file defines the automated task schedules for Google Jules.
+# Run via: jules schedule --config config/jules_tasks.yaml
+# Or manually trigger: jules run --task <task-name>
+
+# ─── Nightly Tasks ────────────────────────────────────────────────
+nightly:
+  schedule: "0 2 * * *"  # 2:00 AM daily
+  tasks:
+
+    - name: pipeline-sync
+      description: "Run ollama-matrix-sync pipeline and sync results to SQL Registry"
+      commands:
+        - "cd ollama-matrix-sync && uv run python pipeline.py --registry-db ../agents/core/registry.db --promote"
+      invariants:
+        - "test_count >= baseline"
+        - "no_file_deletion"
+      on_failure: "create-issue"
+
+    - name: model-health-check
+      description: "Verify all registered models respond to /api/tags"
+      commands:
+        - "uv run python -c \"from agents.core.db import RegistryDB; db = RegistryDB(); print(db.list_models())\""
+      invariants:
+        - "no_schema_change"
+
+    - name: regression-suite
+      description: "Run full test suite and report any regressions"
+      commands:
+        - "uv run python -m pytest tests/ -v --tb=short --junitxml=reports/nightly.xml"
+      invariants:
+        - "test_count >= 132"
+        - "pass_rate >= 0.99"
+      on_failure: "create-issue --label regression"
+
+# ─── Weekly Tasks ─────────────────────────────────────────────────
+weekly:
+  schedule: "0 3 * 1"  # 3:00 AM every Monday
+  tasks:
+
+    - name: hlf-grammar-tests
+      description: "Run HLF compiler, linter, formatter against expanded test corpus"
+      commands:
+        - "uv run python -m pytest tests/test_hlfc.py tests/test_hlflint.py tests/test_hlffmt.py -v"
+      invariants:
+        - "no_test_deletion"
+        - "coverage >= baseline"
+
+    - name: hlf-grammar-expansion
+      description: "Analyze TODO items for HLF grammar expansion opportunities"
+      commands:
+        - "grep -rn 'TODO.*HLF\\|FIXME.*HLF\\|TODO.*grammar' hlf/ agents/ tests/"
+      output: "suggested-tasks"
+
+    - name: dependency-audit
+      description: "Check for vulnerable dependencies"
+      commands:
+        - "uv run pip-audit --format json --output reports/pip-audit.json"
+      on_failure: "create-issue --label security"
+
+    - name: linter-sweep
+      description: "Run ruff and markdownlint across codebase"
+      commands:
+        - "uv run ruff check . --output-format json > reports/ruff.json"
+      invariants:
+        - "error_count <= baseline"
+
+# ─── Monthly Tasks ────────────────────────────────────────────────
+monthly:
+  schedule: "0 4 1 * *"  # 4:00 AM, 1st of each month
+  tasks:
+
+    - name: align-governance-audit
+      description: "Full ALIGN ledger audit — verify sentinel gate rules, Merkle chain integrity"
+      commands:
+        - "uv run python -m pytest tests/test_policy.py tests/test_sentinel.py -v"
+        - "uv run python -c \"from agents.core.sentinel_gate import enforce_align; print('ALIGN gate operational')\""
+      invariants:
+        - "no_align_rule_weakened"
+        - "merkle_chain_intact"
+
+    - name: cove-full-audit
+      description: "Run full 12-dimension CoVE validation against current codebase"
+      template: "governance/templates/cove_full_validation.md"
+      output: "reports/cove-monthly.md"
+
+    - name: six-hats-review
+      description: "Run Six Thinking Hats analysis on recent changes"
+      template: "governance/templates/six_hats_review.md"
+      output: "reports/six-hats-monthly.md"
+
+    - name: registry-integrity
+      description: "Verify SQL registry schema integrity and data consistency"
+      commands:
+        - "uv run python -c \"from agents.core.db import RegistryDB; db = RegistryDB(); db.verify_integrity()\""
+
+# ─── Suggested Tasks (Auto-Surface) ──────────────────────────────
+suggested:
+  enabled: true
+  scan_patterns:
+    - "TODO"
+    - "FIXME"
+    - "HACK"
+    - "XXX"
+    - "OPTIMIZE"
+    - "SECURITY"
+  exclude_paths:
+    - "node_modules/"
+    - ".venv/"
+    - "__pycache__/"
+    - "copilot_changes.diff"
+  auto_create_issues: false  # Surface only, don't auto-create
+  min_priority: "medium"
+
+# ─── Global Invariants ────────────────────────────────────────────
+global_invariants:
+  no_test_deletion: true
+  no_coverage_reduction: true
+  additive_only: true
+  ram_constraint_gb: 4
+  cloud_isolation: true
+  gas_enforcement: true
+  align_enforcement: true
+  merkle_chain: true
