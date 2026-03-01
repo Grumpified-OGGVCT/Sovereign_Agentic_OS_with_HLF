@@ -193,9 +193,12 @@ def _ollama_generate_v2(text: str, profile: Any) -> str:
             "num_ctx": max_tokens,
         },
     }
-    resp = httpx.post(f"{ollama_host}/api/generate", json=payload, timeout=60.0)
-    resp.raise_for_status()
-    return resp.json().get("response", "").strip()
+    try:
+        resp = httpx.post(f"{ollama_host}/api/generate", json=payload, timeout=60.0)
+        resp.raise_for_status()
+        return resp.json().get("response", "").strip()
+    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
+        raise RuntimeError(f"Ollama unavailable: {exc}") from exc
 
 
 # --------------------------------------------------------------------------- #
