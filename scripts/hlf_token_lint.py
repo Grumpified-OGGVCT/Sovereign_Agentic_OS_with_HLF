@@ -26,8 +26,8 @@ def lint_file(path: Path, enc: tiktoken.Encoding) -> list[str]:
     if len(tokens) > MAX_TOKENS:
         errors.append(f"File exceeds maximum token budget of {MAX_TOKENS} (Count: {len(tokens)})")
     
-    if "[HLF-v2]" not in text:
-        errors.append("Missing [HLF-v2] header")
+    if "[HLF-v2]" not in text and "[HLF-v3]" not in text:
+        errors.append("Missing [HLF-v2] or [HLF-v3] header")
     if "\u03a9" not in text and "Omega" not in text:
         errors.append("Missing Ω terminator")
             

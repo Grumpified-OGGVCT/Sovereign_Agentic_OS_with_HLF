@@ -38,7 +38,7 @@ jobs:
       - name: Install uv
         run: pip install uv
       - name: Install dependencies
-        run: uv sync --frozen
+        run: uv sync --all-extras --frozen
       - name: Run HLF token lint
         run: uv run python scripts/hlf_token_lint.py
       - name: Run pytest
