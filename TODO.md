@@ -109,7 +109,7 @@
 ### Infra Phase 4: Agent OS Wiring (Provisioning) 🟡 ~75%
 - [x] Refactor `main.py` `_ollama_generate()` → `_ollama_generate_v2()` consuming `route_request()` output
 - [x] Refactor `execute_intent()` to apply Agent Profile (model, provider, system_prompt, restrictions)
-- [ ] Wire `ALSLogger` for `ROUTING_DECISION` events (governance audit trail)
+- [x] Wire `ALSLogger` for `ROUTING_DECISION` events (governance audit trail)
 
 ### Infra Phase 5: GUI & Governance ❌ ~5%
 - [ ] Add Transparency Panel to `gui/app.py` (routing trace, snapshot version, tier display)
@@ -151,39 +151,103 @@
 - [ ] ALIGN Rule R-008 (block raw OpenClaw keys)
 
 ### HLF Phase 5.2: v0.4 Byte-Code VM (0% — Future)
+
 - [ ] Stack-machine byte-code compiler (`hlfc --emit-bytecode`)
 - [ ] 32-instruction opcode set (PUSH, POP, CALL, RET, JMP, etc.)
 - [ ] `.hlb` binary format (HLFv04 magic + LE uint32 opcodes)
-- [ ] Wasm sandbox integration
+- [ ] Wasm sandbox integration (Wasmtime)
+- [ ] Dapr gRPC integration for runtime
+- [ ] `hlfrun` interpreter for `.hlb` files
 
-### HLF Phase 5.3: v0.5 LSP, IDE & Package Manager (0% — Future)
-- [ ] Language Server Protocol (LSP) for HLF
-- [ ] IDE extensions (VS Code, Neovim)
-- [ ] Package manager for HLF modules
-- [ ] HLF REPL
+### HLF Phase 5.3: v0.5 Language DX (10% — Future)
+
+- [ ] TextMate syntax highlighting (`hlf.tmLanguage.json`)
+- [ ] Language Server Protocol (`hlflsp` via `pygls`)
+- [ ] HLF REPL (`hlfsh`)
+- [ ] Package manager (`hlfpm`)
+- [ ] Test harness (`hlf-test`)
+- [ ] MkDocs documentation site
+
+---
+
+## Key Metrics for Dashboard
+
+| Metric | Current Value | Source |
+| --- | --- | --- |
+| Grammar statement types | 6 | `hlfc.py` `_GRAMMAR` |
+| Terminal types | 7 | `hlfc.py` `_GRAMMAR` |
+| Built-in functions | 5 | `hlfrun.py` `_BUILTIN_FUNCTIONS` |
+| Host function stubs | 7 | `hlfrun.py` docstring |
+| Toolchain size (lines) | ~649 | `hlf/*.py` |
+| Test count (total) | 200 | pytest |
+| Test count (HLF-specific) | 14 | `test_hlf.py` |
+| Test pass rate | 100% | CI |
+| Fixture files | 6 | `tests/fixtures/` |
+| Dictionary tags | 7 | `dictionary.json` |
+| Registered glyphs | 4 | `dictionary.json` |
+| Compiler version | 0.3.0 | `hlfc.compile()` |
+
+---
+
+## Priority Actions for Jules Agents
+
+1. **Expand test fixtures** — Create 5-10 domain-specific `.hlf` files in `tests/fixtures/` (DevOps, Security, Creative, Architecture, Data tasks)
+2. **Build benchmark script** — `scripts/hlf_benchmark.py` that tokenizes NLP vs HLF for real compression measurements
+3. **Build metrics script** — `scripts/hlf_metrics.py` that scans codebase and outputs `docs/metrics.json`
+4. **Complete MODULE runtime** — Implement file loading and namespace merge for `[IMPORT]` statements
+5. **Create `hls.yaml`** — Machine-readable BNF grammar spec at `governance/hls.yaml`
+
+---
+
+## HLF Value Proposition (Reference)
+
+HLF's efficiency story has two dimensions:
+
+### 1. Token Compression
+
+A full JSON agent instruction payload (~148-185 tokens) compresses to ~22-30 HLF tokens = **83-86% reduction**. In a 5-agent swarm, that's 615-775 tokens saved per round-trip.
+
+### 2. Security Pipeline
+
+Every intent passes through a **6-gate security pipeline** that JSON/natural language cannot provide:
+
+1. `validate_hlf()` — Regex structural gate
+2. `hlfc.compile()` — LALR(1) parse + type validation
+3. `hlflint.lint()` — Token budget + gas + unused var detection
+4. ALIGN enforcement — Regex block patterns (R-001 through R-008)
+5. Gas budget — Per-intent + global per-tier Redis token bucket
+6. Nonce check — ULID replay protection via Redis SETNX
+
+> Traditional NLP/JSON payloads skip gates 1-3 entirely and require custom middleware for gates 4-6.
 
 ---
 
 ## Sovereign Backend Engine (Extended)
 
 ### V.1: Ollama Matrix Sync Pipeline
+
 - [x] Integrate the `ollama-matrix-sync` benchmarking pipeline into the main OS
+- [x] Pipeline→Registry bridge (`--registry-db --promote` flags)
 - [ ] Wire the Gateway `router.py` to dispatch to Ollama dynamically based on matrix constraints (→ Infra Phase 2)
 
 ### V.2: ALIGN Ledger & Host Functions Validation
+
 - [ ] Implement robust token validation in `hlfc.py` using `ALIGN_LEDGER.yaml`
 - [ ] Enforce deterministic mathematical verification of HLF tokens against the ledger
 
 ### V.3: Tri-Perspective Aegis-Nexus Engine (Core Agents)
+
 - [ ] Instantiate the Sentinel Agent (Red Hat / Security & PrivEsc checks)
 - [ ] Instantiate the Scribe Agent (White Hat / Memory & Token Bloat)
 - [ ] Instantiate the Arbiter Agent (Blue Hat / Exception Handling & Governance)
 
 ### V.4: OpenClaw Strategy Integration (Appendix B)
+
 - [ ] Create the secure sandbox profile (`seccomp.json`)
 - [ ] Implement Strategy B (Pure Tools) for approved functions
 
 ### V.5: Jules Integration (Continuous AI Agent) ✅ COMPLETE
+
 - [x] Create `AGENTS.md` in repo root
 - [x] `config/jules_tasks.yaml` with nightly/weekly/monthly schedules
 - [x] `scripts/jules_dispatch.sh` — Issue → Session automation
@@ -191,12 +255,14 @@
 - [x] 10-step daily pipeline configuration
 
 ### V.6: Metrics & Benchmarking ✅ COMPLETE
+
 - [x] `scripts/hlf_metrics.py` — codebase scanner → `docs/metrics.json`
 - [x] `scripts/hlf_benchmark.py` — tiktoken compression benchmark → `docs/benchmark.json`
-- [x] 5 domain-specific `.hlf` test fixtures
+- [x] 6 domain-specific `.hlf` test fixtures
 - [x] `docs/HLF_PROGRESS.md` — progress tracking for Jules agent sync
 
 ### V.7: Live Demo & Documentation ✅ COMPLETE
+
 - [x] GitHub Pages demo (`docs/index.html`) with dark mode
 - [x] Model Router architecture popup
 - [x] Infinite RAG Memory Matrix popup with HLF×RAG synergy
