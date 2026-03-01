@@ -559,6 +559,8 @@ python-xlib==0.33
     # via pystray
 pytz==2025.2
     # via pandas
+pywin32==311 ; sys_platform == 'win32'
+    # via docker
 pyyaml==6.0.3
     # via
     #   huggingface-hub

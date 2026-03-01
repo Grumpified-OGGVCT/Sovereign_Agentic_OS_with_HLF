@@ -37,8 +37,7 @@ def start_backend(icon, item):
         env["DEPLOYMENT_TIER"] = "hearth"
         backend_process = subprocess.Popen(
             ["docker", "compose", "--profile", "hearth", "up", "-d"],
-            env=env,
-            shell=True
+            env=env
         )
         backend_running = True
         icon.notify("Sovereign OS backends started (Hearth Profiling).")
@@ -47,7 +46,7 @@ def stop_backend(icon, item):
     global backend_process, backend_running
     if backend_running:
         print("[System Tray] Stopping Sovereign OS Backends...")
-        subprocess.Popen(["docker", "compose", "down"], shell=True)
+        subprocess.Popen(["docker", "compose", "down"])
         backend_running = False
         icon.notify("Sovereign OS backends shutting down.")
 
@@ -57,8 +56,7 @@ def start_gui(icon, item):
         icon.notify("Starting Sovereign Command Center UI...")
         print("[System Tray] Starting Streamlit GUI...")
         gui_process = subprocess.Popen(
-            ["uv", "run", "streamlit", "run", "gui/app.py", "--server.headless", "true"],
-            shell=True
+            ["uv", "run", "streamlit", "run", "gui/app.py", "--server.headless", "true"]
         )
         gui_running = True
         
@@ -89,8 +87,7 @@ def start_mcp(icon, item):
     if not mcp_running:
         print("[System Tray] Starting Sovereign OS MCP Server...")
         mcp_process = subprocess.Popen(
-            ["uv", "run", "python", "mcp/sovereign_mcp_server.py"],
-            shell=True
+            ["uv", "run", "python", "mcp/sovereign_mcp_server.py"]
         )
         mcp_running = True
         if icon:
