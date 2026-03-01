@@ -906,31 +906,31 @@ const HLF_TEMPLATES = {
         hlf: `[HLF-v3]\nΔ analyze /security/seccomp.json\n Ж [CONSTRAINT] mode="ro"\nЖ [EXPECT] vulnerability_shorthand\n⨝ [VOTE] consensus="strict"\nΩ`,
         response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [DATA] vulns=0 status="clean"\n ∇ [DETAIL] "No CVEs detected in seccomp policy"\nΩ`,
         response_nlp: "Security scan complete. No vulnerabilities detected in the seccomp configuration. All policy rules are properly constrained and no CVEs were found.",
-        metrics: { tokens_in: 8, tokens_hlf: 5, compression: "62%", parse_ms: 0.3, validate_ms: 1.2, exec_ms: 45 }
+        metrics: { nlp_payload: 148, tokens_hlf: 25, compression: "83%", parse_ms: 0.3, validate_ms: 1.2, exec_ms: 45, swarm_agents: 5 }
     },
     summary: {
         hlf: `[HLF-v3]\n⌘ [DELEGATE] agent="scribe" goal="summarize"\n ∇ [SOURCE] /logs/agent_activity_latest.log\n ⩕ [PRIORITY] level="medium"\nЖ [ASSERT] max_tokens=2048\nΩ`,
         response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [SUMMARY] entries=47 timespan="24h"\n ∇ [DETAIL] "47 events logged. 12 intents processed, 3 delegations, 0 errors."\nΩ`,
         response_nlp: "Activity summary: 47 events in the last 24 hours. 12 intents processed, 3 task delegations completed, zero errors. All agents are operating within normal parameters.",
-        metrics: { tokens_in: 9, tokens_hlf: 6, compression: "67%", parse_ms: 0.4, validate_ms: 0.8, exec_ms: 120 }
+        metrics: { nlp_payload: 162, tokens_hlf: 28, compression: "83%", parse_ms: 0.4, validate_ms: 0.8, exec_ms: 120, swarm_agents: 5 }
     },
     delegate: {
         hlf: `[HLF-v3]\n⌘ [DELEGATE] agent="scribe" goal="fractal_summarize"\n ∇ [SOURCE] /data/raw_research.txt\n ⩕ [PRIORITY] level="high"\nЖ [ASSERT] vram_limit="8GB"\nΩ`,
         response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [STATUS] agent="scribe" state="accepted"\n ∇ [ETA] "~3 minutes based on 8GB VRAM allocation"\nΩ`,
         response_nlp: "Task delegated to the Scribe agent. The fractal summarization job has been accepted and is running with high priority. Estimated completion: ~3 minutes with 8GB VRAM allocated.",
-        metrics: { tokens_in: 10, tokens_hlf: 6, compression: "60%", parse_ms: 0.5, validate_ms: 1.0, exec_ms: 8 }
+        metrics: { nlp_payload: 185, tokens_hlf: 30, compression: "84%", parse_ms: 0.5, validate_ms: 1.0, exec_ms: 8, swarm_agents: 5 }
     },
     route: {
         hlf: `[HLF-v3]\n⌘ [ROUTE] target="local_ollama"\n Δ [MODEL] name="qwen:7b"\n ∇ [PARAM] temperature=0.0\nЖ [CONSTRAINT] latency_max="500ms"\nΩ`,
         response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [ROUTED] model="qwen:7b" backend="ollama"\n ∇ [PERF] latency=142ms tokens_per_sec=38.4\nΩ`,
         response_nlp: "Routed to local Ollama instance running qwen:7b. Connection established with 142ms latency and 38.4 tokens/second throughput — well within the 500ms constraint.",
-        metrics: { tokens_in: 9, tokens_hlf: 6, compression: "67%", parse_ms: 0.2, validate_ms: 0.5, exec_ms: 142 }
+        metrics: { nlp_payload: 134, tokens_hlf: 24, compression: "82%", parse_ms: 0.2, validate_ms: 0.5, exec_ms: 142, swarm_agents: 5 }
     },
     align: {
         hlf: `[HLF-v3]\nΔ query /governance/ALIGN_LEDGER.yaml\n Ж [CONSTRAINT] mode="ro"\nЖ [EXPECT] governance_status\n⨝ [VOTE] consensus="quorum"\nΩ`,
         response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [GOVERNANCE] rules=12 active=12 violations=0\n ∇ [DETAIL] "All 12 ALIGN rules enforced. Zero violations in last 24h."\nΩ`,
         response_nlp: "ALIGN Ledger status: All 12 governance rules are active and enforced. Zero violations detected in the last 24 hours. The governance layer is fully operational.",
-        metrics: { tokens_in: 10, tokens_hlf: 6, compression: "60%", parse_ms: 0.3, validate_ms: 2.1, exec_ms: 15 }
+        metrics: { nlp_payload: 156, tokens_hlf: 26, compression: "83%", parse_ms: 0.3, validate_ms: 2.1, exec_ms: 15, swarm_agents: 5 }
     }
 };
 
@@ -1023,24 +1023,27 @@ function addMetrics(m) {
     const chatBody = document.getElementById('chatBody');
     const msg = document.createElement('div');
     msg.className = 'message';
+    const saved = m.nlp_payload - m.tokens_hlf;
+    const pctHlf = Math.round((m.tokens_hlf / m.nlp_payload) * 100);
+    const swarmSaved = saved * m.swarm_agents;
     msg.innerHTML = `
-        <div class="message-label metrics">📊 Translation Metrics</div>
+        <div class="message-label metrics">📊 Translation Metrics — Efficiency Breakdown</div>
         <div class="metrics-panel">
             <div class="metric-item">
-                <div class="metric-value blue">${m.tokens_in}</div>
-                <div class="metric-label">NLP Tokens</div>
+                <div class="metric-value blue">${m.nlp_payload}</div>
+                <div class="metric-label">NLP Equivalent<br><small style="opacity:0.6">Full JSON payload</small></div>
             </div>
             <div class="metric-item">
-                <div class="metric-value purple">${m.tokens_hlf}</div>
-                <div class="metric-label">HLF Tokens</div>
+                <div class="metric-value green">${m.tokens_hlf}</div>
+                <div class="metric-label">HLF Tokens<br><small style="opacity:0.6">Same instruction</small></div>
             </div>
             <div class="metric-item">
-                <div class="metric-value green">${m.compression}</div>
-                <div class="metric-label">Compression</div>
+                <div class="metric-value" style="color: #3fb950; font-size: 1.4rem;">↓ ${m.compression}</div>
+                <div class="metric-label">Compression<br><small style="opacity:0.6">${saved} tokens saved</small></div>
             </div>
             <div class="metric-item">
                 <div class="metric-value gold">${m.parse_ms}ms</div>
-                <div class="metric-label">Parse Time</div>
+                <div class="metric-label">Parse (LALR)</div>
             </div>
             <div class="metric-item">
                 <div class="metric-value gold">${m.validate_ms}ms</div>
@@ -1049,6 +1052,18 @@ function addMetrics(m) {
             <div class="metric-item">
                 <div class="metric-value gold">${m.exec_ms}ms</div>
                 <div class="metric-label">Execution</div>
+            </div>
+        </div>
+        <div style="margin-top: 0.6rem; padding: 0 0.3rem;">
+            <div style="font-size: 0.72rem; color: var(--text-secondary); margin-bottom: 4px;">
+                Token comparison: NLP payload (${m.nlp_payload}) vs HLF (${m.tokens_hlf})
+            </div>
+            <div style="display: flex; gap: 2px; height: 20px; border-radius: 6px; overflow: hidden;">
+                <div style="width: ${pctHlf}%; background: linear-gradient(90deg, #3fb950, #238636); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; color: #fff;">HLF ${m.tokens_hlf}</div>
+                <div style="flex: 1; background: linear-gradient(90deg, #1f3a2a, #30363d); display: flex; align-items: center; justify-content: center; font-size: 0.65rem; color: var(--text-secondary);">← ${saved} tokens eliminated →</div>
+            </div>
+            <div style="font-size: 0.7rem; color: var(--accent-green); margin-top: 6px; text-align: center;">
+                🐝 In a ${m.swarm_agents}-agent swarm: <strong>${swarmSaved} tokens saved</strong> per round-trip (${m.nlp_payload * m.swarm_agents} → ${m.tokens_hlf * m.swarm_agents})
             </div>
         </div>
     `;
