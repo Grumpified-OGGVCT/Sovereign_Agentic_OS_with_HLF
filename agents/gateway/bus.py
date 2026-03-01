@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     deployment_tier: str = "hearth"
     dapr_host: str = "http://localhost:3500"
 
-    model_config = {"env_file": ".env"}
+    model_config = {"env_file": ".env", "extra": "ignore"}
 
 
 settings = Settings()
@@ -59,6 +59,7 @@ app = FastAPI(
         {"name": "Health", "description": "Service health and readiness probes"},
         {"name": "Intents", "description": "HLF and natural-language intent dispatch"},
         {"name": "System", "description": "System state and configuration queries"},
+        {"name": "Registry", "description": "Model & Agent Registry operations"},
     ],
 )
 
@@ -215,3 +216,68 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
 
     record_intent_activity()
     return IntentResponse(request_id=request_id, timestamp=timestamp, ast=ast, stream_id=stream_id)
+
+
+# ── Registry: Local Inventory Sync ───────────────────────────────────────
+
+
+class InventorySyncResponse(BaseModel):
+    synced: int = 0
+    models: list[str] = []
+    error: str | None = None
+
+
+@app.post(
+    "/api/v1/inventory/sync",
+    tags=["Registry"],
+    summary="Sync local Ollama inventory to the SQL registry",
+    response_model=InventorySyncResponse,
+)
+async def sync_inventory() -> InventorySyncResponse:
+    """Heartbeat-sync the local Ollama models into the registry's
+    `user_local_inventory` table.  This is a non-destructive upsert."""
+    try:
+        import os, sys
+        from pathlib import Path
+
+        # Import db module
+        _here = os.path.dirname(os.path.abspath(__file__))
+        _sovereign_root = os.path.abspath(os.path.join(_here, "..", ".."))
+        if _sovereign_root not in sys.path:
+            sys.path.insert(0, _sovereign_root)
+        from agents.core.db import (
+            init_db, get_db, db_path,
+            upsert_local_inventory, upsert_local_metadata,
+        )
+
+        # Fetch local Ollama tags
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get("http://localhost:11434/api/tags")
+            resp.raise_for_status()
+            tags_data = resp.json()
+
+        models_list = tags_data.get("models", [])
+        registry_path = db_path()
+        registry_path.parent.mkdir(parents=True, exist_ok=True)
+        init_db(registry_path)
+
+        synced_names: list[str] = []
+        with get_db(registry_path) as conn:
+            for m in models_list:
+                name = m.get("name", "")
+                if not name:
+                    continue
+                size_gb = round(m.get("size", 0) / 1e9, 2)
+                upsert_local_inventory(conn, name, size_gb=size_gb)
+                upsert_local_metadata(
+                    conn, name,
+                    digest=m.get("digest", ""),
+                    modified_at=m.get("modified_at", ""),
+                    quantization_level=m.get("quantization_level", ""),
+                )
+                synced_names.append(name)
+
+        return InventorySyncResponse(synced=len(synced_names), models=synced_names)
+
+    except Exception as e:
+        return InventorySyncResponse(error=str(e))

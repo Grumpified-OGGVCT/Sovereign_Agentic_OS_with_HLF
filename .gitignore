@@ -221,5 +221,9 @@ data/align_staging/*
 !data/align_staging/.gitkeep
 data/redis/
 
+# Allow tracking of remote sync data
+!data/state/
+!logs/
+
 # Observability dynamic hashes
 observability/openllmetry/last_hash.txt

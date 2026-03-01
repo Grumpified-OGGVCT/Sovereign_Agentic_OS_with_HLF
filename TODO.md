@@ -96,6 +96,16 @@
 - [ ] **V.6: Universal Taskbar Manager Polish**
     - [ ] Expand `gui/tray_manager.py` with further actions (View Logs, Restart All, Open Config) to make it fully fleshed out for all OS commands.
 
+- [ ] **V.7: Jules Integration (Continuous AI Agent)**
+    - [ ] Create `AGENTS.md` in repo root describing the OS architecture, agent roles, test conventions, and security invariants so Jules has full contextual awareness.
+    - [ ] **Scheduled Task: Nightly Pipeline Run** — Configure Jules to run the Ollama Matrix Sync pipeline (`--registry-db --promote`) nightly, auto-fixing any build or test failures it encounters.
+    - [ ] **Scheduled Task: HLF Test Expansion** — Weekly scheduled task: "Analyze tests/ and generate new test cases for any uncovered edge cases in bus.py, router.py, and main.py. Run pytest to verify."
+    - [ ] **Scheduled Task: ALIGN Rule Audit** — Monthly: "Review governance/ALIGN_LEDGER.yaml against known prompt injection patterns. Propose new regex rules and submit as PR."
+    - [ ] **Suggested Tasks** — Enable Jules Suggested Tasks to auto-surface TODO/FIXME comments across the codebase as actionable sessions.
+    - [ ] **CLI Scripting: Issue → Session** — Create a `scripts/jules_dispatch.sh` script that pipes GitHub issues labeled `jules` into `jules remote new --session` for automated triage.
+    - [ ] **Parallel Sessions for Test Hardening** — Use `jules remote new --parallel 3` to simultaneously generate test improvements for `test_db.py`, `test_router_v2.py`, and `test_policy.py`.
+    - [ ] **Environment Setup Script** — Create Jules environment setup that installs project deps (`uv sync`), starts Redis, and runs `pytest` as a verification gate.
+
 ## Phase VI: HLF Language Evolution (POST-GENESIS)
 - [ ] v0.3 — Modules, Imports & Standard Library
 - [ ] v0.4 — Byte-Code VM & Sandboxed Execution

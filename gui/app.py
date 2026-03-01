@@ -148,6 +148,24 @@ def get_host_function_count() -> int:
         pass
     return 0
 
+def check_local_node_status() -> tuple[str, str]:
+    """Check if the Local Autonomous Node is running by inspecting its heartbeat log."""
+    log_path = _PROJECT_ROOT / "logs" / "local_node.log"
+    try:
+        if log_path.exists():
+            # Check if updated in the last 2 minutes
+            mtime = os.path.getmtime(log_path)
+            if (time.time() - mtime) < 120:
+                with open(log_path, 'r') as f:
+                    lines = f.readlines()
+                    if lines:
+                        last_line = lines[-1].strip()
+                        return "🟢 Running", f"Active: {last_line}"
+            return "🟡 Idle", "Log exists but no recent activity (heartbeat > 2m)."
+        return "🔴 Offline", "Local orchestrator script is not running."
+    except Exception as e:
+        return "🟠 Error", f"Status check failed: {e}"
+
 
 # ============================================================================
 # PAGE CONFIG & CSS
@@ -411,6 +429,14 @@ with st.sidebar:
         "**Forge** (Tier 2): Docker swarm, 10K gas/day. "
         "**Sovereign** (Tier 3): Full Kubernetes, 100K gas/day with mTLS.",
     )
+
+    st.markdown("---")
+    st.subheader("🤖 Local Autonomous Node")
+    node_status, node_detail = check_local_node_status()
+    st.metric("Node Status", node_status, help=node_detail)
+    if node_status != "🟢 Running":
+        st.info("Run `uv run python scripts/local_autonomous.py` to activate.", icon="ℹ️")
+
     st.markdown("---")
     st.subheader("📜 ALIGN Ledger Rules")
     st.markdown(
