@@ -84,6 +84,7 @@ daily_pipeline:
   # ─── Step 3: ALIGN Hardener ───────────────────────────────────
   - step: 3
     agent: align-hardener
+    frequency_override: "3x_per_week"   # Mon/Wed/Fri — not daily
     description: "Harden ALIGN governance — tighten sentinel rules, expand ledger coverage, add new alignment checks. Never weaken existing rules."
     depends_on: dream-cycle-enhancer
     targets:
