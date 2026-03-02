@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-from hlf.hlfc import compile, HlfSyntaxError
+from hlf.hlfc import HlfSyntaxError, compile
 
 
 class TestModuleImportGrammar:
@@ -153,7 +153,7 @@ class TestCanaryAgent:
 
     def test_is_system_idle_immediately_false(self) -> None:
         """System is not immediately idle after recording activity."""
-        from agents.gateway.router import record_intent_activity, is_system_idle
+        from agents.gateway.router import is_system_idle, record_intent_activity
 
         record_intent_activity()
         assert is_system_idle(idle_threshold_sec=3600) is False
@@ -170,7 +170,7 @@ class TestGlobalGasBucket:
 
     def test_replenish_and_consume(self) -> None:
         """replenish_gas + consume_gas (sync) logic is consistent."""
-        from agents.gateway.router import consume_gas, replenish_gas, _TIER_GAS_CAPS
+        from agents.gateway.router import _TIER_GAS_CAPS, consume_gas, replenish_gas
 
         class FakeRedis:
             def __init__(self):

@@ -18,8 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -196,7 +195,7 @@ def run_benchmark() -> dict:
     overall_compression = round((1 - total_hlf / total_nlp) * 100, 1) if total_nlp > 0 else 0
 
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "tokenizer": _tokenizer_name,
         "case_count": len(results),
         "overall": {

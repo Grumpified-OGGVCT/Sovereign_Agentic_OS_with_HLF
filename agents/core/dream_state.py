@@ -19,9 +19,8 @@ import logging
 import os
 import sqlite3
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from agents.core.logger import ALSLogger as _ALSLogger
 
@@ -53,7 +52,7 @@ class DreamCycleReport:
     hat_findings_count: int = 0
     # Summary
     summary: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -165,8 +164,8 @@ def _practice_hlf(conn: sqlite3.Connection | None = None, count: int = 5) -> dic
     Generate HLF intents via Ollama and validate them through the parser.
     Returns practice stats.
     """
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
     if ollama_host and not ollama_host.startswith("http"):

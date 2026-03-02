@@ -179,9 +179,7 @@ def mediate_web_search(payload: dict[str, Any]) -> dict[str, Any]:
 # ─────────────────────────────────────────────────────────────────────────
 # Phase 3 — Registry-Aware Routing Engine
 # ─────────────────────────────────────────────────────────────────────────
-import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 
 # ALS audit logging
 try:
@@ -192,7 +190,7 @@ except ImportError:
 
 
 def _log_routing_decision(
-    profile: "AgentProfile",
+    profile: AgentProfile,
     intent_text: str,
     phase: str,
 ) -> None:
@@ -246,9 +244,13 @@ def _try_import_db():
     """Lazy-import db module from agents.core to avoid circular imports."""
     try:
         from agents.core.db import (
-            get_db, db_path, init_db,
-            get_models_by_tier, get_local_inventory,
-            get_agent_template, get_equivalents,
+            db_path,
+            get_agent_template,
+            get_db,
+            get_equivalents,
+            get_local_inventory,
+            get_models_by_tier,
+            init_db,
         )
         return get_db, db_path, init_db, get_models_by_tier, get_local_inventory, get_agent_template, get_equivalents
     except ImportError:
@@ -266,7 +268,6 @@ def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None =
     Falls back to legacy route_intent() if the registry is unavailable.
     """
     trace: list[dict[str, Any]] = []
-    meta = metadata or {}
     text_lower = intent_text.lower()
 
     # ── Specialization Pre-Routing Hooks ──────────────────────────────

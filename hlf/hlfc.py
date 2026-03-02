@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from lark import Lark, Transformer, Token, Tree
+from lark import Lark, Token, Transformer
 from lark.exceptions import LarkError
 
 

@@ -18,8 +18,8 @@ Security guarantees enforced here:
 """
 from __future__ import annotations
 
-import hashlib
 import functools
+import hashlib
 import json
 import os
 import time
@@ -190,7 +190,7 @@ def _dapr_file_write(args: list) -> bool:
 def _dapr_http(name: str, args: list, meta: dict) -> str:
     """HTTP_GET <url> and WEB_SEARCH <query> — network helpers (Dapr optional)."""
     query_or_url = str(args[0]) if args else ""
-    dapr_host = os.environ.get("DAPR_HOST", "http://localhost:3500")
+    os.environ.get("DAPR_HOST", "http://localhost:3500")
 
     if name == "WEB_SEARCH":
         # Perform a direct HTTP GET for WEB_SEARCH (caller is responsible for providing a full URL).

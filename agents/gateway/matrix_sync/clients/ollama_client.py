@@ -1,15 +1,16 @@
 from __future__ import annotations
+
 import datetime as dt
 import time
 from collections import defaultdict
-from typing import Dict, List, Optional
 
 import requests
 
 from ..config import REQUEST_TIMEOUT, RETRIES, RETRY_BACKOFF
 from ..models import ModelTag, SyncAction
 
-def parse_iso(s: Optional[str]) -> Optional[dt.datetime]:
+
+def parse_iso(s: str | None) -> dt.datetime | None:
     if not s:
         return None
     try:
@@ -24,7 +25,7 @@ def normalize_model_id(name: str) -> str:
 def model_root(name: str) -> str:
     return (name or "").split(":")[0].strip().lower()
 
-def retry_get_json(url: str, headers: Optional[Dict[str, str]] = None) -> Dict:
+def retry_get_json(url: str, headers: dict[str, str] | None = None) -> dict:
     last_err = None
     for i in range(RETRIES):
         try:
@@ -36,12 +37,12 @@ def retry_get_json(url: str, headers: Optional[Dict[str, str]] = None) -> Dict:
             time.sleep(RETRY_BACKOFF ** i)
     raise RuntimeError(f"GET failed {url}: {last_err}")
 
-def fetch_tags(url: str, api_key: Optional[str] = None) -> List[ModelTag]:
+def fetch_tags(url: str, api_key: str | None = None) -> list[ModelTag]:
     headers = {}
     if api_key:
         headers["Authorization"] = f"Bearer {api_key}"
     data = retry_get_json(url, headers=headers)
-    out: List[ModelTag] = []
+    out: list[ModelTag] = []
     for m in data.get("models", []):
         out.append(ModelTag(
             name=m.get("name", ""),
@@ -53,7 +54,7 @@ def fetch_tags(url: str, api_key: Optional[str] = None) -> List[ModelTag]:
         ))
     return out
 
-def best_entry_by_norm(tags: List[ModelTag]) -> Dict[str, ModelTag]:
+def best_entry_by_norm(tags: list[ModelTag]) -> dict[str, ModelTag]:
     bucket = defaultdict(list)
     for t in tags:
         bucket[normalize_model_id(t.name)].append(t)
@@ -61,15 +62,15 @@ def best_entry_by_norm(tags: List[ModelTag]) -> Dict[str, ModelTag]:
     for k, vals in bucket.items():
         vals = sorted(
             vals,
-            key=lambda x: parse_iso(x.modified_at) or dt.datetime.min.replace(tzinfo=dt.timezone.utc),
+            key=lambda x: parse_iso(x.modified_at) or dt.datetime.min.replace(tzinfo=dt.UTC),
             reverse=True
         )
         out[k] = vals[0]
     return out
 
-def compute_sync_actions(cloud: List[ModelTag], local: List[ModelTag], pull_target_fn) -> List[SyncAction]:
+def compute_sync_actions(cloud: list[ModelTag], local: list[ModelTag], pull_target_fn) -> list[SyncAction]:
     local_map = best_entry_by_norm(local)
-    actions: List[SyncAction] = []
+    actions: list[SyncAction] = []
     for c in cloud:
         nid = normalize_model_id(c.name)
         l = local_map.get(nid)

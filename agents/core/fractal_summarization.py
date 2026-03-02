@@ -5,8 +5,9 @@ to compress massive Rolling_Context chunks down to <1500 tokens to prevent promp
 """
 from __future__ import annotations
 
-import os
 import logging
+import os
+
 import requests
 
 logger = logging.getLogger(__name__)

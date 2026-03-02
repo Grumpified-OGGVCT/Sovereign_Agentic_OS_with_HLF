@@ -1,12 +1,14 @@
 from __future__ import annotations
-from typing import Dict, List
+
 from .config import TIER_RANK
 
-def build_diff(previous_rows: List[Dict[str, str]], current_rows: List[Dict[str, str]]) -> List[Dict[str, str]]:
-    key = lambda r: (r.get("category", ""), r.get("official_nomenclature", ""))
+
+def build_diff(previous_rows: list[dict[str, str]], current_rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    def key(r):
+        return (r.get("category", ""), r.get("official_nomenclature", ""))
     prev = {key(r): r for r in previous_rows}
     curr = {key(r): r for r in current_rows}
-    out: List[Dict[str, str]] = []
+    out: list[dict[str, str]] = []
 
     all_keys = sorted(set(prev.keys()) | set(curr.keys()))
     for k in all_keys:

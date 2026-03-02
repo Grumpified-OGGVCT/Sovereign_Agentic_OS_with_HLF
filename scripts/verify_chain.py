@@ -5,6 +5,7 @@ Reads ALS log entries from stdin (one JSON per line) and validates chain.
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import sys
@@ -39,10 +40,8 @@ def main() -> None:
     for line in sys.stdin:
         line = line.strip()
         if line:
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 entries.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass
 
     ok, errors = verify_chain(entries)
     if ok:

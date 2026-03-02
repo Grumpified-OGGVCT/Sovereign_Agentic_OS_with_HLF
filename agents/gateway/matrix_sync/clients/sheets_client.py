@@ -1,7 +1,9 @@
 from __future__ import annotations
-from typing import Dict, List, Any
 
-def upload_tabs(gsheet_id: str, creds_path: str, tab_rows: Dict[str, List[Dict[str, Any]]]) -> None:
+from typing import Any
+
+
+def upload_tabs(gsheet_id: str, creds_path: str, tab_rows: dict[str, list[dict[str, Any]]]) -> None:
     import gspread
     gc = gspread.service_account(filename=creds_path)
     sh = gc.open_by_key(gsheet_id)

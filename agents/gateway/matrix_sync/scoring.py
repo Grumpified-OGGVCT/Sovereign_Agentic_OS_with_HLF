@@ -1,15 +1,17 @@
 from __future__ import annotations
+
 import datetime as dt
 from collections import defaultdict
-from typing import Dict, Optional, Any
+from typing import Any
 
 from .models import CardInfo
 from .parsers.benchmark_parser import benchmark_composite
 
+
 def model_root(name: str) -> str:
     return (name or "").split(":")[0].strip().lower()
 
-def category_scores(model_name: str, card: CardInfo, rank_info: Optional[Dict[str, Any]]) -> Dict[str, float]:
+def category_scores(model_name: str, card: CardInfo, rank_info: dict[str, Any] | None) -> dict[str, float]:
     txt = " ".join([card.summary] + card.specialties + card.benchmark_mentions).lower()
     caps = set(card.cap_tags)
     comp = benchmark_composite(card.benchmark_structured)["composite"]
@@ -71,7 +73,7 @@ def score_to_tier(score: float) -> str:
     if score >= 2.0: return "C"
     return "D"
 
-def confidence_score(card: CardInfo, rank_info: Optional[Dict[str, Any]], modified_at: str) -> float:
+def confidence_score(card: CardInfo, rank_info: dict[str, Any] | None, modified_at: str) -> float:
     bench_count = len(card.benchmark_structured)
     bench_component = min(bench_count / 8.0, 1.0) * 0.40
     cap_component = min(len(card.cap_tags) / 4.0, 1.0) * 0.15
@@ -81,7 +83,7 @@ def confidence_score(card: CardInfo, rank_info: Optional[Dict[str, Any]], modifi
     rec = 0.0
     try:
         m = dt.datetime.fromisoformat(modified_at.replace("Z", "+00:00"))
-        days = (dt.datetime.now(dt.timezone.utc) - m).days
+        days = (dt.datetime.now(dt.UTC) - m).days
         if days <= 14: rec = 0.15
         elif days <= 45: rec = 0.11
         elif days <= 90: rec = 0.08
@@ -92,7 +94,7 @@ def confidence_score(card: CardInfo, rank_info: Optional[Dict[str, Any]], modifi
 
     return round(max(0.0, min(1.0, bench_component + cap_component + spec_component + rank_component + rec)), 4)
 
-def highest_strength_use_case(cat_scores: Dict[str, float], card: CardInfo, model_name: str) -> str:
+def highest_strength_use_case(cat_scores: dict[str, float], card: CardInfo, model_name: str) -> str:
     top = max(cat_scores.items(), key=lambda x: x[1])[0] if cat_scores else "Generalist Frontier Assistant"
     text = " ".join(card.specialties + card.benchmark_mentions).lower()
     root = model_root(model_name)

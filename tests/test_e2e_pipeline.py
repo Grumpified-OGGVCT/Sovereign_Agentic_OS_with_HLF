@@ -23,7 +23,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agents.core.db import (
-    _SCHEMA_SQL,
     create_snapshot,
     get_db,
     get_models_by_tier,
@@ -34,10 +33,9 @@ from agents.core.db import (
     upsert_model,
     upsert_model_equivalent,
 )
-from agents.core.logger import ALSLogger, _compute_trace_id, _SEED_HASH
+from agents.core.logger import _SEED_HASH, ALSLogger, _compute_trace_id
 from agents.gateway.router import AgentProfile, route_request
 from hlf.hlfc import compile as hlfc_compile
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -150,11 +148,6 @@ class TestRouterWithRegistry:
         with get_db(registry_db) as conn:
             _seed_registry(conn)
 
-        known_models = {
-            "qwen3-vl:32b-cloud",
-            "qwen-max",
-            "llama3.1:8b",
-        }
 
         with patch("agents.core.db.db_path", return_value=registry_db):
             profile = route_request("generate a report", {})
@@ -270,6 +263,7 @@ class TestExecutorWithMockedOllama:
     def test_execute_with_ollama_error_returns_error_code(self) -> None:
         """When Ollama is unreachable, execute_intent returns code=1 gracefully."""
         import httpx
+
         from agents.core.main import execute_intent
 
         with patch("httpx.post", side_effect=httpx.ConnectError("connection refused")):
@@ -337,7 +331,6 @@ class TestMerkleChainIntegrity:
     def test_merkle_chain_links_consecutive_entries(self) -> None:
         """Consecutive log entries must chain: entry[n].trace_id == entry[n+1].parent_hash."""
         logger = ALSLogger(agent_role="test", goal_id="merkle-chain")
-        chain: list[str] = [_SEED_HASH]
         entries: list[dict[str, Any]] = []
 
         # Simulate a fresh chain starting from seed

@@ -28,7 +28,7 @@ _logger = ALSLogger(agent_role="agent-executor", goal_id="boot")
 def _try_route_request():
     """Lazy import of route_request to avoid circular imports."""
     try:
-        from agents.gateway.router import route_request, AgentProfile
+        from agents.gateway.router import AgentProfile, route_request
         return route_request, AgentProfile
     except ImportError:
         return None, None
@@ -54,7 +54,7 @@ def _handle_sigusr1(signum: int, frame: object) -> None:
 
 
 if hasattr(signal, "SIGUSR1"):
-    signal.signal(getattr(signal, "SIGUSR1"), _handle_sigusr1)
+    signal.signal(signal.SIGUSR1, _handle_sigusr1)
 
 
 # --------------------------------------------------------------------------- #
@@ -263,8 +263,9 @@ def execute_intent(payload: dict) -> dict:
 
     Returns the HLF execution result dict.
     """
+    from hlf.hlfc import HlfSyntaxError
+    from hlf.hlfc import compile as hlfc_compile
     from hlf.hlfrun import run as hlfrun
-    from hlf.hlfc import compile as hlfc_compile, HlfSyntaxError
 
     tier = os.environ.get("DEPLOYMENT_TIER", "hearth")
     max_gas = int(os.environ.get("MAX_GAS_LIMIT", "10"))
@@ -308,10 +309,7 @@ def execute_intent(payload: dict) -> dict:
             return {"code": 1, "message": "no text or ast in payload", "gas_used": 0}
         try:
             # Use AgentProfile-aware inference if available, else legacy
-            if profile is not None:
-                hlf_response = _ollama_generate_v2(text, profile)
-            else:
-                hlf_response = _ollama_generate(text)
+            hlf_response = _ollama_generate_v2(text, profile) if profile is not None else _ollama_generate(text)
             _logger.log(
                 "OLLAMA_RESPONSE",
                 {"request_id": request_id, "preview": hlf_response[:120]},

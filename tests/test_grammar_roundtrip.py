@@ -3,11 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from hlf.hlfc import compile as hlfc_compile
 from hlf.hlffmt import format_hlf
-
 
 REPO_ROOT = Path(__file__).parent.parent
 

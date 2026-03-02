@@ -8,32 +8,26 @@ from __future__ import annotations
 import sqlite3
 
 from agents.core.db import (
-    ModelTier,
     TIER_MAP,
-    get_db,
-    init_db,
-    create_snapshot,
-    promote_snapshot,
-    get_active_snapshot,
-    update_snapshot_model_count,
-    upsert_model,
-    get_models_by_tier,
-    get_all_models,
-    upsert_local_inventory,
-    get_local_inventory,
-    upsert_local_metadata,
-    upsert_agent_template,
-    get_agent_template,
-    upsert_model_equivalent,
-    get_equivalents,
-    upsert_policy_bundle,
-    get_active_policies,
+    ModelTier,
     add_feedback,
-    get_feedback,
-    record_tier_change,
+    create_snapshot,
+    get_active_policies,
+    get_active_snapshot,
+    get_agent_template,
     get_current_tier,
+    get_equivalents,
+    get_feedback,
+    get_local_inventory,
+    get_models_by_tier,
+    promote_snapshot,
+    record_tier_change,
+    upsert_agent_template,
+    upsert_local_inventory,
+    upsert_model,
+    upsert_model_equivalent,
+    upsert_policy_bundle,
 )
-
 
 # ── helpers ──────────────────────────────────────────────────────────────
 
@@ -145,7 +139,7 @@ def test_local_inventory_upsert() -> None:
     inv = get_local_inventory(conn)
     assert len(inv) == 1
     assert inv[0]["model_id"] == "phi3:mini"
-    first_seen = inv[0]["last_seen"]
+    inv[0]["last_seen"]
 
     # Upsert again — last_seen should update
     import time
@@ -199,7 +193,7 @@ def test_policy_bundle_crud() -> None:
     """Create active policy, deactivate, verify."""
     conn = _mem_db()
 
-    pid = upsert_policy_bundle(
+    upsert_policy_bundle(
         conn, "no-uncensored",
         rules={"block_uncensored": True},
         active=True,

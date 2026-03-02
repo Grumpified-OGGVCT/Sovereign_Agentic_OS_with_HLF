@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import datetime as dt
 import json
 import os
@@ -8,12 +9,13 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-from ..config import OLLAMA_LIBRARY_BASE, REQUEST_TIMEOUT, RETRIES, RETRY_BACKOFF, KNOWN_CAP_TAGS
+from ..config import KNOWN_CAP_TAGS, OLLAMA_LIBRARY_BASE, REQUEST_TIMEOUT, RETRIES, RETRY_BACKOFF
 from ..models import CardInfo
 from .benchmark_parser import parse_benchmark_mentions
 
+
 def now_utc_iso() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat()
+    return dt.datetime.now(dt.UTC).isoformat()
 
 def fetch_text(url: str) -> str:
     last_err = None
@@ -31,7 +33,7 @@ def fetch_card(slug: str, cache_dir: str) -> CardInfo:
     cache_path = os.path.join(cache_dir, f"{slug}.json")
     os.makedirs(os.path.dirname(cache_path), exist_ok=True)
     if os.path.exists(cache_path):
-        with open(cache_path, "r", encoding="utf-8") as f:
+        with open(cache_path, encoding="utf-8") as f:
             return CardInfo(**json.load(f))
 
     url = f"{OLLAMA_LIBRARY_BASE}{slug}"
@@ -57,9 +59,8 @@ def fetch_card(slug: str, cache_dir: str) -> CardInfo:
         if any(k in ll for k in [
             "coding","agent","tool","vision","ocr","multilingual","reasoning","thinking",
             "edge","enterprise","function calling","structured output","gui","video","long context"
-        ]):
-            if 12 <= len(ln) <= 240:
-                specialties.append(ln)
+        ]) and 12 <= len(ln) <= 240:
+            specialties.append(ln)
     specialties = list(dict.fromkeys(specialties))[:30]
 
     context_mentions = sorted(set(re.findall(r"\b\d+(?:\.\d+)?\s*(?:k|m|b)?\s*context\b", low, re.IGNORECASE)))

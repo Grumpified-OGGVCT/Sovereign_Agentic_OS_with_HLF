@@ -9,7 +9,6 @@ from typing import Any
 
 from agents.gateway.sentinel_gate import LLMJudge
 
-
 _registered_tools: dict[str, Any] = {}
 
 
@@ -26,6 +25,7 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
         return _registered_tools[tool_name]
 
     import os
+
     import requests
     
     _OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://ollama-matrix:11434")

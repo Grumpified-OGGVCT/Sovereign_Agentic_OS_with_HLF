@@ -6,6 +6,7 @@ Uses FastAPI TestClient (no real Redis needed via mocking).
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, patch
+
 from fastapi.testclient import TestClient
 
 

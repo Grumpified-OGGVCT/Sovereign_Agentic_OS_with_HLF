@@ -4,7 +4,8 @@ Core memory SQLAlchemy models representing the 3-Tier Cognitive Memory System.
 from __future__ import annotations
 
 import time
-from sqlalchemy import Column, String, Float, Integer, Text
+
+from sqlalchemy import Column, Float, Integer, String, Text
 from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()

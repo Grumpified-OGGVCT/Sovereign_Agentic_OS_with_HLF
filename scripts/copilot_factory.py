@@ -26,11 +26,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -237,7 +236,7 @@ def _run_gh(args: list[str], check: bool = True) -> subprocess.CompletedProcess:
 def create_copilot_issue(template: AgentTemplate, dry_run: bool = False) -> dict[str, Any]:
     """Create a GitHub issue and assign Copilot to it."""
     body = template.to_issue_body()
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     title = f"{template.title} ({timestamp})"
 
     if dry_run:

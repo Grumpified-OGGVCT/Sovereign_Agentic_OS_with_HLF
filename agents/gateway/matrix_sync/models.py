@@ -1,15 +1,17 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 
 @dataclass
 class ModelTag:
     name: str
     model: str
     modified_at: str
-    size: Optional[int]
+    size: int | None
     digest: str
-    details: Dict[str, Any]
+    details: dict[str, Any]
 
 @dataclass
 class SyncAction:
@@ -29,10 +31,10 @@ class CardInfo:
     slug: str
     title: str
     summary: str
-    cap_tags: List[str]
-    specialties: List[str]
-    benchmark_mentions: List[str]
-    benchmark_structured: List[Dict[str, Any]]
-    context_mentions: List[str]
+    cap_tags: list[str]
+    specialties: list[str]
+    benchmark_mentions: list[str]
+    benchmark_structured: list[dict[str, Any]]
+    context_mentions: list[str]
     raw_text: str
     fetched_at_utc: str

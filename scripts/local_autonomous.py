@@ -1,11 +1,9 @@
 import os
-import time
 import subprocess
-import threading
-import json
-from pathlib import Path
 import sys
+import time
 from pathlib import Path
+
 from agents.core.dream_state import run_dream_cycle
 
 # Note: run_agent_main is now invoked as a subprocess to capture logs

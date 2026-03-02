@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 
 # Export core utilities
-from .hlfc import compile, HlfSyntaxError, HlfRuntimeError
+from .hlfc import HlfRuntimeError, HlfSyntaxError, compile
 from .hlffmt import format_hlf
 
 __all__ = ["compile", "format_hlf", "validate_hlf", "validate_hlf_heuristic", "HlfSyntaxError", "HlfRuntimeError"]

@@ -9,7 +9,7 @@ import json
 import time
 import warnings
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 _DEFAULT_HASH_DIR = Path(__file__).parent.parent.parent / "observability" / "openllmetry"
 _LAST_HASH_FILE = _DEFAULT_HASH_DIR / "last_hash.txt"
@@ -57,7 +57,7 @@ class ALSLogger:
     def log(
         self,
         event: str,
-        data: Optional[dict[str, Any]] = None,
+        data: dict[str, Any] | None = None,
         confidence_score: float = 1.0,
         anomaly_score: float = 0.0,
         token_cost: int = 0,

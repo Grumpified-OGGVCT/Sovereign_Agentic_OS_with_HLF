@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 import re
-from typing import Dict, List, Tuple, Any
+from typing import Any
 
-from ..config import BENCHMARK_WEIGHTS, BENCHMARK_MAX
+from ..config import BENCHMARK_MAX, BENCHMARK_WEIGHTS
 
-def parse_benchmark_mentions(raw_text: str) -> Tuple[List[str], List[Dict[str, Any]]]:
-    mentions: List[str] = []
-    structured: List[Dict[str, Any]] = []
+
+def parse_benchmark_mentions(raw_text: str) -> tuple[list[str], list[dict[str, Any]]]:
+    mentions: list[str] = []
+    structured: list[dict[str, Any]] = []
 
     for metric, weight in BENCHMARK_WEIGHTS.items():
         rgx = re.compile(rf"({re.escape(metric)}[^.\n]{{0,120}}?(\d+(?:\.\d+)?)(%?)?)", re.IGNORECASE)
@@ -31,7 +33,7 @@ def parse_benchmark_mentions(raw_text: str) -> Tuple[List[str], List[Dict[str, A
 
     dedup_mentions = list(dict.fromkeys(mentions))
 
-    best_by_metric: Dict[str, Dict[str, Any]] = {}
+    best_by_metric: dict[str, dict[str, Any]] = {}
     for row in structured:
         m = row["metric"]
         if (m not in best_by_metric) or (row["weighted_score"] > best_by_metric[m]["weighted_score"]):
@@ -39,7 +41,7 @@ def parse_benchmark_mentions(raw_text: str) -> Tuple[List[str], List[Dict[str, A
 
     return dedup_mentions, list(best_by_metric.values())
 
-def benchmark_composite(structured: List[Dict[str, Any]]) -> Dict[str, float]:
+def benchmark_composite(structured: list[dict[str, Any]]) -> dict[str, float]:
     if not structured:
         return {"weighted_sum": 0.0, "weight_sum": 0.0, "composite": 0.0, "metric_count": 0}
     weighted_sum = sum(x["weighted_score"] for x in structured)

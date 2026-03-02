@@ -16,7 +16,7 @@ _OUTPUT_PATH = _REPO_ROOT / "syntaxes" / "hlf.tmLanguage.json"
 
 def generate() -> dict:
     with _HLS_PATH.open() as f:
-        hls = yaml.safe_load(f)
+        yaml.safe_load(f)
 
     grammar = {
         "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",

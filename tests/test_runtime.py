@@ -20,10 +20,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from hlf.hlfc import compile as hlfc_compile
-from hlf.hlfrun import run as hlfrun, HLFInterpreter  # noqa: F401 — class under test
 from hlf.hlfc import HlfRuntimeError
-
+from hlf.hlfc import compile as hlfc_compile
+from hlf.hlfrun import run as hlfrun  # noqa: F401 — class under test
 
 # --------------------------------------------------------------------------- #
 # Built-in FUNCTION tests
@@ -294,8 +293,9 @@ class TestDualModeBus:
         """{'text': 'plain English'} should return 202, not 422."""
         mock_redis = self._mock_redis()
         with patch("agents.gateway.bus.get_redis", new=self._fake_get_redis(mock_redis)):
-            from agents.gateway import bus
             from fastapi.testclient import TestClient
+
+            from agents.gateway import bus
 
             client = TestClient(bus.app, raise_server_exceptions=False)
             resp = client.post("/api/v1/intent", json={"text": "analyze the seccomp file"})
@@ -308,8 +308,9 @@ class TestDualModeBus:
         """{'hlf': 'bad HLF'} should still return 422."""
         mock_redis = self._mock_redis()
         with patch("agents.gateway.bus.get_redis", new=self._fake_get_redis(mock_redis)):
-            from agents.gateway import bus
             from fastapi.testclient import TestClient
+
+            from agents.gateway import bus
 
             client = TestClient(bus.app, raise_server_exceptions=False)
             resp = client.post("/api/v1/intent", json={"hlf": "this is not valid HLF"})

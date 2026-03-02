@@ -1,5 +1,7 @@
-from playwright.sync_api import sync_playwright, expect
 import time
+
+from playwright.sync_api import expect, sync_playwright
+
 
 def test_gui_changes():
     with sync_playwright() as p:

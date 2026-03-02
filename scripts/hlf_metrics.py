@@ -16,7 +16,7 @@ import json
 import re
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 # ── Paths ──────────────────────────────────────────────────────────
@@ -180,7 +180,7 @@ def main() -> None:
     dictionary = count_dictionary()
 
     metrics = {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "compiler_version": get_compiler_version(),
         "grammar": {
             "statement_types": grammar["statement_types"],

@@ -7,19 +7,19 @@ from __future__ import annotations
 import json
 import time
 from contextlib import asynccontextmanager
-from typing import Optional
 
+import httpx
 import redis.asyncio as aioredis
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings
 
-from hlf import validate_hlf_heuristic
-from hlf.hlfc import compile as hlfc_compile, format_correction, HlfSyntaxError
+from agents.gateway.matrix_sync.scheduler import get_scheduler_status, start_scheduler, stop_scheduler
+from agents.gateway.router import consume_gas_async, record_intent_activity, verify_gas_limit
 from agents.gateway.sentinel_gate import enforce_align
-from agents.gateway.router import consume_gas_async, verify_gas_limit, record_intent_activity
-from agents.gateway.matrix_sync.scheduler import start_scheduler, stop_scheduler, get_scheduler_status
-import httpx
+from hlf import validate_hlf_heuristic
+from hlf.hlfc import HlfSyntaxError, format_correction
+from hlf.hlfc import compile as hlfc_compile
 
 try:
     import ulid as _ulid_module
@@ -78,7 +78,7 @@ app = FastAPI(
     ],
 )
 
-_redis: Optional[aioredis.Redis] = None
+_redis: aioredis.Redis | None = None
 
 # Circuit Breaker state
 _cb_failures = 0
@@ -95,8 +95,8 @@ async def get_redis() -> aioredis.Redis:
 
 
 class IntentRequest(BaseModel):
-    text: Optional[str] = None
-    hlf: Optional[str] = None
+    text: str | None = None
+    hlf: str | None = None
 
 
 class IntentResponse(BaseModel):
@@ -245,7 +245,7 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
             resp = await client.post(pub_url, json=stream_payload)
             resp.raise_for_status()
             _cb_failures = 0  # reset on success
-    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
+    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError):
         _cb_failures += 1
         _CB_RESET_TIME = time.time() + _CB_TIMEOUT
         # Fallback to direct Redis streams if Dapr is unavailable/returns non-2xx
@@ -275,8 +275,8 @@ async def sync_inventory() -> InventorySyncResponse:
     """Heartbeat-sync the local Ollama models into the registry's
     `user_local_inventory` table.  This is a non-destructive upsert."""
     try:
-        import os, sys
-        from pathlib import Path
+        import os
+        import sys
 
         # Import db module
         _here = os.path.dirname(os.path.abspath(__file__))
@@ -284,8 +284,11 @@ async def sync_inventory() -> InventorySyncResponse:
         if _sovereign_root not in sys.path:
             sys.path.insert(0, _sovereign_root)
         from agents.core.db import (
-            init_db, get_db, db_path,
-            upsert_local_inventory, upsert_local_metadata,
+            db_path,
+            get_db,
+            init_db,
+            upsert_local_inventory,
+            upsert_local_metadata,
         )
 
         # Fetch local Ollama tags

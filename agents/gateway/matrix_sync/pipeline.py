@@ -1,28 +1,36 @@
 from __future__ import annotations
+
 import argparse
 import json
 import os
 import time
 from dataclasses import asdict
-from typing import Dict, List
 
 from .artifacts import ensure_dir, make_manifest, make_versioned_output_dir
-from .config import CLOUD_OLLAMA, LOCAL_OLLAMA, DEFAULT_FAMILIES
-from .models import CardInfo
 from .clients.ollama_client import (
-    fetch_tags, model_root, normalize_model_id, compute_sync_actions, run_pull, best_entry_by_norm
+    best_entry_by_norm,
+    compute_sync_actions,
+    fetch_tags,
+    model_root,
+    normalize_model_id,
+    run_pull,
 )
 from .clients.openrouter_client import fetch_rankings, find_rank_for_root
 from .clients.sheets_client import upload_tabs
-from .parsers.card_parser import fetch_card
-from .parsers.benchmark_parser import benchmark_composite
-from .scoring import (
-    category_scores, score_to_tier, confidence_score, highest_strength_use_case, official_capabilities_json
-)
+from .config import CLOUD_OLLAMA, DEFAULT_FAMILIES, LOCAL_OLLAMA
 from .diffing import build_diff
-from .io.csv_io import write_csv, read_csv
+from .io.csv_io import read_csv, write_csv
 from .io.json_io import write_json, write_jsonl
-
+from .models import CardInfo
+from .parsers.benchmark_parser import benchmark_composite
+from .parsers.card_parser import fetch_card
+from .scoring import (
+    category_scores,
+    confidence_score,
+    highest_strength_use_case,
+    official_capabilities_json,
+    score_to_tier,
+)
 
 # ---------------------------------------------------------------------------
 # Registry bridge — persist pipeline results to registry.db
@@ -38,9 +46,9 @@ def _try_import_db():
 
 
 def _persist_to_registry(
-    catalog_rows: List[Dict],
-    matrix_rows: List[Dict],
-    dup_rows: List[Dict],
+    catalog_rows: list[dict],
+    matrix_rows: list[dict],
+    dup_rows: list[dict],
     families: list[str],
     promote: bool = False,
     db_path: str | None = None,
@@ -63,8 +71,8 @@ def _persist_to_registry(
     # Build a lookup: model_id → best tier from matrix_rows
     # matrix_rows has per-category tiers; pick the best (lowest index in tier walk)
     _tier_rank = {"S": 0, "A+": 1, "A": 2, "A-": 3, "B+": 4, "B": 5, "C": 6, "D": 7}
-    best_tier: Dict[str, str] = {}
-    best_score: Dict[str, float] = {}
+    best_tier: dict[str, str] = {}
+    best_score: dict[str, float] = {}
     for row in matrix_rows:
         mid = row["official_nomenclature"]
         tier = row["tier"]
@@ -213,7 +221,7 @@ def load_families_file(path: str) -> set[str]:
     if not path or not os.path.exists(path):
         return set()
     out: set[str] = set()
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             s = line.strip()
             if not s or s.startswith("#"):
@@ -273,7 +281,7 @@ def run_pipeline(args: argparse.Namespace | None = None) -> None:
 
     print("[3/9] Card cache")
     roots = sorted(set(model_root(m.name) for m in (cloud_scope + local_scope)))
-    cards: Dict[str, CardInfo] = {}
+    cards: dict[str, CardInfo] = {}
     for i, r in enumerate(roots, 1):
         try:
             cards[r] = fetch_card(r, cache_dir=args.cache_dir)
@@ -307,11 +315,11 @@ def run_pipeline(args: argparse.Namespace | None = None) -> None:
     print("[6/9] Build outputs")
     combined_best = best_entry_by_norm(cloud_scope + local_scope)
 
-    catalog_rows: List[Dict] = []
-    matrix_rows: List[Dict] = []
-    bench_long_rows: List[Dict] = []
-    raw_rows: List[Dict] = []
-    dup_rows: List[Dict] = []
+    catalog_rows: list[dict] = []
+    matrix_rows: list[dict] = []
+    bench_long_rows: list[dict] = []
+    raw_rows: list[dict] = []
+    dup_rows: list[dict] = []
 
     for l in local_scope:
         dup_rows.append({

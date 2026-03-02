@@ -169,7 +169,7 @@ def _consume_loop(stop_event: threading.Event) -> None:
                 continue
 
             for _stream, entries in messages:
-                for entry_id, data in entries:
+                for entry_id, _data in entries:
                     try:
                         if not consume_gas(tier, AUDIT_GAS_COST, r):
                             _logger.log("SCRIBE_GAS_EXHAUSTED", {}, anomaly_score=0.3)

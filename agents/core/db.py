@@ -10,9 +10,10 @@ import enum
 import json
 import sqlite3
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Generator, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Database location — next to the project root's data directory
@@ -30,7 +31,7 @@ def db_path() -> Path:
 # Enums
 # ---------------------------------------------------------------------------
 
-class ModelTier(str, enum.Enum):
+class ModelTier(enum.StrEnum):
     """Mirrors the tier strings produced by scoring.py map_tier()."""
     S = "S"
     A_PLUS = "A+"
@@ -46,7 +47,7 @@ class ModelTier(str, enum.Enum):
 TIER_MAP: dict[str, ModelTier] = {t.value: t for t in ModelTier}
 
 
-class Provider(str, enum.Enum):
+class Provider(enum.StrEnum):
     OLLAMA = "ollama"
     OPENROUTER = "openrouter"
     CLOUD = "cloud"
@@ -194,7 +195,7 @@ def promote_snapshot(conn: sqlite3.Connection, snapshot_id: int) -> None:
     conn.execute("UPDATE snapshots SET is_promoted = 1 WHERE id = ?", (snapshot_id,))
 
 
-def get_active_snapshot(conn: sqlite3.Connection) -> Optional[sqlite3.Row]:
+def get_active_snapshot(conn: sqlite3.Connection) -> sqlite3.Row | None:
     """Return the currently promoted snapshot, or None."""
     return conn.execute(
         "SELECT * FROM snapshots WHERE is_promoted = 1 ORDER BY id DESC LIMIT 1"
@@ -246,7 +247,7 @@ def upsert_model(
 def get_models_by_tier(
     conn: sqlite3.Connection,
     tier: str,
-    snapshot_id: Optional[int] = None,
+    snapshot_id: int | None = None,
 ) -> list[sqlite3.Row]:
     """Return models for a given tier in the active (or specified) snapshot."""
     if snapshot_id is None:
@@ -262,7 +263,7 @@ def get_models_by_tier(
 
 def get_all_models(
     conn: sqlite3.Connection,
-    snapshot_id: Optional[int] = None,
+    snapshot_id: int | None = None,
 ) -> list[sqlite3.Row]:
     """Return every model in the active (or specified) snapshot."""
     if snapshot_id is None:
@@ -364,7 +365,7 @@ def upsert_agent_template(
     return cur.lastrowid  # type: ignore[return-value]
 
 
-def get_agent_template(conn: sqlite3.Connection, name: str) -> Optional[sqlite3.Row]:
+def get_agent_template(conn: sqlite3.Connection, name: str) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM agent_templates WHERE name = ?", (name,)
     ).fetchone()
@@ -476,7 +477,7 @@ def record_tier_change(
     )
 
 
-def get_current_tier(conn: sqlite3.Connection, model_id: str) -> Optional[str]:
+def get_current_tier(conn: sqlite3.Connection, model_id: str) -> str | None:
     row = conn.execute(
         "SELECT tier FROM model_tiers WHERE model_id = ? AND effective_to IS NULL",
         (model_id,),

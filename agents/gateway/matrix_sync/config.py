@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import os
 
 LOCAL_OLLAMA = "http://localhost:11434/api/tags"
@@ -38,7 +39,7 @@ BENCHMARK_WEIGHTS = {
     "OSWorld": 0.70,
     "GSM8K": 0.40,
 }
-BENCHMARK_MAX = {k: 100.0 for k in BENCHMARK_WEIGHTS.keys()}
+BENCHMARK_MAX = {k: 100.0 for k in BENCHMARK_WEIGHTS}
 
 TIER_ORDER = ["S", "A+", "A", "A-", "B+", "B", "C", "D"]
 TIER_RANK = {t: i for i, t in enumerate(TIER_ORDER)}

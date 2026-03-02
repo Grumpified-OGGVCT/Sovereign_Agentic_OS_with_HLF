@@ -15,8 +15,7 @@ import json
 import sqlite3
 import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-
+from unittest.mock import patch
 
 # ---------------------------------------------------------------------------
 # Helper: create a test DB with dream tables
@@ -147,7 +146,7 @@ class TestHatPersistence:
     """Test database persistence of findings."""
 
     def test_persist_and_retrieve_findings(self, tmp_path: Path) -> None:
-        from agents.core.hat_engine import HatFinding, HatReport, persist_findings, get_recent_findings
+        from agents.core.hat_engine import HatFinding, HatReport, get_recent_findings, persist_findings
 
         conn = _make_dream_db(tmp_path / "test.db")
 

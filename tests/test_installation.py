@@ -12,8 +12,6 @@ Run:
 import importlib
 import json
 import os
-import sqlite3
-import sys
 from pathlib import Path
 
 import pytest
@@ -335,7 +333,7 @@ class TestDataIntegrity:
 
     def test_registry_schema_has_models_table(self):
         """The registry DB schema must create tables."""
-        from agents.core.db import get_db, _SCHEMA_SQL
+        from agents.core.db import _SCHEMA_SQL, get_db
 
         with get_db(":memory:") as conn:
             conn.executescript(_SCHEMA_SQL)

@@ -4,11 +4,13 @@ Handles Time-To-Live (TTL) for Human-In-The-Loop inputs and cascading container 
 """
 from __future__ import annotations
 
+import contextlib
+import json
+import logging
 import os
 import signal
 import sys
-import logging
-import json
+
 import redis
 
 try:
@@ -65,10 +67,8 @@ class DeadManSwitch:
         logger.critical(f"DEAD MAN'S SWITCH TRIGGERED: {reason}")
         
         # 1. Trigger SIGUSR1 to own process to dump memory
-        try:
+        with contextlib.suppress(Exception):
             os.kill(os.getpid(), signal.SIGUSR1)
-        except Exception:
-            pass
             
         # 2. Sever sovereign-net connectivity
         if docker is not None:

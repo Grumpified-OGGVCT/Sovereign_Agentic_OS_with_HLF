@@ -61,7 +61,7 @@ def _builtin_base64_decode(*args: Any) -> str:
 
 
 def _builtin_now(*_args: Any) -> str:
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+    return datetime.datetime.now(datetime.UTC).isoformat()
 
 
 def _builtin_uuid(*_args: Any) -> str:

@@ -27,10 +27,9 @@ import logging
 import os
 import sqlite3
 import time
-import urllib.request
 import urllib.error
-from dataclasses import dataclass, field, asdict
-from typing import Optional
+import urllib.request
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ class HatReport:
     focus: str
     findings: list[HatFinding] = field(default_factory=list)
     raw_response: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +315,7 @@ def _build_system_context(conn: sqlite3.Connection | None = None) -> str:
                 lines = []
                 for r in recent:
                     lines.append(f"  [{r[1]}] practiced={r[2]} passed={r[3]}: {r[4] or 'N/A'}")
-                context_parts.append(f"=== RECENT DREAM CYCLES ===\n" + "\n".join(lines))
+                context_parts.append("=== RECENT DREAM CYCLES ===\n" + "\n".join(lines))
         except Exception:
             pass
 

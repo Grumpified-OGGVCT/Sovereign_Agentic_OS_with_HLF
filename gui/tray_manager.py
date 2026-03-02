@@ -1,11 +1,11 @@
-import pystray
-from pystray import MenuItem as item
-from PIL import Image, ImageDraw, ImageFont
+import os
 import subprocess
 import threading
-import sys
-import os
 import webbrowser
+
+import pystray
+from PIL import Image, ImageDraw
+from pystray import MenuItem as item
 
 # OS Level states
 backend_process = None
