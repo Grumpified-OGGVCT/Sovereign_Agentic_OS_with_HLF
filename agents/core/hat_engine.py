@@ -13,6 +13,7 @@ Hats:
   🟢 Green — Missing mechanisms, creative improvements
   🔵 Blue  — Process audit, spec completeness, internal consistency
 """
+
 from __future__ import annotations
 
 import json
@@ -20,10 +21,9 @@ import logging
 import os
 import sqlite3
 import time
-import urllib.request
 import urllib.error
-from dataclasses import dataclass, field, asdict
-from typing import Optional
+import urllib.request
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +39,11 @@ if "0.0.0.0" in _OLLAMA_HOST:
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class HatFinding:
     hat: str
-    severity: str        # CRITICAL | HIGH | MEDIUM | LOW | INFO
+    severity: str  # CRITICAL | HIGH | MEDIUM | LOW | INFO
     title: str
     description: str
     recommendation: str
@@ -56,7 +57,7 @@ class HatReport:
     focus: str
     findings: list[HatFinding] = field(default_factory=list)
     raw_response: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -190,9 +191,7 @@ def _build_system_context(conn: sqlite3.Connection | None = None) -> str:
             row_count = conn.execute("SELECT COUNT(*) FROM rolling_context").fetchone()[0]
             fact_count = conn.execute("SELECT COUNT(*) FROM fact_store").fetchone()[0]
             context_parts.append(
-                f"=== DB STATS ===\n"
-                f"Rolling context rows: {row_count}\n"
-                f"Fact store entries: {fact_count}"
+                f"=== DB STATS ===\nRolling context rows: {row_count}\nFact store entries: {fact_count}"
             )
         except Exception:
             pass
@@ -208,7 +207,7 @@ def _build_system_context(conn: sqlite3.Connection | None = None) -> str:
                 lines = []
                 for r in recent:
                     lines.append(f"  [{r[1]}] practiced={r[2]} passed={r[3]}: {r[4] or 'N/A'}")
-                context_parts.append(f"=== RECENT DREAM CYCLES ===\n" + "\n".join(lines))
+                context_parts.append("=== RECENT DREAM CYCLES ===\n" + "\n".join(lines))
         except Exception:
             pass
 
@@ -221,6 +220,7 @@ def _call_ollama(system_prompt: str, user_prompt: str, model: str | None = None)
         # Read from settings if available
         try:
             from pathlib import Path
+
             settings_path = Path(os.environ.get("BASE_DIR", ".")) / "config" / "settings.json"
             if settings_path.exists():
                 settings = json.loads(settings_path.read_text())
@@ -230,14 +230,16 @@ def _call_ollama(system_prompt: str, user_prompt: str, model: str | None = None)
         except Exception:
             model = "kimi-k2.5:cloud"
 
-    payload = json.dumps({
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "stream": False,
-    }).encode()
+    payload = json.dumps(
+        {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "stream": False,
+        }
+    ).encode()
 
     req = urllib.request.Request(
         f"{_OLLAMA_HOST}/api/chat",
@@ -271,30 +273,34 @@ def _parse_findings(hat_name: str, raw_response: str) -> list[HatFinding]:
     start = text.find("[")
     end = text.rfind("]")
     if start >= 0 and end > start:
-        text = text[start:end + 1]
+        text = text[start : end + 1]
 
     try:
         items = json.loads(text)
         if isinstance(items, list):
             for item in items:
                 if isinstance(item, dict):
-                    findings.append(HatFinding(
-                        hat=hat_name,
-                        severity=item.get("severity", "MEDIUM"),
-                        title=item.get("title", "Untitled"),
-                        description=item.get("description", ""),
-                        recommendation=item.get("recommendation", ""),
-                    ))
+                    findings.append(
+                        HatFinding(
+                            hat=hat_name,
+                            severity=item.get("severity", "MEDIUM"),
+                            title=item.get("title", "Untitled"),
+                            description=item.get("description", ""),
+                            recommendation=item.get("recommendation", ""),
+                        )
+                    )
     except json.JSONDecodeError:
         # If JSON parsing fails, create a single finding with the raw text
         logger.warning(f"Could not parse JSON from {hat_name} hat response")
-        findings.append(HatFinding(
-            hat=hat_name,
-            severity="INFO",
-            title=f"{hat_name.title()} Hat Analysis",
-            description=raw_response[:500],
-            recommendation="Review raw analysis output manually.",
-        ))
+        findings.append(
+            HatFinding(
+                hat=hat_name,
+                severity="INFO",
+                title=f"{hat_name.title()} Hat Analysis",
+                description=raw_response[:500],
+                recommendation="Review raw analysis output manually.",
+            )
+        )
 
     return findings
 
@@ -308,7 +314,9 @@ def run_hat(
     hat_def = HAT_DEFINITIONS.get(hat_name)
     if hat_def is None:
         return HatReport(
-            hat=hat_name, emoji="❓", focus="unknown",
+            hat=hat_name,
+            emoji="❓",
+            focus="unknown",
             error=f"Unknown hat: {hat_name}",
         )
 
@@ -347,10 +355,7 @@ def run_all_hats(
         logger.info(f"Running {hat_name} hat analysis...")
         report = run_hat(hat_name, conn=conn, model=model)
         reports.append(report)
-        logger.info(
-            f"  {report.emoji} {hat_name}: "
-            f"{len(report.findings)} findings"
-        )
+        logger.info(f"  {report.emoji} {hat_name}: {len(report.findings)} findings")
 
     return reports
 
@@ -361,26 +366,33 @@ def persist_findings(
     reports: list[HatReport],
 ) -> int:
     """Save hat findings to the hat_findings table. Returns count saved."""
-    count = 0
-    for report in reports:
-        for finding in report.findings:
-            conn.execute(
-                "INSERT INTO hat_findings "
-                "(dream_cycle_id, hat, severity, title, description, recommendation, timestamp) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (
-                    dream_cycle_id,
-                    finding.hat,
-                    finding.severity,
-                    finding.title,
-                    finding.description,
-                    finding.recommendation,
-                    finding.timestamp,
-                ),
-            )
-            count += 1
+
+    # Batch inserts using executemany to avoid N+1 query overhead for better performance
+    rows_to_insert = [
+        (
+            dream_cycle_id,
+            finding.hat,
+            finding.severity,
+            finding.title,
+            finding.description,
+            finding.recommendation,
+            finding.timestamp,
+        )
+        for report in reports
+        for finding in report.findings
+    ]
+
+    if not rows_to_insert:
+        return 0
+
+    conn.executemany(
+        "INSERT INTO hat_findings "
+        "(dream_cycle_id, hat, severity, title, description, recommendation, timestamp) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        rows_to_insert,
+    )
     conn.commit()
-    return count
+    return len(rows_to_insert)
 
 
 def get_recent_findings(
