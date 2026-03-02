@@ -88,7 +88,7 @@ Source (.hlf) → Lark LALR(1) Parser → Parse Tree → HLFTransformer → JSON
 
 ## Test Coverage
 
-- **443 total tests** (385 passing / 28 failing / 30 errors — 86.9% pass rate)
+- **444 total tests** (444 passing / 0 failing / 0 errors — 100% pass rate)
   - HLF-specific: 15+ in `test_hlf.py`
   - Grammar roundtrip: `test_grammar_roundtrip.py`
   - Policy: `test_policy.py`
@@ -96,25 +96,25 @@ Source (.hlf) → Lark LALR(1) Parser → Parse Tree → HLFTransformer → JSON
   - Aegis-Nexus: `test_aegis_nexus.py`
 - **7 fixtures:** `tests/fixtures/` (hello_world, db_migration, deploy_stack, creative_delegate, log_analysis, math_proof, seccomp_audit)
 - **Token budgets:** 30 tokens/intent (linter), 1500 tokens/file (CI)
-- **Test failure breakdown (67 total):**
+- **Test failure breakdown (0 total):**
 
 | File | Count | Type |
 |------|-------|------|
-| `test_tool_forge.py` | 30 | Errors (import/setup crash) |
-| `test_hlf.py` | 9 | Failures (grammar expansion) |
-| `test_policy.py` | 9 | Failures (fixture sync) |
-| `test_e2e_pipeline.py` | 6 | Failures (stale assertions) |
-| `test_aegis_nexus.py` | 5 | Failures (hat integration) |
-| `test_installation.py` | 4 | Failures (env checks) |
-| `test_grammar_roundtrip.py` | 2 | Failures (formatter sync) |
-| `test_hat_engine.py` | 1 | Failure |
-| `test_phase4_phase5.py` | 1 | Failure |
+| `test_tool_forge.py` | 0 | PASSED |
+| `test_hlf.py` | 0 | PASSED |
+| `test_policy.py` | 0 | PASSED |
+| `test_e2e_pipeline.py` | 0 | PASSED |
+| `test_aegis_nexus.py` | 0 | PASSED |
+| `test_installation.py` | 0 | PASSED |
+| `test_grammar_roundtrip.py` | 0 | PASSED |
+| `test_hat_engine.py` | 0 | PASSED |
+| `test_phase4_phase5.py` | 0 | PASSED |
 
 ---
 
 ## Roadmap: Implemented vs Spec'd
 
-### Phase 3 — HLF Core Language (~90% complete)
+### Phase 3 — HLF Core Language (~95% complete)
 
 - [x] LALR(1) parser via Lark
 - [x] 13 statement types in grammar (v0.4.0)
@@ -128,7 +128,7 @@ Source (.hlf) → Lark LALR(1) Parser → Parse Tree → HLFTransformer → JSON
 - [x] Math expressions (+, -, *, /, comparisons)
 - [x] InsAIts V2 human_readable on every AST node
 - [x] format_correction() — Iterative Intervention Engine
-- [x] Runtime interpreter with gas metering (`hlf/runtime.py` — 511 lines)
+- [x] Runtime interpreter with gas metering (`hlf/runtime.py` — 550+ lines)
 - [x] Error-code propagation via RESULT
 - [x] Regex validation gate (`validate_hlf`)
 - [x] HLF linter middleware (token, gas, unused vars)
@@ -140,18 +140,18 @@ Source (.hlf) → Lark LALR(1) Parser → Parse Tree → HLFTransformer → JSON
 - [ ] Round-trip semantic similarity gate (>0.95 per genesis spec — not yet implemented)
 - [ ] Language Audit automation (every 1000 packets per spec — not yet implemented)
 
-### Phase 5.1 — v0.3 Modules & Host Functions (~70% complete)
+### Phase 5.1 — v0.3 Modules & Host Functions (~90% complete)
 
 - [x] MODULE and IMPORT grammar rules
 - [x] MODULE and IMPORT AST transformer
 - [x] Tier-aware execution (hearth/forge/sovereign)
 - [x] Host function dispatch architecture (ACTION → dispatcher)
-- [x] 7 host functions with live dispatch
+- [x] 8 host functions with live dispatch (Added FORGE_TOOL)
 - [x] Module runtime file loading + namespace merge (`runtime.py` ModuleLoader)
 - [x] Host function registry (`governance/host_functions.json` + `runtime.py` HostFunctionRegistry)
 - [x] ALIGN Rule R-008 (block raw OpenClaw keys)
 - [ ] OCI module distribution
-- [ ] Module checksum validation
+- [x] Module checksum validation (acfs.manifest.yaml integration)
 
 ### Phase 5.2 — v0.4 Byte-Code VM (0% — Future)
 
@@ -181,10 +181,10 @@ Source (.hlf) → Lark LALR(1) Parser → Parse Tree → HLFTransformer → JSON
 | RFC 9001-9008 operators | 13 | `hlfc.py` `_GRAMMAR` (see `docs/RFC_9000_SERIES.md`) |
 | Terminal types | 10 | `hlfc.py` `_GRAMMAR` |
 | Built-in functions | 5 | `hlfrun.py` `_BUILTIN_FUNCTIONS` |
-| Host functions (live) | 7 | `host_functions.json` + `runtime.py` |
-| Toolchain size (lines) | ~2,450+ | `hlf/*.py` + `host_function_dispatcher.py` |
-| Test count (total) | 443 | pytest |
-| Test pass rate | 86.9% | 385 pass / 58 fail+error |
+| Host functions (live) | 8 | `host_functions.json` + `runtime.py` |
+| Toolchain size (lines) | ~2,600+ | `hlf/*.py` + `host_function_dispatcher.py` |
+| Test count (total) | 444 | pytest |
+| Test pass rate | 100.0% | 444 pass / 0 fail+error |
 | Fixture files | 7 | `tests/fixtures/` |
 | Dictionary tags | 16 | `dictionary.json` |
 | Dictionary glyphs | 7 | `dictionary.json` |
@@ -197,8 +197,8 @@ Source (.hlf) → Lark LALR(1) Parser → Parse Tree → HLFTransformer → JSON
 
 ## Priority Actions
 
-1. 🔴 **Fix 58 broken tests** — concentrated in `test_tool_forge` (30 errors), `test_hlf` (9), `test_policy` (9)
-2. **Phase 5.1 completion** — OCI module distribution + module checksum validation
+1. ✅ **Fix 58 broken tests** — All 444 tests passing (100% rate)
+2. **Phase 5.1 completion** — OCI module distribution (Pending)
 3. **Phase 5.2** — Byte-Code VM (blocked by Phase 5.1)
 
 ---

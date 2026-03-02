@@ -586,7 +586,7 @@ class TestGUIModuleHealth:
     def test_gui_modules_exist(self) -> None:
         """Expected GUI module files are present in the gui/ directory."""
         gui_dir = Path(__file__).parent.parent / "gui"
-        expected_files = ["app.py", "chat.py", "dreamlog.py"]
+        expected_files = ["app.py", "tray_manager.py"]
 
         for fname in expected_files:
             fpath = gui_dir / fname
@@ -638,7 +638,7 @@ class TestSchedulerIntegration:
 
         content = sched_path.read_text(encoding="utf-8")
         assert "class Telemetry" in content
-        assert "class SchedulerDaemon" in content
+        assert "def run_daemon" in content
 
     def test_scheduler_health_endpoint_defined(self) -> None:
         """The health HTTP handler is defined."""

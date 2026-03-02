@@ -11,6 +11,7 @@ Covers:
 """
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -288,6 +289,31 @@ class TestModuleLoader:
 
         assert env["pi"] == 3
         assert env["math_utils.pi"] == 3
+
+    def test_module_checksum_validation(self, tmp_path: Path) -> None:
+        mod_dir = tmp_path / "secure_modules"
+        mod_dir.mkdir()
+        mod_file = mod_dir / "secure.hlf"
+        content = '[HLF-v2]\n[SET] secret = 42\nΩ\n'
+        mod_file.write_text(content, encoding="utf-8")
+
+        sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+        manifest_file = tmp_path / "manifest.yaml"
+        manifest_file.write_text(f"modules:\n  secure: {sha256}\n", encoding="utf-8")
+
+        loader = ModuleLoader(search_paths=[mod_dir], manifest_path=manifest_file)
+        # Should load successfully
+        ns = loader.load("secure")
+        assert ns.bindings["secret"] == 42
+
+        # Tamper with the file
+        mod_file.write_text('[HLF-v2]\n[SET] secret = 666\nΩ\n', encoding="utf-8")
+
+        # Clear cache and reload
+        loader._cache.clear()
+        with pytest.raises(HlfModuleError, match="Checksum mismatch"):
+            loader.load("secure")
 
 
 # ─── HLF Runtime ─────────────────────────────────────────────────────────────

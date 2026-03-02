@@ -103,7 +103,26 @@ def _dispatch_backend(backend: str, name: str, args: list, meta: dict) -> Any:
         return _docker_spawn(args, meta)
     if backend == "dapr_container_spawn":
         return _dapr_container_spawn(name, args, meta)
+    if backend == "tool_forge":
+        return _tool_forge(args)
     raise RuntimeError(f"Unknown backend: {backend}")
+
+
+def _tool_forge(args: list) -> str:
+    """FORGE_TOOL <task_description> — dispatch to tool_forge."""
+    if not args or not args[0]:
+        return "FORGE_TOOL_ERROR: Missing task description"
+
+    from agents.core.tool_forge import forge_tool
+    result = forge_tool(str(args[0]))
+    if not result:
+        return "FORGE_TOOL_REJECTED: Security gates or LLM judge failed"
+
+    return json.dumps({
+        "name": result["name"],
+        "sha256": result["sha256"],
+        "human_readable": result.get("human_readable", "")
+    })
 
 
 def _exec_builtin(name: str, args: list) -> Any:

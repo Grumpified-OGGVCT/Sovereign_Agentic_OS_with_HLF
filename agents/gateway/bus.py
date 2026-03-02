@@ -218,7 +218,10 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
 
         # 3. Compile HLF → AST (Before ALIGN evaluation)
         try:
+            from hlf.hlfc import HlfAlignViolation
             ast = hlfc_compile(hlf_payload)
+        except HlfAlignViolation as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except HlfSyntaxError as exc:
             correction = format_correction(hlf_payload, exc)
             raise HTTPException(status_code=422, detail=correction) from exc

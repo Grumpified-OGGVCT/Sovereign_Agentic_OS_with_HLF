@@ -433,6 +433,10 @@ def run_daemon(once: bool = False) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
+    # Use defaults from module-level config if not provided
+    default_interval = float(os.getenv("PIPELINE_INTERVAL_HOURS", "6"))
+    default_port = int(os.getenv("PIPELINE_HEALTH_PORT", "8099"))
+
     ap = argparse.ArgumentParser(
         description="Pipeline Scheduler Daemon — runs model sync on a 6-hour cycle."
     )
@@ -442,11 +446,11 @@ def main() -> None:
     )
     ap.add_argument(
         "--interval", type=float, default=None,
-        help=f"Override interval in hours (default: {INTERVAL_HOURS})."
+        help=f"Override interval in hours (default: {default_interval})."
     )
     ap.add_argument(
         "--port", type=int, default=None,
-        help=f"Override health endpoint port (default: {HEALTH_PORT})."
+        help=f"Override health endpoint port (default: {default_port})."
     )
     ap.add_argument(
         "--no-promote", dest="promote", action="store_false", default=True,
@@ -456,11 +460,23 @@ def main() -> None:
 
     global INTERVAL_HOURS, HEALTH_PORT, AUTO_PROMOTE
     if args.interval is not None:
-        INTERVAL_HOURS = args.interval
+        global_interval = args.interval
+    else:
+        global_interval = INTERVAL_HOURS
+
     if args.port is not None:
-        HEALTH_PORT = args.port
+        global_port = args.port
+    else:
+        global_port = HEALTH_PORT
+
     if not args.promote:
-        AUTO_PROMOTE = False
+        global_promote = False
+    else:
+        global_promote = AUTO_PROMOTE
+
+    INTERVAL_HOURS = global_interval
+    HEALTH_PORT = global_port
+    AUTO_PROMOTE = global_promote
 
     run_daemon(once=args.once)
 

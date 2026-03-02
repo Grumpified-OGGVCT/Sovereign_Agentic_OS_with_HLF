@@ -349,18 +349,32 @@ class ModuleLoader:
       2. Relative to the importing file
       3. Project root /hlf/ directory
 
-    Implements circular-import detection and caching.
+    Implements circular-import detection, caching, and checksum validation.
     """
 
     def __init__(
         self,
         search_paths: list[Path] | None = None,
         tier: str | None = None,
+        manifest_path: Path | None = None,
     ):
         self.search_paths = search_paths or list(_MODULE_SEARCH_PATHS)
         self.tier = tier or _DEPLOYMENT_TIER
         self._cache: dict[str, ModuleNamespace] = {}
         self._loading: set[str] = set()  # circular import guard
+        self._manifest_path = manifest_path or (_PROJECT_ROOT / "acfs.manifest.yaml")
+        self._module_checksums: dict[str, str] = self._load_manifest_checksums()
+
+    def _load_manifest_checksums(self) -> dict[str, str]:
+        """Load expected module checksums from acfs.manifest.yaml."""
+        if not self._manifest_path.exists():
+            return {}
+        try:
+            import yaml
+            data = yaml.safe_load(self._manifest_path.read_text(encoding="utf-8"))
+            return data.get("modules", {})
+        except Exception:
+            return {}
 
     def resolve_path(self, module_name: str, relative_to: Path | None = None) -> Path | None:
         """Find the .hlf file for a module name."""
@@ -417,8 +431,19 @@ class ModuleLoader:
         self._loading.add(module_name)
 
         try:
+            # Read and validate checksum
+            source_bytes = source_path.read_bytes()
+            actual_sha = hashlib.sha256(source_bytes).hexdigest()
+            expected_sha = self._module_checksums.get(module_name)
+
+            if expected_sha and actual_sha != expected_sha:
+                raise HlfModuleError(
+                    f"Checksum mismatch for module '{module_name}'. "
+                    f"Expected: {expected_sha}, Got: {actual_sha}"
+                )
+
             # Read and compile
-            source = source_path.read_text(encoding="utf-8")
+            source = source_bytes.decode("utf-8")
             ast = hlfc_compile(source)
 
             # Extract namespace

@@ -163,7 +163,11 @@ class HLFTransformer(Transformer):
 
     def start(self, items: list) -> dict[str, Any]:
         program = [i for i in items if i is not None]
-        return {"version": "0.4.0", "program": program}
+        return {
+            "version": "0.4.0",
+            "compiler": "HLFC-v0.4.0",
+            "program": program
+        }
 
     def line(self, items: list) -> Any:
         return items[0] if items else None
@@ -922,6 +926,7 @@ _TYPE_VALIDATORS: dict[str, Any] = {
     "any": lambda _: True,
     "path": lambda v: isinstance(v, str),
     "identifier": lambda v: isinstance(v, str) and v.isidentifier(),
+    "reference": lambda v: isinstance(v, dict) and "ref" in v and v.get("operator") == "&",
 }
 
 # Tag registry loaded from dictionary.json
@@ -1076,8 +1081,16 @@ def _pass4_dictionary_validate(program: list[dict[str, Any]]) -> None:
                 expected_type = arg_spec.get("type", "any")
                 validator = _TYPE_VALIDATORS.get(expected_type, lambda _: True)
 
-                if not validator(raw_args[i]):
-                    raise HlfTypeError(tag, arg_name, expected_type, raw_args[i])
+                val = raw_args[i]
+                if isinstance(val, dict) and arg_name in val and "ref" not in val:
+                    val = val[arg_name]
+
+                # Allow references (Pass-by-Ref) even if the type spec says something else,
+                # as long as it's not explicitly forbidden or we want to allow it everywhere.
+                is_ref = _TYPE_VALIDATORS["reference"](val)
+
+                if not is_ref and not validator(val):
+                    raise HlfTypeError(tag, arg_name, expected_type, val)
 
         # --- Annotate properties from dictionary ---
         if spec.get("pure") and "pure" not in node:

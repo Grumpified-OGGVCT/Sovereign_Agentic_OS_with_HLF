@@ -7,6 +7,7 @@
     { "name": "SLEEP", "args": [{"name":"ms","type":"int"}], "returns": "bool", "tier": ["hearth","forge","sovereign"], "gas": 0, "backend": "builtin", "sensitive": false },
     { "name": "HTTP_GET", "args": [{"name":"url","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 3, "backend": "dapr_http_proxy", "sensitive": false },
     { "name": "WEB_SEARCH", "args": [{"name":"query","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "dapr_http_proxy", "sensitive": true },
-    { "name": "OPENCLAW_SUMMARIZE", "args": [{"name":"path","type":"path"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 7, "backend": "dapr_container_spawn", "sensitive": true, "binary_path": "/opt/openclaw/bin/openclaw_summarize", "binary_sha256": "" }
+    { "name": "OPENCLAW_SUMMARIZE", "args": [{"name":"path","type":"path"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 7, "backend": "dapr_container_spawn", "sensitive": true, "binary_path": "/opt/openclaw/bin/openclaw_summarize", "binary_sha256": "" },
+    { "name": "FORGE_TOOL", "args": [{"name":"task","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 10, "backend": "tool_forge", "sensitive": false }
   ]
 }

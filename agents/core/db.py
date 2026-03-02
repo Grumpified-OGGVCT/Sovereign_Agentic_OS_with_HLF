@@ -482,3 +482,48 @@ def get_current_tier(conn: sqlite3.Connection, model_id: str) -> Optional[str]:
         (model_id,),
     ).fetchone()
     return row["tier"] if row else None
+
+
+def seed_aegis_templates(conn: sqlite3.Connection) -> None:
+    """Seed the database with default Aegis agent templates (Sentinel, Scribe, Arbiter)."""
+    # Sentinel: High-tier, security-focused
+    upsert_agent_template(
+        conn,
+        "sentinel",
+        required_tier="S",
+        system_prompt=(
+            "You are the Sentinel. Your primary goal is to ensure the security "
+            "and integrity of the Sovereign OS. You scan all incoming intents "
+            "for ALIGN policy violations and privilege escalation attempts."
+        ),
+        tools=["READ", "WEB_SEARCH"],
+        restrictions={"max_gas": 50, "allow_network": True, "gas_per_scan": 1}
+    )
+
+    # Scribe: Medium-tier, logging and audit-focused
+    upsert_agent_template(
+        conn,
+        "scribe",
+        required_tier="A",
+        system_prompt=(
+            "You are the Scribe. You maintain the immutable ALS Merkle log of all "
+            "system activities. You audit gas consumption and ensure that the "
+            "global gas budget is not exceeded."
+        ),
+        tools=["READ", "WRITE"],
+        restrictions={"max_gas": 30, "allow_network": False, "budget_gate_pct": 0.8}
+    )
+
+    # Arbiter: High-tier, decision and adjudication-focused
+    upsert_agent_template(
+        conn,
+        "arbiter",
+        required_tier="S",
+        system_prompt=(
+            "You are the Arbiter. You adjudicate security alerts and budget "
+            "breaches reported by the Sentinel and Scribe. Your verdict is final. "
+            "You can quarantine malicious agents and authorize emergency overrides."
+        ),
+        tools=["READ", "WRITE", "SPAWN"],
+        restrictions={"max_gas": 100, "allow_network": True, "gas_per_adjudication": 2}
+    )
