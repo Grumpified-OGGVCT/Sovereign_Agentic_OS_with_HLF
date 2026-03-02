@@ -163,7 +163,7 @@ def get_active_snapshot_info() -> dict:
                 return {
                     "id": snap["id"],
                     "families": snap["families"] or "—",
-                    "model_count": snap["model_count"] or len(models),
+                    "model_count": snap["model_count"] if snap["model_count"] is not None else len(models),
                     "promoted_at": snap["promoted_at"] or "—",
                     "is_promoted": bool(snap["is_promoted"]),
                 }
@@ -213,10 +213,8 @@ def get_routing_trace() -> list[dict]:
     if not redis_ok or r is None:
         return []
     try:
-        import json as _json
-
         raw = r.lrange("routing:trace_log", 0, 9)
-        return [_json.loads(item) for item in raw if item]
+        return [json.loads(item) for item in raw if item]
     except Exception:
         return []
 
