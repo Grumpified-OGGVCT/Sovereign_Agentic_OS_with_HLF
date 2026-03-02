@@ -8,6 +8,7 @@ real-time metrics. Falls back gracefully when services are unavailable.
 
 import json
 import os
+import time
 import urllib.request
 from pathlib import Path
 
@@ -148,6 +149,9 @@ def get_host_function_count() -> int:
         pass
     return 0
 
+
+
+
 def check_local_node_status() -> tuple[str, str]:
     """Check if the Local Autonomous Node is running by inspecting its heartbeat log."""
     log_path = _PROJECT_ROOT / "logs" / "local_node.log"
@@ -156,7 +160,7 @@ def check_local_node_status() -> tuple[str, str]:
             # Check if updated in the last 2 minutes
             mtime = os.path.getmtime(log_path)
             if (time.time() - mtime) < 120:
-                with open(log_path, 'r') as f:
+                with open(log_path) as f:
                     lines = f.readlines()
                     if lines:
                         last_line = lines[-1].strip()
@@ -388,19 +392,24 @@ def check_for_updates() -> dict:
     try:
         subprocess.run(
             ["git", "fetch", "--quiet"],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
             cwd=str(_PROJECT_ROOT),
         )
         behind = subprocess.run(
             ["git", "rev-list", "--count", "HEAD..origin/main"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
             cwd=str(_PROJECT_ROOT),
         )
         count = int(behind.stdout.strip() or 0)
         if count > 0:
             log = subprocess.run(
                 ["git", "log", "--oneline", f"-{min(count, 10)}", "origin/main"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
                 cwd=str(_PROJECT_ROOT),
             )
             result = {
@@ -420,14 +429,18 @@ def apply_update() -> tuple[bool, str]:
     try:
         pull = subprocess.run(
             ["git", "pull", "origin", "main"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
             cwd=str(_PROJECT_ROOT),
         )
         if pull.returncode != 0:
             return False, f"Git pull failed: {pull.stderr.strip()}"
         sync = subprocess.run(
             ["uv", "sync", "--all-extras"],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True,
+            text=True,
+            timeout=120,
             cwd=str(_PROJECT_ROOT),
         )
         if sync.returncode != 0:
@@ -449,8 +462,8 @@ if update_info["available"]:
         f'<div class="update-banner">'
         f'<span class="update-icon">🔔</span>'
         f'<span class="update-text">Updates Available — '
-        f'{update_info["commits_behind"]} commit(s) behind origin/main</span>'
-        f'</div>',
+        f"{update_info['commits_behind']} commit(s) behind origin/main</span>"
+        f"</div>",
         unsafe_allow_html=True,
     )
     with st.expander("📋 Review & Apply Updates", expanded=False):
@@ -469,9 +482,7 @@ if update_info["available"]:
                     st.rerun()
                 else:
                     st.error(msg)
-                    st.warning(
-                        "⚠️ Manual resolution may be needed. Run `git status` in terminal."
-                    )
+                    st.warning("⚠️ Manual resolution may be needed. Run `git status` in terminal.")
         with col_dismiss:
             if st.button("🔕 Dismiss", use_container_width=True):
                 st.cache_data.clear()
@@ -1059,12 +1070,19 @@ with center_canvas:
         )
         col_dispatch, col_tier = st.columns([1, 2])
         with col_dispatch:
+            is_empty = not bool(intent_input.strip())
+            help_text = (
+                "Sends the command to the Gateway Bus at localhost:40404. "
+                "The Gateway applies: rate limiting → HLF syntax validation → "
+                "ALIGN ledger check → nonce replay protection → Dapr routing."
+            )
+            if is_empty:
+                help_text = f"⚠️ **Enter a command to enable dispatching.**\n\n{help_text}"
+
             dispatch_btn = st.button(
                 "🚀 Dispatch",
-                help="Sends the command to the Gateway Bus at localhost:40404. "
-                "The Gateway applies: rate limiting → HLF syntax validation → "
-                "ALIGN ledger check → nonce replay protection → Dapr routing.",
-                disabled=not bool(intent_input.strip()),
+                help=help_text,
+                disabled=is_empty,
             )
         with col_tier:
             st.caption(f"Active tier: **{tier_selection}** | Gateway: {gw_status}")
