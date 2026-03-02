@@ -341,3 +341,33 @@ Every intent passes through a **6-gate security pipeline** that JSON/natural lan
 - [ ] **Entropic Memory Sanitization** — Defense against time-shifted memory poisoning. Sophisticated attack vector requiring periodic entropy injection into memory stores. Depends on threat model.
 - [ ] **Firecracker/Kata MicroVM Sandboxing (Layer 9)** — Hardware-isolated code execution. Docker + seccomp is sufficient for current threat model. Firecracker adds 125ms boot overhead per sandbox.
 - [ ] **Two-Channel Context Rot Defense** — Explicit separation of instructions from massive raw data using pointers. Partially implicit in the AST architecture but not formally enforced as a separate channel.
+
+---
+
+## Phase 7: LOLLMS Integration — North Star Compatibility Goal 🌟
+
+> *Honoring ParisNeo's work through direct compatibility — not appropriation, but integration.*
+
+**Goal:** Run [LOLLMS](https://github.com/ParisNeo/lollms) at full capacity INSIDE the Sovereign OS — bare-metal, same filesystem, files directly accessible. No Docker isolation, no piecemeal extraction.
+
+**Success Test:** `pip install lollms` into the OS directory, fire up the WebUI, and have all security/governance layers automatically protecting it.
+
+### Integration Points
+
+- [ ] LOLLMS Personality System → 11-Hat agent personas (security-trained)
+- [ ] LOLLMS Model Bindings → MoMA dispatch wraps with audit logging
+- [ ] LOLLMS WebUI → Cognitive SOC GUI integration
+- [ ] LOLLMS Extensions → HLF Tool Forge sandboxed execution
+- [ ] LOLLMS Agent Component → ALIGN rule enforcement + Sentinel gate monitoring
+- [ ] LOLLMS Agents Zoo (addon) → Gas metering + HLF governance
+- [ ] LOLLMS Discussions → ASB Redis Streams inter-agent communication
+
+### Compatibility Requirements
+
+- [ ] API gateway (`router.py`) transparently proxies LOLLMS traffic through 6-gate pipeline
+- [ ] ALIGN rules enforce on all LOLLMS-generated outputs
+- [ ] Merkle audit logging captures all LOLLMS conversations
+- [ ] Gas metering tracks LOLLMS token consumption
+- [ ] Sentinel gate monitors for prompt injection/jailbreak through LOLLMS
+- [ ] HLF compiler can parse LOLLMS personality configs
+
