@@ -3,7 +3,7 @@
 > 🟢 **Development Status (Mar 2026)**
 > Now on **Google Ultimate Plan** with full Antigravity, Jules, and GitHub Copilot integration.
 > 
-> **✅ Working**: Dream Mode (111/111), 11-Hat Engine (8 named cloud agents), Gateway Bus + ALIGN, C-SOC GUI (dark mode), Ollama Matrix, deep installation tests (62/62), auto-update with user approval, Jules 10-step daily pipeline, MCP Server auto-launch, **Infinite RAG Memory Matrix** (SQLite WAL + MCP bridge + Dream State), HLF metrics & benchmark infrastructure.
+> **✅ Working**: Dream Mode (111/111), 11-Hat Engine (11 named cloud agents), Gateway Bus + ALIGN, C-SOC GUI (dark mode), Ollama Matrix, deep installation tests (65/65), auto-update with user approval, Jules 10-step daily pipeline, MCP Server auto-launch, **Infinite RAG Memory Matrix** (SQLite WAL + MCP bridge + Dream State), HLF metrics & benchmark infrastructure.
 > **🛠️ In Progress**: Copilot agent/runner factory, real-time HLF translation indicators, vector embeddings (sqlite-vec), Redis active context tiering, fractal summarization.
 > **⏸️ Paused**: Pure cloud-only orchestrations.
 >
@@ -277,7 +277,7 @@ HLF and the Infinite RAG are designed to amplify each other:
 ## 🌟 The Sovereign Advantage: Why it Matters
 
 The Sovereign Agentic OS represents a paradigm shift in AI autonomy:
-- **Aegis-Nexus Engine**: Our 11-hat autonomous audit cycle (8 named cloud agents: Sentinel, Scribe, Arbiter, Synthesizer, Scout, Guardian, Operator, Compressor) ensures your agents never hallucinate into privilege escalation or memory leaks.
+- **Aegis-Nexus Engine**: Our 11-hat autonomous audit cycle (11 named cloud agents: Architect, Scribe, Frontend Dev, Backend Engineer, SecOps, Sentinel, Synthesizer, Scout, Guardian, Operator, Compressor) ensures your agents never hallucinate into privilege escalation or memory leaks.
 - **MoMA Dynamic Routing**: Intelligent "Downshifting" means you never pay for a Frontier-tier model when a local small-language model (SLM) can do the same task for free.
 - **Glass-Box Transparency**: The C-SOC dashboard allows you to see every "thought" and "action" in real-time—no secret LLM decision-making.
 - **Start Strong Mandate**: Built from day one with the assumption that AI agents will be the primary operators of the next generation of infrastructure.
@@ -460,7 +460,7 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 | Cloud Platform | Google Ultimate Plan |
 | MCP Server | Antigravity + Jules MCP |
 | GUI Framework | Streamlit (dark mode default) |
-| Installation Tests | 62 deep verification tests |
+| Installation Tests | 65 deep verification tests |
 | Auto-Update | git-based with GUI approval flow |
 | HLF Test Fixtures | 7 domain-specific `.hlf` files |
 | Total Tests | 443 (pytest collected) |
