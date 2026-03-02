@@ -17,9 +17,17 @@ from pydantic_settings import BaseSettings
 from hlf import validate_hlf_heuristic
 from hlf.hlfc import compile as hlfc_compile, format_correction, HlfSyntaxError
 from agents.gateway.sentinel_gate import enforce_align
-from agents.gateway.router import consume_gas_async, verify_gas_limit, record_intent_activity
+from agents.gateway.router import (
+    consume_gas_async, verify_gas_limit, record_intent_activity,
+    route_request, mediate_web_search,
+)
+from agents.gateway.ollama_dispatch import (
+    OllamaDispatcher, InferenceRequest, InferenceResult,
+    StreamChunk, complexity_score, get_dispatcher,
+)
 from agents.gateway.matrix_sync.scheduler import start_scheduler, stop_scheduler, get_scheduler_status
 import httpx
+from fastapi.responses import StreamingResponse
 
 try:
     import ulid as _ulid_module
@@ -104,6 +112,19 @@ class IntentResponse(BaseModel):
     timestamp: float
     ast: dict
     stream_id: str
+    model: str = ""
+    provider: str = ""
+    routing_trace: list = []
+    complexity: float = 0.0
+
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    model: str = ""
+    system: str = ""
+    stream: bool = False
+    temperature: float = 0.7
+    max_tokens: int = 4096
 
 
 @app.get(
@@ -234,9 +255,21 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
 
     timestamp = time.time()
 
+    # 5b. Dynamic Model Routing via MoMA Router (RFC 9004)
+    profile = route_request(hlf_payload, ast)
+    cx = complexity_score(hlf_payload, ast)
+
     # 6. Publish via Dapr pub/sub; fall back to direct Redis stream on Dapr failure
     pub_url = f"{settings.dapr_host}/v1.0/publish/pubsub/intents"
-    stream_payload: dict = {"request_id": request_id, "timestamp": timestamp, "ast": ast}
+    stream_payload: dict = {
+        "request_id": request_id,
+        "timestamp": timestamp,
+        "ast": ast,
+        "model": profile.model,
+        "provider": profile.provider,
+        "system_prompt": profile.system_prompt,
+        "complexity": cx,
+    }
     if is_text_mode:
         stream_payload["text"] = hlf_payload  # forward raw text for Ollama inference
     stream_id = "dapr-pubsub"
@@ -253,7 +286,77 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
         stream_id = f"redis-stream:{redis_id}"
 
     record_intent_activity()
-    return IntentResponse(request_id=request_id, timestamp=timestamp, ast=ast, stream_id=stream_id)
+    return IntentResponse(
+        request_id=request_id,
+        timestamp=timestamp,
+        ast=ast,
+        stream_id=stream_id,
+        model=profile.model,
+        provider=profile.provider,
+        routing_trace=profile.routing_trace,
+        complexity=round(cx, 3),
+    )
+
+
+# ── Dynamic Ollama Dispatch ──────────────────────────────────────────────
+
+
+@app.post(
+    "/api/v1/generate",
+    tags=["Intents"],
+    summary="Direct Model Inference (Generate)",
+    description=(
+        "Dispatch a prompt directly to the MoMA-selected model for inference.\n\n"
+        "**Modes:**\n"
+        "- `stream=false` (default): Returns complete JSON response\n"
+        "- `stream=true`: Returns Server-Sent Events (SSE) stream\n\n"
+        "If no `model` is specified, the MoMA Router selects automatically "
+        "based on prompt complexity (RFC 9004 𝕔 scoring)."
+    ),
+)
+async def generate(body: GenerateRequest):
+    """Direct model inference with optional streaming."""
+    dispatcher = get_dispatcher()
+
+    # Route model selection if not explicitly specified
+    if not body.model:
+        profile = route_request(body.prompt, {})
+        model = profile.model
+        provider = profile.provider
+    else:
+        model = body.model
+        provider = "openrouter" if "openrouter" in model.lower() else "ollama"
+
+    req = InferenceRequest(
+        prompt=body.prompt,
+        model=model,
+        system=body.system,
+        stream=body.stream,
+        temperature=body.temperature,
+        max_tokens=body.max_tokens,
+        metadata={"provider": provider},
+    )
+
+    if body.stream:
+        # SSE streaming response
+        async def event_stream():
+            async for chunk in dispatcher.generate_stream(req):
+                yield chunk.to_sse()
+            yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+    else:
+        # Synchronous JSON response
+        result = await dispatcher.generate(req)
+        return result.to_dict()
 
 
 # ── Registry: Local Inventory Sync ───────────────────────────────────────
