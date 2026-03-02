@@ -26,6 +26,8 @@ GATEWAY_URL = "http://localhost:40404"
 REDIS_HOST = "localhost"
 REDIS_PORT = 6379
 OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+OLLAMA_HOST_SECONDARY = os.environ.get("OLLAMA_HOST_SECONDARY", "")
+OLLAMA_LOAD_STRATEGY = os.environ.get("OLLAMA_LOAD_STRATEGY", "failover")
 # Ollama sets OLLAMA_HOST to 0.0.0.0 (listen address), which can't be used
 # as a client address on Windows. Normalize to localhost for outbound calls.
 if "0.0.0.0" in OLLAMA_HOST:
@@ -33,6 +35,8 @@ if "0.0.0.0" in OLLAMA_HOST:
 # Ensure http:// scheme is present (env var may be just "host:port")
 if not OLLAMA_HOST.startswith("http"):
     OLLAMA_HOST = f"http://{OLLAMA_HOST}"
+if OLLAMA_HOST_SECONDARY and not OLLAMA_HOST_SECONDARY.startswith("http"):
+    OLLAMA_HOST_SECONDARY = f"http://{OLLAMA_HOST_SECONDARY}"
 
 # --- Ollama Matrix Sync paths (sibling project) ---
 _MATRIX_DIR = _PROJECT_ROOT.parent / "ollama-matrix-sync" / "out" / "latest"
@@ -998,25 +1002,40 @@ with center_canvas:
                             }
                         ).encode()
 
-                        chat_req = urllib.request.Request(
-                            f"{OLLAMA_HOST}/api/chat",
-                            data=chat_payload,
-                            headers={"Content-Type": "application/json"},
-                            method="POST",
-                        )
-                        with urllib.request.urlopen(chat_req, timeout=120) as chat_resp:
-                            chat_data = json.loads(chat_resp.read().decode())
+                        # Try primary, then secondary (dual-endpoint failover)
+                        _chat_hosts = [OLLAMA_HOST]
+                        if OLLAMA_HOST_SECONDARY and OLLAMA_LOAD_STRATEGY != "primary_only":
+                            _chat_hosts.append(OLLAMA_HOST_SECONDARY)
 
-                        reply = chat_data.get("message", {}).get("content", "").strip()
+                        reply = None
+                        _last_chat_err = None
+                        for _chat_host in _chat_hosts:
+                            try:
+                                chat_req = urllib.request.Request(
+                                    f"{_chat_host}/api/chat",
+                                    data=chat_payload,
+                                    headers={"Content-Type": "application/json"},
+                                    method="POST",
+                                )
+                                with urllib.request.urlopen(chat_req, timeout=120) as chat_resp:
+                                    chat_data = json.loads(chat_resp.read().decode())
+                                reply = chat_data.get("message", {}).get("content", "").strip()
+                                st.session_state["last_ollama_endpoint"] = _chat_host
+                                break
+                            except Exception as _ep_err:
+                                _last_chat_err = _ep_err
+
                         if not reply:
+                            if _last_chat_err:
+                                raise _last_chat_err  # noqa: TRY301
                             reply = "(Empty response from model)"
 
                         st.markdown(reply)
                         st.session_state["chat_messages"].append({"role": "assistant", "content": reply})
                     except Exception as chat_err:
+                        hosts_tried = " / ".join(f"`{h}`" for h in _chat_hosts)
                         err_msg = (
-                            f"⚠️ Could not reach Ollama at "
-                            f"`{OLLAMA_HOST}`.\n\n"
+                            f"⚠️ Could not reach Ollama at {hosts_tried}.\n\n"
                             f"**Error:** `{chat_err}`\n\n"
                             "Make sure Ollama is running and the "
                             "selected model is available."
@@ -1240,6 +1259,11 @@ with center_canvas:
                     "yellow": "🟡",
                     "green": "🟢",
                     "blue": "🔵",
+                    "indigo": "🟣",
+                    "cyan": "🩵",
+                    "purple": "🟪",
+                    "orange": "🟠",
+                    "silver": "🪨",
                 }
                 for hr in hat_reports:
                     hat_name = hr.get("hat", "?")
@@ -1357,6 +1381,66 @@ with right_pane:
             "Merkle chain not yet initialized. Submit an intent through "
             "the Gateway to start the cryptographic audit trail."
         )
+    st.markdown("---")
+
+    # --- Dual Ollama Endpoint Transparency ---
+    st.markdown(
+        '<p><span class="tech-term" data-tooltip="Shows which Ollama endpoint '
+        "(primary or secondary Docker instance) is handling requests. "
+        'Supports failover, round-robin, and primary-only strategies.">'
+        "Dual Ollama Endpoints</span></p>",
+        unsafe_allow_html=True,
+    )
+
+    # Check primary endpoint health
+    primary_ok = False
+    try:
+        _p_req = urllib.request.Request(f"{OLLAMA_HOST}/api/tags", method="GET")
+        with urllib.request.urlopen(_p_req, timeout=3) as _p_resp:
+            primary_ok = _p_resp.status == 200
+    except Exception:
+        pass
+
+    # Check secondary endpoint health
+    secondary_ok = False
+    if OLLAMA_HOST_SECONDARY:
+        try:
+            _s_req = urllib.request.Request(
+                f"{OLLAMA_HOST_SECONDARY}/api/tags", method="GET"
+            )
+            with urllib.request.urlopen(_s_req, timeout=3) as _s_resp:
+                secondary_ok = _s_resp.status == 200
+        except Exception:
+            pass
+
+    ep1, ep2 = st.columns(2)
+    with ep1:
+        p_icon = "🟢" if primary_ok else "🔴"
+        st.markdown(f"{p_icon} **Primary**")
+        st.caption(f"`{OLLAMA_HOST}`")
+    with ep2:
+        if OLLAMA_HOST_SECONDARY:
+            s_icon = "🟢" if secondary_ok else "🔴"
+            st.markdown(f"{s_icon} **Secondary**")
+            st.caption(f"`{OLLAMA_HOST_SECONDARY}`")
+        else:
+            st.markdown("⬜ **Secondary**")
+            st.caption("`Not configured`")
+
+    # Strategy indicator
+    _strat_labels = {
+        "failover": "🔄 Failover (primary → secondary)",
+        "round_robin": "⚖️ Round-Robin (alternating)",
+        "primary_only": "1️⃣ Primary Only",
+    }
+    st.caption(
+        f"Strategy: {_strat_labels.get(OLLAMA_LOAD_STRATEGY, OLLAMA_LOAD_STRATEGY)}"
+    )
+
+    # Show last endpoint used (from session state, set by chat)
+    last_ep = st.session_state.get("last_ollama_endpoint")
+    if last_ep:
+        st.caption(f"Last request served by: `{last_ep}`")
 
 
 # ============================================================================

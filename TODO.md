@@ -286,7 +286,7 @@ Every intent passes through a **6-gate security pipeline** that JSON/natural lan
 - [x] Generated infographics (system architecture, registry flow, Jules pipeline, RAG comparison)
 - [x] README overhaul with honest benchmark data + live demo links
 
-### V.8: Dual Ollama Load-Sharing Infrastructure 🟢 ~90%
+### V.8: Dual Ollama Load-Sharing Infrastructure ✅ COMPLETE
 
 - [x] Secondary Ollama instance running in Docker at `:11435`
 - [x] 31 cloud models synced to secondary (matching primary inventory)
@@ -296,6 +296,6 @@ Every intent passes through a **6-gate security pipeline** that JSON/natural lan
 - [x] Wire `_ollama_generate_v2()` in `main.py` for failover/round-robin between endpoints
 - [x] Add `OLLAMA_LOAD_STRATEGY` support to `router.py` (failover | round_robin | primary_only)
 - [x] Wire `hat_engine.py` `_call_ollama()` for dual-endpoint failover
-- [ ] GUI transparency panel: show which Ollama endpoint handled each request
+- [x] GUI transparency panel: dual endpoint health, strategy display, last-endpoint tracking
 
 > **Benefit:** Doubles effective cloud model quota and parallel request capacity when both endpoints are active. Strategy is optional — the system degrades gracefully to primary-only if secondary is unreachable.
