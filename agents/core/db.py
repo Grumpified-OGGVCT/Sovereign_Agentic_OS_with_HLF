@@ -455,6 +455,16 @@ def get_feedback(
     ).fetchall()
 
 
+def get_all_feedback(
+    conn: sqlite3.Connection, limit: int = 50
+) -> list[sqlite3.Row]:
+    """Return the most recent feedback entries across all models."""
+    return conn.execute(
+        "SELECT * FROM model_feedback ORDER BY ts DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+
+
 # ---------------------------------------------------------------------------
 # CRUD helpers — Model Tier History
 # ---------------------------------------------------------------------------

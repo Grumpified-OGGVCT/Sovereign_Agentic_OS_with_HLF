@@ -1439,7 +1439,11 @@ with center_canvas:
             )
         with tp_c2, st.container(border=True):
             gas_display = f"{gas_remaining:,}" if gas_remaining is not None else "N/A"
-            gas_pct = f" ({int(gas_remaining / gas_cap * 100)}%)" if gas_remaining is not None else ""
+            gas_pct = (
+                f" ({int(gas_remaining / gas_cap * 100)}%)"
+                if gas_remaining is not None and gas_cap > 0
+                else ""
+            )
             st.metric(
                 "Gas Remaining",
                 gas_display + gas_pct,
@@ -1563,7 +1567,7 @@ with center_canvas:
         if local_inv:
             inv_df = pd.DataFrame(local_inv)
             inv_df["Running"] = inv_df["is_running"].map({True: "🟢", False: "⚫"})
-            inv_df["Size"] = inv_df["size_gb"].apply(lambda x: f"{x:.1f} GB" if x > 0 else "API")
+            inv_df["Size"] = inv_df["size_gb"].apply(lambda x: f"{x:.1f} GB" if x > 0 else "—")
             st.dataframe(
                 inv_df[["model_id", "name", "Size", "Running", "last_seen"]].rename(
                     columns={
@@ -1632,16 +1636,14 @@ with center_canvas:
         )
         if st.button("📋 Load Feedback", key="load_feedback_btn"):
             try:
-                from agents.core.db import get_db, get_feedback
+                from agents.core.db import get_all_feedback, get_db, get_feedback
 
                 model_filter = None if feedback_model == "(all models)" else feedback_model
                 with get_db() as _conn:
                     if model_filter:
                         fb_rows = get_feedback(_conn, model_filter, limit=50)
                     else:
-                        fb_rows = _conn.execute(
-                            "SELECT * FROM model_feedback ORDER BY ts DESC LIMIT 50"
-                        ).fetchall()
+                        fb_rows = get_all_feedback(_conn, limit=50)
                     if fb_rows:
                         fb_data = [
                             {
