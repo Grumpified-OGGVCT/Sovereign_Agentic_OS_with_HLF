@@ -641,12 +641,206 @@ def _pass2_expand_and_validate(
     return expanded
 
 
-def compile(source: str) -> dict[str, Any]:  # noqa: A001
+# ------------------------------------------------------------------ #
+# Pass 3 — ALIGN Ledger Security Validation (V.2)
+# ------------------------------------------------------------------ #
+
+_ALIGN_RULES: list[dict[str, Any]] = []
+_ALIGN_COMPILED: list[tuple[str, str, re.Pattern[str], str]] = []
+
+def _load_align_ledger() -> None:
+    """Load ALIGN_LEDGER.yaml at module init — compile all regex_block rules.
+
+    Each rule becomes a tuple of (rule_id, rule_name, compiled_regex, action).
+    Rules without regex_block (e.g. R-002 condition-based) are skipped
+    since they require runtime context we don't have at compile-time.
     """
-    Two-pass HLF compiler.
+    global _ALIGN_RULES, _ALIGN_COMPILED
+    ledger_path = Path(__file__).parent.parent / "governance" / "ALIGN_LEDGER.yaml"
+    if not ledger_path.exists():
+        return  # graceful degradation — no ledger, no enforcement
+
+    try:
+        # Use stdlib yaml-like parsing to avoid PyYAML dependency
+        # The ALIGN_LEDGER.yaml is simple enough for a regex-based parse
+        text = ledger_path.read_text(encoding="utf-8")
+
+        # Try PyYAML first, fall back to manual parse
+        try:
+            import yaml
+            data = yaml.safe_load(text)
+        except ImportError:
+            # Manual minimal YAML parse for the flat rule structure
+            data = _parse_align_yaml_minimal(text)
+
+        if not data or "rules" not in data:
+            return
+
+        _ALIGN_RULES = data["rules"]
+        for rule in _ALIGN_RULES:
+            rid = rule.get("id", "?")
+            name = rule.get("name", "Unknown")
+            regex_str = rule.get("regex_block")
+            action = rule.get("action", "DROP")
+            if regex_str:
+                try:
+                    compiled = re.compile(regex_str)
+                    _ALIGN_COMPILED.append((rid, name, compiled, action))
+                except re.error:
+                    pass  # skip malformed regex
+    except Exception:
+        pass  # fail open at module load, enforced at runtime
+
+
+def _parse_align_yaml_minimal(text: str) -> dict[str, Any]:
+    """Minimal parser for ALIGN_LEDGER.yaml without PyYAML dependency.
+
+    Handles the specific flat-list-of-dicts format used in the ledger.
+    """
+    rules: list[dict[str, str]] = []
+    # Match lines like: - { id: "R-001", name: "ACFS Confinement", regex_block: '...', action: "DROP" }
+    pattern = re.compile(
+        r'-\s*\{\s*id:\s*"([^"]+)"\s*,\s*name:\s*"([^"]+)"\s*,'
+        r'\s*(?:regex_block:\s*[\'"]([^\'"]+)[\'"]|condition:\s*"[^"]+")\s*,'
+        r'\s*action:\s*"([^"]+)"\s*\}'
+    )
+    for m in pattern.finditer(text):
+        rule: dict[str, str] = {
+            "id": m.group(1),
+            "name": m.group(2),
+            "action": m.group(4),
+        }
+        if m.group(3):
+            rule["regex_block"] = m.group(3)
+        rules.append(rule)
+    return {"version": "1.0-genesis", "rules": rules}
+
+
+# Load at module init
+_load_align_ledger()
+
+
+class HlfAlignViolation(HlfSyntaxError):
+    """Raised when compiled HLF violates an ALIGN Ledger rule.
+
+    Attributes:
+        rule_id: The ALIGN rule identifier (e.g. "R-001")
+        rule_name: Human-readable rule name
+        action: The enforcement action (DROP, DROP_AND_QUARANTINE, etc.)
+        match: The string that triggered the violation
+    """
+    def __init__(self, rule_id: str, rule_name: str, action: str, match: str, node_tag: str = ""):
+        self.rule_id = rule_id
+        self.rule_name = rule_name
+        self.action = action
+        self.match = match
+        self.node_tag = node_tag
+        super().__init__(
+            f"ALIGN violation [{rule_id}] {rule_name}: "
+            f"'{match}' in [{node_tag}] blocked by {action}"
+        )
+
+
+def _extract_strings_from_node(node: dict[str, Any]) -> list[str]:
+    """Recursively extract all string values from an AST node for scanning."""
+    strings: list[str] = []
+
+    def _walk(val: Any) -> None:
+        if isinstance(val, str):
+            strings.append(val)
+        elif isinstance(val, list):
+            for item in val:
+                _walk(item)
+        elif isinstance(val, dict):
+            for v in val.values():
+                _walk(v)
+
+    _walk(node.get("args", []))
+    _walk(node.get("value", ""))
+    _walk(node.get("human_readable", ""))
+    # Also check action/tool names for tool execution nodes
+    if "name" in node and node.get("tag") != "SET":
+        strings.append(str(node["name"]))
+
+    return strings
+
+
+def _pass3_align_validate(
+    program: list[dict[str, Any]],
+    *,
+    strict: bool = True,
+) -> list[dict[str, Any]]:
+    """Pass 3 — Validate expanded AST against ALIGN Ledger rules.
+
+    Scans every string in every AST node against all compiled ALIGN rules.
+    If strict=True (default), raises HlfAlignViolation on first match.
+    If strict=False, annotates nodes with violation metadata but continues.
+
+    This is the compile-time security gate. Combined with the runtime
+    sentinel_gate.py enforcement, it creates defense-in-depth.
+    """
+    if not _ALIGN_COMPILED:
+        return program  # no rules loaded — pass through
+
+    annotated: list[dict[str, Any]] = []
+    for node in program:
+        if node is None:
+            continue
+
+        node_tag = node.get("tag", "?")
+        strings = _extract_strings_from_node(node)
+
+        violations: list[dict[str, str]] = []
+        for text in strings:
+            for rule_id, rule_name, pattern, action in _ALIGN_COMPILED:
+                match = pattern.search(text)
+                if match:
+                    if strict:
+                        raise HlfAlignViolation(
+                            rule_id=rule_id,
+                            rule_name=rule_name,
+                            action=action,
+                            match=match.group(0),
+                            node_tag=node_tag,
+                        )
+                    violations.append({
+                        "rule_id": rule_id,
+                        "rule_name": rule_name,
+                        "action": action,
+                        "matched": match.group(0),
+                    })
+
+        if violations and not strict:
+            node = dict(node)
+            node["align_violations"] = violations
+
+        annotated.append(node)
+
+    return annotated
+
+
+def compile(source: str, *, align_strict: bool = True) -> dict[str, Any]:  # noqa: A001
+    """
+    Three-pass HLF compiler.
 
     Pass 1: collect immutable SET bindings.
-    Pass 2: expand ``${VAR}`` references and return the validated JSON AST.
+    Pass 2: expand ``${VAR}`` references.
+    Pass 3: validate against ALIGN Ledger security rules.
+
+    Args:
+        source: HLF source code string.
+        align_strict: If True (default), raise HlfAlignViolation on any
+            ALIGN rule match. If False, annotate nodes with violation
+            metadata but return the AST anyway (useful for analysis).
+
+    Returns:
+        Validated JSON AST dict with ``program``, ``compiler``, and
+        ``human_readable`` fields.
+
+    Raises:
+        HlfSyntaxError: If the source fails to parse.
+        HlfAlignViolation: If any AST content violates an ALIGN rule
+            (only when align_strict=True).
     """
     try:
         tree = _parser.parse(source)
@@ -662,6 +856,18 @@ def compile(source: str) -> dict[str, Any]:  # noqa: A001
 
     # Pass 2 — expand variable references
     result["program"] = _pass2_expand_and_validate(result["program"], env)
+
+    # Pass 3 — ALIGN Ledger security validation
+    result["program"] = _pass3_align_validate(
+        result["program"], strict=align_strict
+    )
+
+    # Record the ALIGN rules that were enforced
+    if _ALIGN_COMPILED:
+        result["align_rules_enforced"] = [
+            {"id": rid, "name": name, "action": action}
+            for rid, name, _, action in _ALIGN_COMPILED
+        ]
 
     return result
 
