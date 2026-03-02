@@ -28,4 +28,4 @@ jobs:
       - name: Build parser
         run: bash scripts/build/parser-build.sh
       - name: Run grammar roundtrip tests
-        run: uv run pytest tests/test_grammar_roundtrip.py -v
+        run: uv run python -m pytest tests/test_grammar_roundtrip.py -v
