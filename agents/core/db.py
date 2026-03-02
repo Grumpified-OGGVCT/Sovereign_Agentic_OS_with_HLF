@@ -482,3 +482,37 @@ def get_current_tier(conn: sqlite3.Connection, model_id: str) -> Optional[str]:
         (model_id,),
     ).fetchone()
     return row["tier"] if row else None
+
+
+# ---------------------------------------------------------------------------
+# Aegis-Nexus Engine — Agent Template Seeding
+# ---------------------------------------------------------------------------
+
+def seed_aegis_templates(conn: sqlite3.Connection) -> None:
+    """Register Sentinel, Scribe, and Arbiter AgentProfile templates.
+
+    Idempotent — safe to call on every startup.  Uses the canonical
+    ``get_agent_profile()`` spec from each Aegis-Nexus agent module so that
+    template metadata stays in sync with the agent implementations.
+    """
+    import logging as _logging  # noqa: PLC0415
+
+    _log = _logging.getLogger(__name__)
+    try:
+        from agents.core.sentinel_agent import get_agent_profile as _sentinel_spec
+        from agents.core.scribe_agent import get_agent_profile as _scribe_spec
+        from agents.core.arbiter_agent import get_agent_profile as _arbiter_spec
+    except ImportError as exc:
+        _log.warning("seed_aegis_templates: agent module import failed — templates not seeded: %s", exc)
+        return
+
+    for spec_fn in (_sentinel_spec, _scribe_spec, _arbiter_spec):
+        spec = spec_fn()
+        upsert_agent_template(
+            conn,
+            spec["name"],
+            required_tier=spec.get("required_tier", "D"),
+            system_prompt=spec.get("system_prompt", ""),
+            tools=spec.get("tools", []),
+            restrictions=spec.get("restrictions", {}),
+        )
