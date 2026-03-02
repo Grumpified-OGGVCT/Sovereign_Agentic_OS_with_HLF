@@ -115,7 +115,7 @@
 - [x] Add Transparency Panel to `gui/app.py` (routing trace, snapshot version, tier display)
 - [x] Add Registry Management controls (trigger sync, view inventory, view model catalog)
 - [x] Add thumbs-up/down feedback to `model_feedback` table (CRUD exists in db.py, needs GUI surface)
-- [ ] End-to-end verification (pipeline → registry → router → executor → GUI)
+- [x] End-to-end verification (pipeline → registry → router → executor → GUI) — 8 stages, 35+ tests
 
 ---
 

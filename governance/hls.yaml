@@ -1,33 +1,384 @@
-version: "0.3.0"
-tokens:
-  LBRACK: "["
-  RBRACK: "]"
-  TERMINATOR: "Ω"
-  DIFF_OP: "Δ"
-  PARADOX_OP: "Ж"
-  GAS_OP: "⩕"
-  DIRECTIVE_OP: "⌘"
-  DRIFT_OP: "∇"
-  MATRIX_OP: "⨝"
-  ARROW: "->"
-  COLON: ":"
-  COMMA: ","
-  ASSIGN: "="
-  DOLLAR_L: "${"
-  RBRACE: "}"
-  STRING: /\"([^\"\\]|\\.)*\"/
-  NUMBER: /-?\d+(\.\d+)?/
-  BOOL: /true|false/
-  LIST: /\[([^\]]*)\]/
-  MAP: /\{([^}]*)\}/
-  IDENT: /[A-Za-z_][A-Za-z0-9_]*/
+# ─────────────────────────────────────────────────────────────────────────────
+# HLF Language Specification (HLS) — Machine-Readable BNF Grammar
+# Version 0.4.0 — Synchronized with hlfc.py 4-pass compiler
+#
+# This file is the single source of truth for the HLF grammar.
+# It defines every production rule, terminal, glyph, type symbol,
+# and semantic constraint in a format parseable by tooling.
+#
+# References:
+#   - RFC 9005: HLF Core Extensions (tool exec, conditionals, math, assignment)
+#   - RFC 9007: Struct Operator + Namespace Merge
+#   - governance/templates/dictionary.json (tag definitions)
+#   - governance/ALIGN_LEDGER.yaml (security rules)
+# ─────────────────────────────────────────────────────────────────────────────
+
+version: "0.4.0"
+language: "HLF"
+full_name: "Human-Legible Format"
+parser_type: "LALR(1)"
+compiler_passes:
+  - name: "parse"
+    description: "Lark LALR(1) parse → concrete syntax tree"
+  - name: "collect_env"
+    description: "Pass 1 — collect immutable SET bindings into environment"
+  - name: "expand_validate"
+    description: "Pass 2 — expand ${VAR} references using environment"
+  - name: "align_validate"
+    description: "Pass 3 — validate AST against ALIGN Ledger security rules"
+  - name: "dictionary_validate"
+    description: "Pass 4 — enforce dictionary.json arity/type constraints"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# TERMINALS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+terminals:
+
+  # --- Structural ---
+  LBRACK: { pattern: "[", description: "Tag opener" }
+  RBRACK: { pattern: "]", description: "Tag closer" }
+  ASSIGN: { pattern: "=", description: "Assignment in SET / kv_pair" }
+  COMMA:  { pattern: ",", description: "Separator in parallel/sync blocks" }
+
+  # --- Terminator ---
+  TERMINATOR:
+    pattern: "/\\u03a9|\\bOmega\\b/"
+    description: "Program terminator glyph (Ω or 'Omega')"
+    required: true
+
+  # --- Identifiers ---
+  TAG:
+    pattern: "/[A-Z_]+/"
+    description: "Uppercase tag name (INTENT, THOUGHT, etc.)"
+  IDENT:
+    pattern: "/[A-Za-z_][A-Za-z0-9_]*/"
+    description: "Variable or function identifier"
+  DOTTED_IDENT:
+    pattern: "/[A-Za-z_][A-Za-z0-9_.]+/"
+    description: "Dotted identifier for tool namespaces (e.g., io.fs.read)"
+
+  # --- Literals ---
+  STRING:
+    pattern: '/\"([^\"\\\\]|\\\\.)*\"/'
+    description: "Double-quoted string with escape sequences"
+  NUMBER:
+    pattern: "/-?\\d+(\\.\\d+)?/"
+    description: "Integer or decimal number"
+  BOOL:
+    pattern: "/true|false/"
+    description: "Boolean literal"
+  PATH:
+    pattern: "/\\/[^\\s]*/"
+    description: "Unix-style absolute path"
+  VAR_REF:
+    pattern: "/\\$\\{[A-Za-z_][A-Za-z0-9_]*\\}/"
+    description: "Variable reference (${name})"
+
+  # --- RFC 9005: Operators ---
+  TOOL_PREFIX:    { pattern: "↦", description: "Tool execution prefix" }
+  TOOL_MARKER:    { pattern: "τ", description: "Tool execution marker" }
+  COND_IF:        { pattern: "⊎", description: "Conditional IF" }
+  COND_THEN:      { pattern: "⇒", description: "Conditional THEN" }
+  COND_ELSE:      { pattern: "⇌", description: "Conditional ELSE" }
+  NOT_OP:         { pattern: "¬", description: "Logical negation" }
+  INTERSECT_OP:   { pattern: "∩", description: "Logical AND / intersection" }
+  UNION_OP:       { pattern: "∪", description: "Logical OR / union" }
+  ASSIGN_ARROW:   { pattern: "←", description: "Variable assignment arrow" }
+  PARALLEL_OP:    { pattern: "∥", description: "Parallel execution block" }
+  SYNC_OP:        { pattern: "⋈", description: "Synchronization barrier" }
+  SYNC_ARROW:     { pattern: "→", description: "Sync-then-execute arrow" }
+  REF_PREFIX:     { pattern: "&", description: "Pass-by-reference marker" }
+  TYPE_SEP:       { pattern: "::", description: "Type annotation separator" }
+  STRUCT_OP:      { pattern: "≡", description: "Struct definition operator" }
+
+  # --- RFC 9005: Comparison Operators ---
+  COMP_OP:
+    pattern: "/==|!=|>=|<=|>|</"
+    variants: ["==", "!=", ">=", "<=", ">", "<"]
+    description: "Comparison operator"
+
+  # --- RFC 9005: Math Operators ---
+  PLUS:  { pattern: "+", description: "Addition" }
+  MINUS: { pattern: "-", description: "Subtraction" }
+  STAR:  { pattern: "*", description: "Multiplication" }
+  SLASH: { pattern: "/", description: "Division" }
+
+  # --- Type Symbols (RFC 9005) ---
+  TYPE_SYM:
+    pattern: "/𝕊|ℕ|𝔹|𝕁|𝔸/"
+    variants:
+      - { symbol: "𝕊", type: "string", description: "String type" }
+      - { symbol: "ℕ", type: "number", description: "Number type" }
+      - { symbol: "𝔹", type: "boolean", description: "Boolean type" }
+      - { symbol: "𝕁", type: "json", description: "JSON object type" }
+      - { symbol: "𝔸", type: "any", description: "Any/dynamic type" }
+
+  # --- Glyph Prefixes ---
+  GLYPH_PREFIX:
+    pattern: "/[⌘Ж∇⩕⨝Δ~§]/"
+    variants:
+      - { symbol: "⌘", name: "Orchestrator Directive", role: "macro override" }
+      - { symbol: "Ж", name: "Reasoning Blocker", role: "paradox trigger" }
+      - { symbol: "∇", name: "Anchor Drift", role: "provenance alarm" }
+      - { symbol: "⩕", name: "Gas Metric", role: "recursion limit" }
+      - { symbol: "⨝", name: "Matrix Consensus", role: "multi-agent sync" }
+      - { symbol: "Δ", name: "State Diff", role: "delta output" }
+      - { symbol: "~", name: "Approximation", role: "fuzzy match" }
+      - { symbol: "§", name: "Section Reference", role: "document link" }
+
+  # --- Epistemic Modifier ---
+  EPISTEMIC_OPEN:  { pattern: "_{", description: "Epistemic modifier opener" }
+  EPISTEMIC_SYM:   { pattern: "ρ", description: "Confidence/reliability symbol" }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PRODUCTION RULES (BNF)
+# ═══════════════════════════════════════════════════════════════════════════════
+
 rules:
-  program: "statement+ TERMINATOR"
-  statement: "tag_stmt | set_stmt | function_stmt | result_stmt"
-  tag_stmt: "LBRACK TAG RBRACK arglist"
-  set_stmt: "LBRACK 'SET' RBRACK IDENT ASSIGN literal"
-  function_stmt: "LBRACK 'FUNCTION' RBRACK IDENT arglist"
-  result_stmt: "LBRACK 'RESULT' RBRACK arglist"
-  arglist: "literal (COMMA literal)* | EMPTY"
-  literal: "STRING | NUMBER | BOOL | LIST | MAP | DOLLAR_L IDENT RBRACE"
-  TAG: "/[A-Z_]+/"
+
+  # --- Top-Level ---
+  program:
+    production: "line+ TERMINATOR"
+    description: "A program is one or more lines followed by Ω"
+
+  line:
+    production: >
+      tag_stmt | set_stmt | function_stmt | result_stmt |
+      module_stmt | import_stmt | tool_stmt | cond_stmt |
+      assign_stmt | parallel_stmt | sync_stmt | struct_stmt |
+      glyph_stmt
+    description: "A line is any one of the 13 statement types"
+    statement_count: 13
+
+  # --- Core Statements (backward-compatible) ---
+  tag_stmt:
+    production: "LBRACK TAG RBRACK arglist"
+    example: '[INTENT] greet "world"'
+    description: "Generic tagged statement"
+    rfc: "original"
+
+  set_stmt:
+    production: "LBRACK 'SET' RBRACK IDENT ASSIGN literal"
+    example: "[SET] max_retries = 3"
+    description: "Immutable variable binding"
+    semantic: "Value is immutable after assignment; expanded at compile time"
+    rfc: "original"
+
+  function_stmt:
+    production: "LBRACK 'FUNCTION' RBRACK IDENT arglist"
+    example: "[FUNCTION] validate_input arg1 arg2"
+    description: "Pure function declaration"
+    semantic: "Marked pure:true; no side effects"
+    rfc: "original"
+
+  result_stmt:
+    production: "LBRACK 'RESULT' RBRACK arglist"
+    example: '[RESULT] 0 "ok"'
+    description: "Return result with structured error code"
+    semantic: "code:int (0=SUCCESS, 1-99=RECOVERABLE, 100+=FATAL), message:string; terminator:true"
+    rfc: "original + error-code extension"
+
+  module_stmt:
+    production: "LBRACK 'MODULE' RBRACK IDENT"
+    example: "[MODULE] auth_helpers"
+    description: "Declare a module namespace"
+    rfc: "RFC 9007"
+
+  import_stmt:
+    production: "LBRACK 'IMPORT' RBRACK IDENT"
+    example: "[IMPORT] auth_helpers"
+    description: "Import a module namespace into scope"
+    rfc: "RFC 9007"
+
+  # --- RFC 9005: Tool Execution ---
+  tool_stmt:
+    production: "TOOL_PREFIX TOOL_MARKER '(' DOTTED_IDENT ')' type_ann? arglist"
+    example: '↦ τ(io.fs.read) :: 𝕊 "/etc/config"'
+    description: "Execute an external tool with optional type annotation"
+    semantic: "Dispatches to host function registry"
+    rfc: "RFC 9005"
+
+  # --- RFC 9005: Conditional Logic ---
+  cond_stmt:
+    production: "COND_IF cond_expr COND_THEN line (COND_ELSE line)?"
+    example: '⊎ x > 10 ⇒ [RESULT] 0 "ok" ⇌ [RESULT] 1 "too small"'
+    description: "Conditional with optional else branch"
+    rfc: "RFC 9005"
+
+  cond_expr:
+    production: "negation | intersection | union | comparison | math_expr"
+    description: "Conditional expression (boolean evaluation)"
+
+  negation:
+    production: "NOT_OP cond_primary"
+    example: "¬ (x > 0)"
+    description: "Logical negation"
+
+  intersection:
+    production: "cond_primary INTERSECT_OP cond_primary"
+    example: "x > 0 ∩ x < 100"
+    description: "Logical AND"
+
+  union:
+    production: "cond_primary UNION_OP cond_primary"
+    example: 'mode == "fast" ∪ mode == "turbo"'
+    description: "Logical OR"
+
+  cond_primary:
+    production: "'(' cond_expr ')' | comparison | math_expr"
+    description: "Parenthesized or atomic condition"
+
+  # --- RFC 9005: Math ---
+  comparison:
+    production: "math_expr COMP_OP math_expr"
+    description: "Value comparison"
+
+  math_expr:
+    production: "math_term ((PLUS | MINUS) math_term)*"
+    description: "Addition/subtraction chain"
+
+  math_term:
+    production: "math_factor ((STAR | SLASH) math_factor)*"
+    description: "Multiplication/division chain"
+
+  math_factor:
+    production: "literal | '(' math_expr ')'"
+    description: "Atomic value or parenthesized expression"
+
+  # --- RFC 9005: Assignment ---
+  assign_stmt:
+    production: "IDENT type_ann? ASSIGN_ARROW assign_rhs"
+    example: "result :: 𝕊 ← ↦ τ(io.fs.read) /etc/config"
+    description: "Assign tool output or expression to variable"
+    rfc: "RFC 9005"
+
+  assign_rhs:
+    production: "tool_stmt | math_expr"
+    description: "Right-hand side of assignment"
+
+  # --- RFC 9005: Type Annotations ---
+  type_ann:
+    production: "TYPE_SEP TYPE_SYM"
+    example: ":: 𝕊"
+    description: "Type annotation using Unicode type symbols"
+    rfc: "RFC 9005"
+
+  # --- RFC 9005: Concurrency ---
+  parallel_stmt:
+    production: "PARALLEL_OP LBRACK line (COMMA line)* RBRACK"
+    example: "∥ [↦ τ(io.fs.read) /a, ↦ τ(io.fs.read) /b]"
+    description: "Execute multiple lines in parallel"
+    rfc: "RFC 9005"
+
+  sync_stmt:
+    production: "SYNC_OP LBRACK IDENT (COMMA IDENT)* RBRACK SYNC_ARROW line"
+    example: "⋈ [file_a, file_b] → [INTENT] merge_results"
+    description: "Wait for named parallel tasks, then execute"
+    rfc: "RFC 9005"
+
+  # --- RFC 9005: Pass-by-Reference ---
+  ref_arg:
+    production: "REF_PREFIX IDENT"
+    example: "&context"
+    description: "Pass variable by reference"
+    rfc: "RFC 9005"
+
+  # --- RFC 9005: Epistemic Modifier ---
+  epistemic:
+    production: "EPISTEMIC_OPEN EPISTEMIC_SYM ':' NUMBER '}'"
+    example: "_{ρ:0.85}"
+    description: "Confidence/reliability annotation (0.0-1.0)"
+    rfc: "RFC 9005"
+
+  # --- RFC 9007: Struct Operator ---
+  struct_stmt:
+    production: "IDENT STRUCT_OP '{' struct_field (COMMA struct_field)* '}'"
+    example: "UserProfile ≡ { name: 𝕊, age: ℕ, active: 𝔹 }"
+    description: "Define a typed struct"
+    rfc: "RFC 9007"
+
+  struct_field:
+    production: "IDENT ':' TYPE_SYM"
+    description: "Named typed field within a struct"
+
+  # --- Glyph-Prefixed Statements ---
+  glyph_stmt:
+    production: "GLYPH_PREFIX tag_stmt | GLYPH_PREFIX glyph_stmt"
+    example: '⌘ [INTENT] deploy "production"'
+    description: "Statement prefixed with operational glyph modifier"
+    semantic: "Glyph modifies execution semantics (priority, diff mode, gas limit, etc.)"
+
+  # --- Argument Lists ---
+  arglist:
+    production: "arg*"
+    description: "Zero or more arguments"
+
+  arg:
+    production: "kv_pair | ref_arg | literal"
+    description: "Key=value pair, reference, or literal value"
+
+  kv_pair:
+    production: "IDENT ASSIGN literal"
+    example: 'key="value"'
+    description: "Named argument"
+
+  literal:
+    production: "STRING | NUMBER | BOOL | PATH | VAR_REF | IDENT"
+    description: "Any atomic value"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# IGNORED PATTERNS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+ignored:
+  - pattern: "/\\r?\\n/"
+    description: "Newlines"
+  - pattern: "/ +/"
+    description: "Whitespace (one or more spaces)"
+  - pattern: "/\\[HLF-v\\d+\\]/"
+    description: "Version header (e.g., [HLF-v2])"
+  - pattern: "/\\[HLF-v[^\\]]*\\]/"
+    description: "Extended version header"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SEMANTIC CONSTRAINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+semantic_constraints:
+  - rule: "SET bindings are immutable"
+    enforcement: "Pass 1 — duplicate SET raises HlfSyntaxError"
+  - rule: "All ${VAR} references must resolve"
+    enforcement: "Pass 2 — unresolved refs raise HlfSyntaxError"
+  - rule: "ALIGN Ledger rules block dangerous content"
+    enforcement: "Pass 3 — regex match raises HlfAlignViolation"
+  - rule: "Tag arguments must match dictionary.json arity/type spec"
+    enforcement: "Pass 4 — violations raise HlfArityError or HlfTypeError"
+  - rule: "Every AST node must have a human_readable field"
+    enforcement: "InsAIts V2 mandate — HLFTransformer annotates every node"
+  - rule: "RESULT is a terminator"
+    enforcement: "Marked terminator:true in AST; runtime stops execution"
+  - rule: "FUNCTION nodes are pure"
+    enforcement: "Marked pure:true; no side effects permitted"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# DICTIONARY TAGS (summary — full spec in dictionary.json)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+dictionary_tags:
+  - { tag: "INTENT",      arity: "2",     args: "action:string target:path" }
+  - { tag: "THOUGHT",     arity: "1",     args: "reasoning:string",           pure: true }
+  - { tag: "OBSERVATION", arity: "1",     args: "data:any",                   pure: true }
+  - { tag: "PLAN",        arity: "1+",    args: "steps:any (repeat)" }
+  - { tag: "CONSTRAINT",  arity: "2",     args: "key:string value:any" }
+  - { tag: "EXPECT",      arity: "1",     args: "outcome:string" }
+  - { tag: "ACTION",      arity: "1+",    args: "verb:string args:any (repeat)" }
+  - { tag: "SET",         arity: "2",     args: "name:identifier value:any",  immutable: true }
+  - { tag: "FUNCTION",    arity: "1+",    args: "name:identifier args:any (repeat)", pure: true }
+  - { tag: "DELEGATE",    arity: "2",     args: "role:identifier intent:string" }
+  - { tag: "VOTE",        arity: "2",     args: "decision:bool rationale:string" }
+  - { tag: "ASSERT",      arity: "2",     args: "condition:bool error:string" }
+  - { tag: "RESULT",      arity: "2",     args: "code:int message:string",    terminator: true }
+  - { tag: "MODULE",      arity: "1",     args: "name:identifier" }
+  - { tag: "IMPORT",      arity: "1",     args: "name:identifier" }
+  - { tag: "DATA",        arity: "1",     args: "id:string" }
