@@ -165,6 +165,12 @@ python scripts/copilot_factory.py hlf-evolve
 ```
 User (NLP) → HLF Compiler (LALR(1)) → ALIGN Validator → Agent Gateway → Agent Swarm
                                                               ↓
+                                              ┌─────────────────────────────┐
+                                              │   Ollama Primary (:11434)   │
+                                              │   Ollama Secondary (:11435) │
+                                              │   (failover / round-robin)  │
+                                              └─────────────────────────────┘
+                                                              ↓
                                                     HLF Response → NLP Response
 ```
 
@@ -173,7 +179,8 @@ User (NLP) → HLF Compiler (LALR(1)) → ALIGN Validator → Agent Gateway → 
 - **ALIGN Ledger** (`governance/`) — Zero-trust policy enforcement
 - **Gateway** (`agents/gateway/`) — Redis-backed message bus & router
 - **Model Registry** (`agents/model_registry.py`) — SQL-backed, tier-aware
-- **GUI** (`gui/app.py`) — Streamlit Cognitive SOC with dark mode
+- **GUI** (`gui/app.py`) — Streamlit Cognitive SOC with dark mode & dual Ollama transparency panel
+- **Dual Ollama** — Failover/round-robin across primary (local) and secondary (Docker) instances
 
 ---
 
