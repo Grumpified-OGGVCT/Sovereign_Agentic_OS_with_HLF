@@ -14,7 +14,10 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    ollama_host: str = "http://ollama-matrix:11434"
+    ollama_host: str = "http://localhost:11434"
+    ollama_host_secondary: str = ""
+    ollama_api_key_secondary: str = ""
+    ollama_load_strategy: str = "failover"  # failover | round_robin | primary_only
     redis_url: str = "redis://localhost:6379/0"
     max_gas_limit: int = 10
     deployment_tier: str = "hearth"
@@ -140,25 +143,29 @@ def check_vram_threshold(model: str, client: httpx.Client | None = None) -> bool
     """
     if _is_cloud(model):
         return True
-    try:
-        c = client or httpx.Client(timeout=5)
-        resp = c.get(f"{settings.ollama_host}/api/ps")
-        if resp.status_code != 200:
-            return True  # Can't determine — allow
-        data = resp.json()
-        models = data.get("models", [])
-        if not models:
-            return True
-        total_vram = sum(m.get("size_vram", 0) for m in models)
-        # Rough heuristic: estimate max capacity as 5x the largest single model's VRAM.
-        # This accounts for typical GPU headroom. Configurable via VRAM_CAPACITY_MULTIPLIER env var.
-        multiplier = int(os.environ.get("VRAM_CAPACITY_MULTIPLIER", "5"))
-        max_vram = max(m.get("size_vram", 0) for m in models) * multiplier
-        if max_vram == 0:
-            return True
-        return (total_vram / max_vram) < 0.80
-    except Exception:
-        return True  # fail-open for VRAM check
+    # Try primary then secondary Ollama for VRAM check
+    hosts = [settings.ollama_host]
+    if settings.ollama_host_secondary:
+        hosts.append(settings.ollama_host_secondary)
+    for host in hosts:
+        try:
+            c = client or httpx.Client(timeout=5)
+            resp = c.get(f"{host}/api/ps")
+            if resp.status_code != 200:
+                continue
+            data = resp.json()
+            models = data.get("models", [])
+            if not models:
+                return True
+            total_vram = sum(m.get("size_vram", 0) for m in models)
+            multiplier = int(os.environ.get("VRAM_CAPACITY_MULTIPLIER", "5"))
+            max_vram = max(m.get("size_vram", 0) for m in models) * multiplier
+            if max_vram == 0:
+                return True
+            return (total_vram / max_vram) < 0.80
+        except Exception:
+            continue
+    return True  # fail-open for VRAM check
 
 
 def mediate_web_search(payload: dict[str, Any]) -> dict[str, Any]:

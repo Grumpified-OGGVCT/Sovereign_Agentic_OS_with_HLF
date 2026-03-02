@@ -35,6 +35,9 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 _OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+_OLLAMA_HOST_SECONDARY = os.environ.get("OLLAMA_HOST_SECONDARY", "")
+_OLLAMA_SECONDARY_KEY = os.environ.get("OLLAMA_API_KEY_SECONDARY", "")
+_OLLAMA_STRATEGY = os.environ.get("OLLAMA_LOAD_STRATEGY", "failover")
 # Normalize host — add scheme if missing
 if _OLLAMA_HOST and not _OLLAMA_HOST.startswith("http"):
     _OLLAMA_HOST = f"http://{_OLLAMA_HOST}"
@@ -404,19 +407,39 @@ def _call_ollama(
 
     payload = json.dumps(payload_dict).encode()
 
-    req = urllib.request.Request(
-        f"{_OLLAMA_HOST}/api/chat",
-        data=payload,
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            data = json.loads(resp.read().decode())
-            return data.get("message", {}).get("content", "")
-    except Exception as e:
-        logger.error(f"Hat analysis Ollama call failed: {e}")
-        return ""
+    # Build endpoint list based on load strategy
+    endpoints: list[tuple[str, dict[str, str]]] = [(_OLLAMA_HOST, {})]
+    if _OLLAMA_HOST_SECONDARY:
+        sec_hdrs: dict[str, str] = {}
+        if _OLLAMA_SECONDARY_KEY:
+            sec_hdrs["Authorization"] = f"Bearer {_OLLAMA_SECONDARY_KEY}"
+        if _OLLAMA_STRATEGY == "round_robin":
+            import random
+            if random.random() > 0.5:
+                endpoints = [(_OLLAMA_HOST_SECONDARY, sec_hdrs), (_OLLAMA_HOST, {})]
+            else:
+                endpoints.append((_OLLAMA_HOST_SECONDARY, sec_hdrs))
+        elif _OLLAMA_STRATEGY != "primary_only":
+            endpoints.append((_OLLAMA_HOST_SECONDARY, sec_hdrs))
+
+    last_error = None
+    for host, extra_headers in endpoints:
+        req = urllib.request.Request(
+            f"{host}/api/chat",
+            data=payload,
+            headers={"Content-Type": "application/json", **extra_headers},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode())
+                logger.info(f"Hat analysis used Ollama endpoint: {host}")
+                return data.get("message", {}).get("content", "")
+        except Exception as e:
+            logger.warning(f"Ollama endpoint {host} failed: {e}")
+            last_error = e
+    logger.error(f"All Ollama endpoints failed for hat analysis: {last_error}")
+    return ""
 
 
 def _parse_findings(hat_name: str, raw_response: str) -> list[HatFinding]:

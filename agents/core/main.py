@@ -58,6 +58,40 @@ if hasattr(signal, "SIGUSR1"):
 
 
 # --------------------------------------------------------------------------- #
+# Ollama dual-endpoint helpers
+# --------------------------------------------------------------------------- #
+
+_OLLAMA_PRIMARY = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+_OLLAMA_SECONDARY = os.environ.get("OLLAMA_HOST_SECONDARY", "")
+_OLLAMA_SECONDARY_KEY = os.environ.get("OLLAMA_API_KEY_SECONDARY", "")
+_OLLAMA_STRATEGY = os.environ.get("OLLAMA_LOAD_STRATEGY", "failover")
+_ollama_rr_counter = 0  # round-robin counter
+
+
+def _get_ollama_endpoints() -> list[tuple[str, dict[str, str]]]:
+    """Return ordered list of (host, headers) tuples based on load strategy."""
+    global _ollama_rr_counter
+    primary = (_OLLAMA_PRIMARY, {})
+    if not _OLLAMA_SECONDARY:
+        return [primary]
+
+    sec_headers = {}
+    if _OLLAMA_SECONDARY_KEY:
+        sec_headers["Authorization"] = f"Bearer {_OLLAMA_SECONDARY_KEY}"
+    secondary = (_OLLAMA_SECONDARY, sec_headers)
+
+    if _OLLAMA_STRATEGY == "round_robin":
+        _ollama_rr_counter += 1
+        if _ollama_rr_counter % 2 == 0:
+            return [primary, secondary]
+        return [secondary, primary]
+    elif _OLLAMA_STRATEGY == "primary_only":
+        return [primary]
+    # default: failover (primary first, secondary if primary fails)
+    return [primary, secondary]
+
+
+# --------------------------------------------------------------------------- #
 # Ollama inference (text → HLF)
 # --------------------------------------------------------------------------- #
 
@@ -100,8 +134,7 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
                 _logger.log("CLOUD_INFERENCE_ERROR", {"error": str(e)}, anomaly_score=0.5)
                 # Fall through to local if cloud fails? No, if we are in cloud mode, we likely don't have local.
 
-    # 2. Local Ollama Path
-    ollama_host = os.environ.get("OLLAMA_HOST", "http://ollama-matrix:11434")
+    # 2. Local / Docker Ollama Path (dual-endpoint failover)
     system_prompt = ""
     if _SYSTEM_PROMPT_PATH.exists():
         system_prompt = _SYSTEM_PROMPT_PATH.read_text().strip()
@@ -113,19 +146,25 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
         "stream": False,
         "options": {"temperature": 0.0, "num_ctx": 2048},
     }
-    try:
-        resp = httpx.post(
-            f"{ollama_host}/api/generate",
-            json=payload,
-            timeout=60.0,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        return data.get("response", "").strip()
-    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
-        if is_cloud:
-            raise RuntimeError(f"Cloud inference failed and local Ollama unreachable: {exc}")
-        raise RuntimeError(f"Ollama unavailable: {exc}") from exc
+    last_exc = None
+    for host, headers in _get_ollama_endpoints():
+        try:
+            resp = httpx.post(
+                f"{host}/api/generate",
+                json=payload,
+                headers={"Content-Type": "application/json", **headers},
+                timeout=60.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            _logger.log("OLLAMA_ENDPOINT_USED", {"host": host, "model": effective_model})
+            return data.get("response", "").strip()
+        except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
+            _logger.log("OLLAMA_ENDPOINT_FAILED", {"host": host, "error": str(exc)}, anomaly_score=0.4)
+            last_exc = exc
+    if is_cloud:
+        raise RuntimeError(f"Cloud inference failed and all Ollama endpoints unreachable: {last_exc}")
+    raise RuntimeError(f"All Ollama endpoints unavailable: {last_exc}") from last_exc
 
 
 # --------------------------------------------------------------------------- #
@@ -181,8 +220,7 @@ def _ollama_generate_v2(text: str, profile: Any) -> str:
     if profile.provider == "cloud":
         return _ollama_generate(text, model=model)
 
-    # --- Local Ollama path (default) ---
-    ollama_host = os.environ.get("OLLAMA_HOST", "http://ollama-matrix:11434")
+    # --- Local Ollama path (default) — dual-endpoint failover ---
     payload = {
         "model": model.replace(":cloud", ""),
         "system": system_prompt,
@@ -193,12 +231,22 @@ def _ollama_generate_v2(text: str, profile: Any) -> str:
             "num_ctx": max_tokens,
         },
     }
-    try:
-        resp = httpx.post(f"{ollama_host}/api/generate", json=payload, timeout=60.0)
-        resp.raise_for_status()
-        return resp.json().get("response", "").strip()
-    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
-        raise RuntimeError(f"Ollama unavailable: {exc}") from exc
+    last_exc = None
+    for host, headers in _get_ollama_endpoints():
+        try:
+            resp = httpx.post(
+                f"{host}/api/generate",
+                json=payload,
+                headers={"Content-Type": "application/json", **headers},
+                timeout=60.0,
+            )
+            resp.raise_for_status()
+            _logger.log("OLLAMA_V2_ENDPOINT_USED", {"host": host, "model": model})
+            return resp.json().get("response", "").strip()
+        except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
+            _logger.log("OLLAMA_V2_ENDPOINT_FAILED", {"host": host, "error": str(exc)}, anomaly_score=0.4)
+            last_exc = exc
+    raise RuntimeError(f"All Ollama endpoints unavailable: {last_exc}") from last_exc
 
 
 # --------------------------------------------------------------------------- #
