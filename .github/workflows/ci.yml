@@ -66,6 +66,26 @@ jobs:
       - name: Run pytest
         run: uv run python -m pytest tests/ -v
 
+  grammar-tests:
+    needs: [ensure-no-sandbox-in-prod, deep-install-verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv sync --all-extras --frozen
+      - name: Build parser
+        run: bash scripts/build/parser-build.sh
+      - name: Run HLF grammar roundtrip tests
+        run: uv run pytest tests/test_grammar_roundtrip.py -v
+
   validate-models:
     needs: ensure-no-sandbox-in-prod
     runs-on: ubuntu-latest
