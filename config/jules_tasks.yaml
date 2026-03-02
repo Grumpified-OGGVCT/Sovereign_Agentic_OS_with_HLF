@@ -56,13 +56,14 @@ daily_pipeline:
       - "hlf/hlflint.py"
       - "hlf/hlffmt.py"
       - "hlf/hlfrun.py"
-      - "governance/hlf_grammar.lark"
+      - "docs/HLF_GRAMMAR_REFERENCE.md"
     commands:
       - "uv run python -m pytest tests/ -v -k 'hlf or hlfc or parse or lint or fmt' --tb=short"
     invariants:
       - never_remove_syntax
       - additive_only
       - expand_test_corpus
+      - format_correction_feedback_loop
     six_hats_review: true
     output: "reports/daily/hlf-grammar-evolution.md"
 
@@ -206,7 +207,7 @@ daily_pipeline:
     commands:
       - "uv run python -m pytest tests/ -v --tb=short"
     invariants:
-      - test_count_gte_baseline
+      - test_count_gte_217
       - coverage_gte_baseline
       - never_simplify_hlf
       - additive_only

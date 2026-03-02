@@ -32,7 +32,7 @@ Code quality must NEVER decrease. Every PR must satisfy:
 4. **No hardcoded values** — all config flows through `.env` → `settings.json`.
 5. **No memory budget violations** — services must stay under 4GB RAM.
 6. **HLF intents must parse** — `hlfc.compile()` is the only valid parser, no raw regex.
-7. **All PRs must pass CI** — `pytest`, `ruff`, `hlf_token_lint.py`, model whitelist.
+7. **All PRs must pass CI** — `pytest` (217+ tests), `ruff`, `hlf_token_lint.py`, model whitelist.
 8. **No import of banned modules** — `os.system`, `subprocess.call`, `eval()`, `exec()`.
 
 ## RULES
@@ -81,7 +81,8 @@ Code quality must NEVER decrease. Every PR must satisfy:
 │   ├── __init__.py
 │   ├── hlfc.py
 │   ├── hlffmt.py
-│   └── hlflint.py
+│   ├── hlflint.py
+│   └── hlfrun.py
 ├── dapr/
 │   ├── config.yaml
 │   └── components/
@@ -478,7 +479,7 @@ Document Strategy B (whitelisted pure tools: SHA-256 verified binaries, gas 5-10
 ## STEP 6: Python Source Files
 
 ### `agents/gateway/bus.py`
-FastAPI app on port 40404. Endpoints: `POST /api/v1/intent` (dual-mode: accepts `{"text":"..."}` or `{"hlf":"..."}`), `GET /health` (returns 200). Middleware chain: (1) Token bucket rate limiter 50rpm via Redis INCR+EXPIRE, (2) HLF linter `validate_hlf()` from hlf/__init__.py (reject 422), (3) ALIGN enforcer `enforce_align()` from sentinel_gate.py (reject 403), (4) ULID nonce replay protection via Redis SETNX TTL=600s (reject 409 on duplicate). Parse validated HLF through hlfc.compile() to JSON AST. Stamp with request_id (ULID) and timestamp. Publish to Redis Stream "intents". All schemas via Pydantic BaseModel.
+FastAPI app on port 40404. Endpoints: `POST /api/v1/intent` (dual-mode: accepts `{"text":"..."}` or `{"hlf":"..."}`), `GET /health` (returns 200). On `HlfSyntaxError`, returns structured `format_correction()` response with error details, operator catalog, and correction suggestions. Middleware chain: (1) Token bucket rate limiter 50rpm via Redis INCR+EXPIRE, (2) HLF linter `validate_hlf()` from hlf/__init__.py (reject 422), (3) ALIGN enforcer `enforce_align()` from sentinel_gate.py (reject 403), (4) ULID nonce replay protection via Redis SETNX TTL=600s (reject 409 on duplicate). Parse validated HLF through hlfc.compile() to JSON AST. Stamp with request_id (ULID) and timestamp. Publish to Redis Stream "intents". All schemas via Pydantic BaseModel.
 
 ### `agents/gateway/router.py`
 MoMA Router. Load config via pydantic.BaseSettings. Route by complexity: visual/OCR intent → qwen3-vl:32b-cloud, code/symbolic → qwen-max, simple → qwen:7b. Dynamic Model Downshifting: query Redis hash for similar past intents, if >95% solved by qwen:7b → downshift. VRAM Threshold Gate: query Ollama GET /api/ps, compute required VRAM, reject 429 if >80% (local models only — cloud models with `:cloud` suffix skip entirely). Circuit breaker: 12s timeout, fail-closed, log to OpenLLMetry. Gas middleware: verify_gas_limit() counts AST nodes, per-intent MAX_GAS_LIMIT=10 + per-tier Redis token bucket with Lua atomic decrement. Web Search Mediation: strip `web_search:true` from Ollama API calls, reroute through WEB_SEARCH host function via Dapr.
@@ -513,7 +514,7 @@ If agent loops 3x on same task due to missing utility: auto-generate Python scri
 `validate_hlf(line: str) -> bool` — regex `^\s*\[[A-Z_]+\]` check. Export for bus.py middleware.
 
 ### `hlf/hlfc.py`
-Lark LALR(1) compiler. Load hls.yaml as grammar, dictionary.json for tag signatures. Parse .hlf → validate typed tag signatures (arity + type checking) → emit JSON AST dict `{"version": "0.2.0", "program": [...]}`. HLFTransformer class handles tag_stmt, set_stmt (immutable check), function_stmt (pure check), result_stmt. CLI: `hlfc input.hlf [output.json]`.
+Lark LALR(1) compiler (HLF v0.4.0). Grammar defined inline with support for: INTENT, CONSTRAINT, EXPECT, ACTION, SET, FUNCTION, RESULT, MODULE, IMPORT, DATA, ROUTE, DELEGATE, IF/ELIF/ELSE, MATH, EXEC, TYPE, CONCURRENT, REF, BELIEVE/ASSUME/DOUBT epistemic modifiers. Parse .hlf → validate typed tag signatures (arity + type checking) → emit JSON AST dict `{"version": "0.4.0", "program": [...]}`. All AST nodes include `human_readable` field for transparency. `format_correction()` returns structured error feedback for self-correcting agents. HLFTransformer class handles all statement types. CLI: `hlfc input.hlf [output.json]` with explicit UTF-8 encoding.
 
 ### `hlf/hlffmt.py`
 Canonical formatter. Uses hlfc.compile() to get AST, then pretty-prints: uppercase tags, single space after ], mandatory trailing Ω, no trailing spaces. Supports `--in-place` flag.
