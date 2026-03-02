@@ -111,10 +111,10 @@
 - [x] Refactor `execute_intent()` to apply Agent Profile (model, provider, system_prompt, restrictions)
 - [x] Wire `ALSLogger` for `ROUTING_DECISION` events (governance audit trail)
 
-### Infra Phase 5: GUI & Governance ❌ ~5%
-- [ ] Add Transparency Panel to `gui/app.py` (routing trace, snapshot version, tier display)
-- [ ] Add Registry Management controls (trigger sync, view inventory, view model catalog)
-- [ ] Add thumbs-up/down feedback to `model_feedback` table (CRUD exists in db.py, needs GUI surface)
+### Infra Phase 5: GUI & Governance ✅ ~75%
+- [x] Add Transparency Panel to `gui/app.py` (routing trace, snapshot version, tier display)
+- [x] Add Registry Management controls (trigger sync, view inventory, view model catalog)
+- [x] Add thumbs-up/down feedback to `model_feedback` table (CRUD exists in db.py, needs GUI surface)
 - [ ] End-to-end verification (pipeline → registry → router → executor → GUI)
 
 ---

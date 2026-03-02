@@ -1021,6 +1021,16 @@ with center_canvas:
                                     chat_data = json.loads(chat_resp.read().decode())
                                 reply = chat_data.get("message", {}).get("content", "").strip()
                                 st.session_state["last_ollama_endpoint"] = _chat_host
+                                # Record routing trace for transparency panel
+                                _eval_duration = chat_data.get("eval_duration", 0)
+                                _latency_ms = int(_eval_duration / 1_000_000) if _eval_duration else None
+                                st.session_state["last_routing_trace"] = {
+                                    "model": active_model,
+                                    "provider": "ollama",
+                                    "tier": tier_selection,
+                                    "latency_ms": _latency_ms,
+                                    "endpoint": _chat_host,
+                                }
                                 break
                             except Exception as _ep_err:
                                 _last_chat_err = _ep_err
@@ -1441,6 +1451,147 @@ with right_pane:
     last_ep = st.session_state.get("last_ollama_endpoint")
     if last_ep:
         st.caption(f"Last request served by: `{last_ep}`")
+
+    st.markdown("---")
+
+    # --- Model Registry Panel ---
+    st.markdown(
+        '<p><span class="tech-term" data-tooltip="Shows the current model '
+        "registry snapshot, tier breakdown, and inventory from the SQL-backed "
+        'registry database.">Model Registry</span></p>',
+        unsafe_allow_html=True,
+    )
+
+    # Try to load registry data from db.py
+    _registry_loaded = False
+    try:
+        from agents.core.db import get_db, get_active_snapshot, get_all_models, get_local_inventory
+        _db_path = _PROJECT_ROOT / "data" / "registry.db"
+        if _db_path.exists():
+            with get_db(_db_path) as _conn:
+                _snap = get_active_snapshot(_conn)
+                if _snap:
+                    _models = get_all_models(_conn, _snap["id"])
+                    _local_inv = get_local_inventory(_conn)
+                    _registry_loaded = True
+
+                    # Snapshot info
+                    st.caption(
+                        f"Snapshot #{_snap['id']} | "
+                        f"{_snap['model_count']} models | "
+                        f"Run: {_snap['run_ts']}"
+                    )
+
+                    # Tier breakdown
+                    _tier_counts: dict[str, int] = {}
+                    for _m in _models:
+                        _t = _m["tier"]
+                        _tier_counts[_t] = _tier_counts.get(_t, 0) + 1
+
+                    if _tier_counts:
+                        _tier_order = ["S", "A+", "A", "A-", "B+", "B", "C", "D"]
+                        _tier_display = {
+                            t: _tier_counts.get(t, 0) for t in _tier_order if _tier_counts.get(t, 0) > 0
+                        }
+                        _tier_str = " · ".join(f"**{k}**: {v}" for k, v in _tier_display.items())
+                        st.markdown(f"Tiers: {_tier_str}")
+
+                    # Local inventory count
+                    st.caption(f"Local Ollama inventory: {len(_local_inv)} models")
+
+                    # Expandable model catalog
+                    with st.expander("📋 Full Model Catalog", expanded=False):
+                        if _models:
+                            _catalog_data = [
+                                {
+                                    "Model": m["model_id"],
+                                    "Tier": m["tier"],
+                                    "Family": m["family"],
+                                    "Params (B)": m["param_b"],
+                                    "Score": round(m["raw_score"], 2),
+                                }
+                                for m in _models[:50]  # cap display at 50
+                            ]
+                            st.dataframe(
+                                pd.DataFrame(_catalog_data),
+                                use_container_width=True,
+                                hide_index=True,
+                            )
+                        else:
+                            st.caption("No models in active snapshot.")
+                else:
+                    st.caption("No active registry snapshot. Run the pipeline to create one.")
+        else:
+            st.caption("Registry database not found. Run `python -m agents.core.db` to initialize.")
+    except Exception as _reg_err:
+        st.caption(f"Registry unavailable: {_reg_err}")
+
+    st.markdown("---")
+
+    # --- Routing Trace ---
+    st.markdown(
+        '<p><span class="tech-term" data-tooltip="Shows which model handled '
+        "the most recent request, the provider used, and the response latency. "
+        'Populated after each chat interaction.">Routing Trace</span></p>',
+        unsafe_allow_html=True,
+    )
+    _last_route = st.session_state.get("last_routing_trace")
+    if _last_route:
+        _rt_cols = st.columns(2)
+        with _rt_cols[0]:
+            st.markdown(f"**Model:** `{_last_route.get('model', 'N/A')}`")
+            st.caption(f"Provider: {_last_route.get('provider', 'N/A')}")
+        with _rt_cols[1]:
+            _latency = _last_route.get("latency_ms")
+            if _latency is not None:
+                _lat_color = "🟢" if _latency < 2000 else "🟡" if _latency < 5000 else "🔴"
+                st.markdown(f"{_lat_color} **{_latency}ms**")
+            st.caption(f"Tier: {_last_route.get('tier', 'N/A')}")
+    else:
+        st.caption(
+            "No routing trace yet. Submit a chat message to see which model "
+            "handles the request."
+        )
+
+    st.markdown("---")
+
+    # --- Model Feedback ---
+    st.markdown(
+        '<p><span class="tech-term" data-tooltip="Rate model responses with '
+        "thumbs up/down. Feedback is stored in the registry database and used "
+        'to influence future model selection and tier adjustments.">Model Feedback</span></p>',
+        unsafe_allow_html=True,
+    )
+    _last_model = st.session_state.get("last_routing_trace", {}).get("model")
+    if _last_model:
+        _fb_cols = st.columns([1, 1, 3])
+        with _fb_cols[0]:
+            if st.button("👍", key="fb_up", help="Rate this response positively"):
+                try:
+                    from agents.core.db import get_db, add_feedback
+                    _db_path = _PROJECT_ROOT / "data" / "registry.db"
+                    with get_db(_db_path) as _conn:
+                        add_feedback(_conn, _last_model, 5, "thumbs_up")
+                    st.session_state["last_feedback"] = "👍 Saved!"
+                except Exception:
+                    st.session_state["last_feedback"] = "⚠️ DB error"
+        with _fb_cols[1]:
+            if st.button("👎", key="fb_down", help="Rate this response negatively"):
+                try:
+                    from agents.core.db import get_db, add_feedback
+                    _db_path = _PROJECT_ROOT / "data" / "registry.db"
+                    with get_db(_db_path) as _conn:
+                        add_feedback(_conn, _last_model, 1, "thumbs_down")
+                    st.session_state["last_feedback"] = "👎 Saved!"
+                except Exception:
+                    st.session_state["last_feedback"] = "⚠️ DB error"
+        with _fb_cols[2]:
+            _fb_msg = st.session_state.get("last_feedback", "")
+            if _fb_msg:
+                st.caption(_fb_msg)
+                st.caption(f"For: `{_last_model}`")
+    else:
+        st.caption("Send a chat message first to enable model feedback.")
 
 
 # ============================================================================
