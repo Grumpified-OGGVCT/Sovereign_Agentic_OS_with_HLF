@@ -1037,8 +1037,25 @@ def _pass4_dictionary_validate(program: list[dict[str, Any]]) -> None:
             continue  # unknown tags are allowed (forward compatibility)
 
         spec = _DICT_TAGS[tag]
-        args = node.get("args", [])
-        actual_count = len(args) if isinstance(args, list) else 1
+        raw_args = node.get("args", [])
+
+        # --- Count actual arguments ---
+        # Some AST nodes (SET, FUNCTION, RESULT) store arguments as named
+        # keys on the node dict rather than in an "args" list.  Count the
+        # number of spec-defined arg names that are present on the node to
+        # get the true arity.
+        spec_arg_names = [a["name"] for a in spec["args"]]
+
+        if isinstance(raw_args, list) and len(raw_args) > 0:
+            actual_count = len(raw_args)
+        else:
+            # Count named fields present on the node itself
+            actual_count = sum(
+                1 for name in spec_arg_names if name in node
+            )
+            # If still zero, fall back to counting dict-style args
+            if actual_count == 0 and isinstance(raw_args, dict):
+                actual_count = len(raw_args)
 
         # --- Arity check ---
         min_arity = spec["min_arity"]
@@ -1050,17 +1067,17 @@ def _pass4_dictionary_validate(program: list[dict[str, Any]]) -> None:
             raise HlfArityError(tag, min_arity, max_arity, actual_count)
 
         # --- Type check (positional args) ---
-        if isinstance(args, list):
+        if isinstance(raw_args, list) and len(raw_args) > 0:
             for i, arg_spec in enumerate(spec["args"]):
-                if i >= len(args):
+                if i >= len(raw_args):
                     break  # remaining args are optional/repeat
 
                 arg_name = arg_spec.get("name", f"arg{i}")
                 expected_type = arg_spec.get("type", "any")
                 validator = _TYPE_VALIDATORS.get(expected_type, lambda _: True)
 
-                if not validator(args[i]):
-                    raise HlfTypeError(tag, arg_name, expected_type, args[i])
+                if not validator(raw_args[i]):
+                    raise HlfTypeError(tag, arg_name, expected_type, raw_args[i])
 
         # --- Annotate properties from dictionary ---
         if spec.get("pure") and "pure" not in node:

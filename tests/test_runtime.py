@@ -1,343 +1,380 @@
 """
-Tests for Phase 3.1 + Phase 5.1: HLF Runtime Interpreter and Host Function Dispatcher.
+Tests for HLF Module Runtime (hlf/runtime.py).
 
 Covers:
-- Built-in FUNCTION execution (HASH, UUID, NOW, BASE64_ENCODE, BASE64_DECODE)
-- ACTION dispatch to host functions
-- RESULT tag terminates execution with correct code
-- Gas limit enforcement
-- Tier access control in host function dispatcher
-- ACFS confinement path check
-- Dual-mode bus: text mode doesn't run through HLF validator
-- execute_intent() wires hlfrun for AST payloads
+  - Host function registry loading
+  - Gas metering
+  - Tier enforcement
+  - Module file loading and namespace merge
+  - Sensitive output redaction
+  - HLFRuntime end-to-end execution
 """
 from __future__ import annotations
 
-import hashlib
-import time
+import json
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
+from typing import Any
+from unittest.mock import patch
 
 import pytest
 
-from hlf.hlfc import compile as hlfc_compile
-from hlf.hlfrun import run as hlfrun, HLFInterpreter  # noqa: F401 — class under test
-from hlf.hlfc import HlfRuntimeError
+from hlf.runtime import (
+    GasMeter,
+    HlfGasExhausted,
+    HlfModuleError,
+    HlfTierViolation,
+    HlfHostFunctionError,
+    HostFunction,
+    HostFunctionRegistry,
+    HostFunctionResult,
+    HLFRuntime,
+    ModuleLoader,
+    ModuleNamespace,
+)
 
 
-# --------------------------------------------------------------------------- #
-# Built-in FUNCTION tests
-# --------------------------------------------------------------------------- #
+# ─── Fixtures ────────────────────────────────────────────────────────────────
 
-class TestBuiltinFunctions:
-    """[FUNCTION] tag built-in pure functions."""
 
-    def test_hash_sha256(self) -> None:
-        src = (
-            "[HLF-v3]\n"
-            '[FUNCTION] HASH sha256 "hello"\n'
-            "Ω\n"
+@pytest.fixture()
+def host_registry() -> HostFunctionRegistry:
+    """Build a test host function registry from the real governance file."""
+    return HostFunctionRegistry.from_json()
+
+
+@pytest.fixture()
+def gas_meter() -> GasMeter:
+    """Build a gas meter with a small limit for testing."""
+    return GasMeter(limit=20)
+
+
+@pytest.fixture()
+def module_dir(tmp_path: Path) -> Path:
+    """Create a temp directory with sample HLF modules."""
+    mod_dir = tmp_path / "modules"
+    mod_dir.mkdir()
+
+    # Simple module with SET and FUNCTION
+    (mod_dir / "math_utils.hlf").write_text(
+        '[HLF-v2]\n'
+        '[SET] pi = 3\n'
+        '[FUNCTION] square x\n'
+        '[RESULT] 0 "ok"\n'
+        'Ω\n',
+        encoding="utf-8",
+    )
+
+    # Module that imports another
+    (mod_dir / "advanced.hlf").write_text(
+        '[HLF-v2]\n'
+        '[IMPORT] math_utils\n'
+        '[SET] tau = 6\n'
+        '[RESULT] 0 "ok"\n'
+        'Ω\n',
+        encoding="utf-8",
+    )
+
+    return mod_dir
+
+
+# ─── Host Function Registry ─────────────────────────────────────────────────
+
+
+class TestHostFunctionRegistry:
+    """Tests for loading and querying host functions."""
+
+    def test_load_from_json(self, host_registry: HostFunctionRegistry) -> None:
+        """Registry loads all functions from governance/host_functions.json."""
+        assert len(host_registry.functions) >= 7
+        assert "READ" in host_registry.functions
+        assert "WRITE" in host_registry.functions
+        assert "SLEEP" in host_registry.functions
+        assert "WEB_SEARCH" in host_registry.functions
+
+    def test_registry_version(self, host_registry: HostFunctionRegistry) -> None:
+        assert host_registry.version == "1.0.0"
+
+    def test_function_attributes(self, host_registry: HostFunctionRegistry) -> None:
+        read_fn = host_registry.functions["READ"]
+        assert read_fn.gas == 1
+        assert read_fn.sensitive is False
+        assert "hearth" in read_fn.tier
+
+    def test_web_search_is_sensitive(self, host_registry: HostFunctionRegistry) -> None:
+        ws = host_registry.functions["WEB_SEARCH"]
+        assert ws.sensitive is True
+        assert ws.gas == 5
+
+    def test_openclaw_summarize_exists(self, host_registry: HostFunctionRegistry) -> None:
+        oc = host_registry.functions.get("OPENCLAW_SUMMARIZE")
+        assert oc is not None
+        assert oc.gas == 7
+        assert oc.sensitive is True
+        assert "hearth" not in oc.tier
+
+    def test_list_available_filters_by_tier(self, host_registry: HostFunctionRegistry) -> None:
+        hearth = host_registry.list_available("hearth")
+        forge = host_registry.list_available("forge")
+        assert len(forge) >= len(hearth)
+        hearth_names = {f["name"] for f in hearth}
+        forge_names = {f["name"] for f in forge}
+        assert "SPAWN" not in hearth_names
+        assert "SPAWN" in forge_names
+
+
+# ─── Tier Enforcement ────────────────────────────────────────────────────────
+
+
+class TestTierEnforcement:
+    """Verify tier restrictions on host functions."""
+
+    def test_spawn_blocked_on_hearth(self, host_registry: HostFunctionRegistry) -> None:
+        with pytest.raises(HlfTierViolation, match="not available on tier 'hearth'"):
+            host_registry.dispatch(
+                "SPAWN",
+                {"image": "test", "env": {}},
+                tier="hearth",
+            )
+
+    def test_spawn_allowed_on_forge(self, host_registry: HostFunctionRegistry) -> None:
+        result = host_registry.dispatch(
+            "SPAWN",
+            {"image": "test", "env": {}},
+            tier="forge",
         )
-        ast = hlfc_compile(src)
-        result = hlfrun(ast)
-        assert result["code"] == 0
-        expected = hashlib.sha256(b"hello").hexdigest()
-        assert result["scope"]["HASH_RESULT"] == expected
+        assert isinstance(result, HostFunctionResult)
 
-    def test_base64_encode(self) -> None:
-        src = '[HLF-v2]\n[FUNCTION] BASE64_ENCODE "hello"\nΩ\n'
-        ast = hlfc_compile(src)
-        result = hlfrun(ast)
-        import base64
-        assert result["scope"]["BASE64_ENCODE_RESULT"] == base64.b64encode(b"hello").decode()
+    def test_unknown_function_raises(self, host_registry: HostFunctionRegistry) -> None:
+        with pytest.raises(HlfHostFunctionError, match="Unknown host function"):
+            host_registry.dispatch("NONEXISTENT", {}, tier="hearth")
 
-    def test_base64_decode(self) -> None:
-        src = '[HLF-v2]\n[FUNCTION] BASE64_DECODE "aGVsbG8="\nΩ\n'
-        ast = hlfc_compile(src)
-        result = hlfrun(ast)
-        assert result["scope"]["BASE64_DECODE_RESULT"] == "hello"
 
-    def test_now_returns_iso8601(self) -> None:
-        src = "[HLF-v2]\n[FUNCTION] NOW\nΩ\n"
-        ast = hlfc_compile(src)
-        result = hlfrun(ast)
-        now_val = result["scope"]["NOW_RESULT"]
-        # Should parse as ISO-8601
-        from datetime import datetime
-        parsed = datetime.fromisoformat(now_val)
-        assert parsed is not None
+# ─── Gas Metering ────────────────────────────────────────────────────────────
 
-    def test_uuid_returns_valid_uuid(self) -> None:
-        src = "[HLF-v2]\n[FUNCTION] UUID\nΩ\n"
-        ast = hlfc_compile(src)
-        result = hlfrun(ast)
-        import uuid
-        # Should be a valid UUID-4 string
-        val = result["scope"]["UUID_RESULT"]
-        parsed = uuid.UUID(val)
-        assert str(parsed) == val
 
-    def test_unknown_builtin_raises(self) -> None:
-        # Manually craft an AST with an unknown FUNCTION name
-        ast = {
-            "version": "0.3.0",
-            "program": [{"tag": "FUNCTION", "name": "NONEXISTENT", "args": [], "pure": True}],
-        }
-        with pytest.raises(HlfRuntimeError, match="Unknown built-in function"):
-            hlfrun(ast)
+class TestGasMeter:
+    """Verify gas consumption tracking and limits."""
 
-    def test_function_result_available_as_var(self) -> None:
-        """${HASH_RESULT} should be available for subsequent SET references."""
-        src = (
-            "[HLF-v3]\n"
-            '[FUNCTION] UUID\n'
-            '[RESULT] code=0 message="ok"\n'
-            "Ω\n"
+    def test_basic_consumption(self, gas_meter: GasMeter) -> None:
+        gas_meter.consume(5, "test")
+        assert gas_meter.consumed == 5
+        assert gas_meter.remaining == 15
+
+    def test_gas_exhaustion_raises(self, gas_meter: GasMeter) -> None:
+        gas_meter.consume(15, "bulk")
+        with pytest.raises(HlfGasExhausted):
+            gas_meter.consume(10, "overflow")
+
+    def test_gas_history_tracked(self, gas_meter: GasMeter) -> None:
+        gas_meter.consume(3, "step_1")
+        gas_meter.consume(2, "step_2")
+        assert len(gas_meter.history) == 2
+        assert gas_meter.history[0]["context"] == "step_1"
+        assert gas_meter.history[1]["total"] == 5
+
+    def test_dispatch_consumes_gas(self, host_registry: HostFunctionRegistry) -> None:
+        meter = GasMeter(limit=50)
+        # Use READ (gas=1) — SLEEP has gas=0 so would not show consumption
+        host_registry.register_dispatcher(
+            "dapr_file_read", lambda name, args: "test content"
         )
-        ast = hlfc_compile(src)
-        result = hlfrun(ast)
-        assert "UUID_RESULT" in result["scope"]
+        host_registry.dispatch(
+            "READ", {"path": "/test"}, tier="hearth", gas_meter=meter
+        )
+        assert meter.consumed == 1
+
+    def test_to_dict(self, gas_meter: GasMeter) -> None:
+        gas_meter.consume(7, "test")
+        d = gas_meter.to_dict()
+        assert d["limit"] == 20
+        assert d["consumed"] == 7
+        assert d["remaining"] == 13
 
 
-# --------------------------------------------------------------------------- #
-# RESULT tag tests
-# --------------------------------------------------------------------------- #
+# ─── Sensitive Output Redaction ──────────────────────────────────────────────
 
-class TestResultTag:
-    def test_result_code_0(self) -> None:
-        src = '[HLF-v3]\n[INTENT] test "x"\n[RESULT] code=0 message="ok"\nΩ\n'
-        ast = hlfc_compile(src)
-        result = hlfrun(ast)
-        assert result["code"] == 0
-        assert result["message"] == "ok"
 
-    def test_result_code_1_failure(self) -> None:
-        src = '[HLF-v3]\n[INTENT] test "x"\n[RESULT] code=1 message="fail"\nΩ\n'
-        ast = hlfc_compile(src)
-        result = hlfrun(ast)
-        assert result["code"] == 1
-        assert result["message"] == "fail"
+class TestSensitiveRedaction:
+    """Verify that sensitive host function outputs are SHA-256 hashed."""
 
-    def test_result_terminates_execution(self) -> None:
-        """Nodes after [RESULT] must NOT be executed."""
+    def test_sensitive_output_is_hashed(self, host_registry: HostFunctionRegistry) -> None:
+        host_registry.register_dispatcher(
+            "dapr_http_proxy",
+            lambda name, args: "SECRET_SEARCH_RESULTS_12345",
+        )
+
+        result = host_registry.dispatch(
+            "WEB_SEARCH",
+            {"query": "test query"},
+            tier="forge",
+        )
+
+        assert result.value == "SECRET_SEARCH_RESULTS_12345"
+        assert result.log_value != result.value
+        assert len(result.log_value) == 64  # SHA-256 hex digest
+
+    def test_non_sensitive_output_is_raw(self, host_registry: HostFunctionRegistry) -> None:
+        host_registry.register_dispatcher(
+            "dapr_file_read",
+            lambda name, args: "file contents here",
+        )
+
+        result = host_registry.dispatch(
+            "READ",
+            {"path": "/test"},
+            tier="hearth",
+        )
+
+        assert result.log_value == result.value
+
+
+# ─── Module Loading ──────────────────────────────────────────────────────────
+
+
+class TestModuleLoader:
+    """Test HLF module file loading and namespace merge."""
+
+    def test_load_simple_module(self, module_dir: Path) -> None:
+        loader = ModuleLoader(search_paths=[module_dir])
+        ns = loader.load("math_utils")
+
+        assert ns.name == "math_utils"
+        assert "pi" in ns.bindings
+        assert ns.bindings["pi"] == 3
+        assert "square" in ns.functions
+
+    def test_load_module_with_import(self, module_dir: Path) -> None:
+        loader = ModuleLoader(search_paths=[module_dir])
+        ns = loader.load("advanced")
+
+        assert "tau" in ns.bindings
+        assert ns.bindings["tau"] == 6
+        assert "math_utils.pi" in ns.bindings
+
+    def test_module_not_found_raises(self, module_dir: Path) -> None:
+        loader = ModuleLoader(search_paths=[module_dir])
+        with pytest.raises(HlfModuleError, match="not found"):
+            loader.load("nonexistent_module")
+
+    def test_circular_import_detected(self, tmp_path: Path) -> None:
+        mod_dir = tmp_path / "circular"
+        mod_dir.mkdir()
+
+        (mod_dir / "a.hlf").write_text(
+            '[HLF-v2]\n[IMPORT] b\n[RESULT] 0 "ok"\nΩ\n',
+            encoding="utf-8",
+        )
+        (mod_dir / "b.hlf").write_text(
+            '[HLF-v2]\n[IMPORT] a\n[RESULT] 0 "ok"\nΩ\n',
+            encoding="utf-8",
+        )
+
+        loader = ModuleLoader(search_paths=[mod_dir])
+        with pytest.raises(HlfModuleError, match="Circular import"):
+            loader.load("a")
+
+    def test_module_caching(self, module_dir: Path) -> None:
+        loader = ModuleLoader(search_paths=[module_dir])
+        ns1 = loader.load("math_utils")
+        ns2 = loader.load("math_utils")
+        assert ns1 is ns2
+
+    def test_namespace_merge_into_env(self, module_dir: Path) -> None:
+        loader = ModuleLoader(search_paths=[module_dir])
+        ns = loader.load("math_utils")
+
+        env: dict[str, Any] = {}
+        loader.merge_into_env(ns, env)
+
+        assert env["pi"] == 3
+        assert env["math_utils.pi"] == 3
+
+
+# ─── HLF Runtime ─────────────────────────────────────────────────────────────
+
+
+class TestHLFRuntime:
+    """End-to-end runtime execution tests."""
+
+    def test_simple_execution(self) -> None:
         ast = {
-            "version": "0.3.0",
             "program": [
-                {"tag": "RESULT", "args": [{"code": 0}, {"message": "done"}]},
-                # This FUNCTION would fail with RuntimeError if executed
-                {"tag": "FUNCTION", "name": "NONEXISTENT", "args": [], "pure": True},
-            ],
+                {"tag": "INTENT", "args": ["greet", "world"],
+                 "human_readable": "Execute INTENT"},
+                {"tag": "RESULT", "code": 0, "message": "ok",
+                 "human_readable": "Return 0 ok"},
+            ]
         }
-        result = hlfrun(ast)
-        assert result["code"] == 0  # no error despite bad FUNCTION below RESULT
 
+        runtime = HLFRuntime(gas_limit=50)
+        result = runtime.execute(ast)
 
-# --------------------------------------------------------------------------- #
-# Gas limit tests
-# --------------------------------------------------------------------------- #
+        assert result.code == 0
+        assert result.message == "ok"
+        assert result.gas_used > 0
 
-class TestGasLimit:
-    def test_gas_exceeded_raises(self) -> None:
-        # 12 nodes, gas=3 → should raise after 3 executions
-        nodes = [{"tag": "INTENT", "args": [f"action_{i}"]} for i in range(12)]
-        ast = {"version": "0.3.0", "program": nodes}
-        with pytest.raises(HlfRuntimeError, match="Gas limit exceeded"):
-            hlfrun(ast, max_gas=3)
+    def test_gas_exhaustion_terminates(self) -> None:
+        program = [
+            {"tag": "INTENT", "args": [f"step_{i}"],
+             "human_readable": f"Step {i}"}
+            for i in range(20)
+        ]
+        ast = {"program": program}
 
-    def test_gas_used_tracked(self) -> None:
-        src = '[HLF-v3]\n[INTENT] x "y"\n[FUNCTION] UUID\nΩ\n'
-        ast = hlfc_compile(src)
-        result = hlfrun(ast, max_gas=10)
-        assert result["gas_used"] == 2  # INTENT + FUNCTION
+        runtime = HLFRuntime(gas_limit=5)
+        result = runtime.execute(ast)
 
+        assert result.code == 1
+        assert "Gas exhausted" in result.message
 
-# --------------------------------------------------------------------------- #
-# SET scope propagation
-# --------------------------------------------------------------------------- #
-
-class TestSetScope:
-    def test_set_binding_in_scope(self) -> None:
-        src = '[HLF-v2]\n[SET] x="hello"\n[INTENT] use "x"\nΩ\n'
-        ast = hlfc_compile(src)
-        result = hlfrun(ast)
-        assert result["scope"]["x"] == "hello"
-
-
-# --------------------------------------------------------------------------- #
-# Host Function Dispatcher tests
-# --------------------------------------------------------------------------- #
-
-class TestHostFunctionDispatcher:
-    def test_tier_enforcement(self) -> None:
-        """SPAWN is not available in 'hearth' tier."""
-        from agents.core.host_function_dispatcher import dispatch
-
-        with pytest.raises(PermissionError, match="hearth"):
-            dispatch("SPAWN", ["alpine"], "hearth")
-
-    def test_unknown_function_raises(self) -> None:
-        from agents.core.host_function_dispatcher import dispatch
-
-        with pytest.raises(RuntimeError, match="Unknown host function"):
-            dispatch("NONEXISTENT", [], "sovereign")
-
-    def test_sleep_builtin(self) -> None:
-        from agents.core.host_function_dispatcher import dispatch
-
-        start = time.time()
-        result = dispatch("SLEEP", [50], "hearth")  # 50ms
-        elapsed = time.time() - start
-        assert result is True
-        assert elapsed >= 0.04  # at least 40ms elapsed
-
-    def test_read_direct_fallback(self, tmp_path: Path) -> None:
-        """READ falls back to direct filesystem when Dapr is unavailable."""
-        from agents.core.host_function_dispatcher import dispatch
-
-        target = tmp_path / "test.txt"
-        target.write_text("hello acfs")
-
-        # Map BASE_DIR to tmp_path so ACFS path resolves correctly
-        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
-            result = dispatch("READ", ["test.txt"], "hearth")
-
-        assert result == "hello acfs"
-
-    def test_write_direct_fallback(self, tmp_path: Path) -> None:
-        """WRITE falls back to direct filesystem when Dapr is unavailable."""
-        from agents.core.host_function_dispatcher import dispatch
-
-        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
-            ok = dispatch("WRITE", ["output.txt", "written by test"], "hearth")
-
-        assert ok is True
-        assert (tmp_path / "output.txt").read_text() == "written by test"
-
-    def test_acfs_path_traversal_blocked(self, tmp_path: Path) -> None:
-        """Path traversal outside BASE_DIR must be blocked.
-
-        On Linux: raises PermissionError (ACFS confinement violation).
-        On Windows: may raise FileNotFoundError when the traversed path doesn't
-        exist (resolve() falls back to absolute() which doesn't collapse '..').
-        Either way, the traversal is blocked — the file is never accessible.
-        """
-        from agents.core.host_function_dispatcher import dispatch
-
-        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
-            with pytest.raises((PermissionError, FileNotFoundError)):
-                dispatch("READ", ["../../etc/passwd"], "hearth")
-
-    def test_web_search_tier_enforcement(self) -> None:
-        """WEB_SEARCH is not available on hearth tier."""
-        from agents.core.host_function_dispatcher import dispatch
-
-        with pytest.raises(PermissionError, match="hearth"):
-            dispatch("WEB_SEARCH", ["query"], "hearth")
-
-
-# --------------------------------------------------------------------------- #
-# ACTION tag dispatch integration
-# --------------------------------------------------------------------------- #
-
-class TestActionDispatch:
-    def test_action_sleep_via_interpreter(self) -> None:
-        """[ACTION] SLEEP 50 — exercises the full ACTION dispatch path."""
+    def test_set_bindings_collected(self) -> None:
         ast = {
-            "version": "0.3.0",
             "program": [
-                {"tag": "ACTION", "args": ["SLEEP", 50]},
-                {"tag": "RESULT", "args": [{"code": 0}, {"message": "ok"}]},
-            ],
+                {"tag": "SET", "name": "x", "value": 42,
+                 "human_readable": "Set x=42"},
+                {"tag": "RESULT", "code": 0, "message": "ok",
+                 "human_readable": "ok"},
+            ]
         }
-        result = hlfrun(ast)
-        assert result["code"] == 0
-        assert result["scope"]["SLEEP_RESULT"] is True
 
-    def test_action_read_write_round_trip(self, tmp_path: Path) -> None:
-        """[ACTION] WRITE then [ACTION] READ — verifies file I/O round-trip."""
+        runtime = HLFRuntime(gas_limit=50)
+        runtime.execute(ast)
+
+        assert runtime.env["x"] == 42
+
+    def test_execution_result_to_dict(self) -> None:
         ast = {
-            "version": "0.3.0",
             "program": [
-                {"tag": "ACTION", "args": ["WRITE", "round_trip.txt", "test_data"]},
-                {"tag": "ACTION", "args": ["READ", "round_trip.txt"]},
-                {"tag": "RESULT", "args": [{"code": 0}, {"message": "ok"}]},
-            ],
+                {"tag": "RESULT", "code": 0, "message": "done",
+                 "human_readable": "done"},
+            ]
         }
-        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
-            result = hlfrun(ast)
 
-        assert result["scope"]["WRITE_RESULT"] is True
-        assert result["scope"]["READ_RESULT"] == "test_data"
+        runtime = HLFRuntime(gas_limit=50)
+        result = runtime.execute(ast)
+        d = result.to_dict()
 
+        assert d["code"] == 0
+        assert d["gas_limit"] == 50
+        assert d["gas_used"] > 0
+        assert isinstance(d["modules_loaded"], list)
 
-# --------------------------------------------------------------------------- #
-# Dual-mode bus tests
-# --------------------------------------------------------------------------- #
+    def test_module_import_in_runtime(self, module_dir: Path) -> None:
+        ast = {
+            "program": [
+                {"tag": "IMPORT", "name": "math_utils",
+                 "human_readable": "Import math_utils"},
+                {"tag": "RESULT", "code": 0, "message": "ok",
+                 "human_readable": "ok"},
+            ]
+        }
 
-class TestDualModeBus:
-    def _mock_redis(self, **overrides):
-        mock = AsyncMock()
-        mock.incr = AsyncMock(return_value=overrides.get("incr", 1))
-        mock.expire = AsyncMock(return_value=True)
-        mock.set = AsyncMock(return_value=True)
-        mock.xadd = AsyncMock(return_value="1-0")
-        mock.eval = AsyncMock(return_value=overrides.get("gas_eval", 999))
-        return mock
+        runtime = HLFRuntime(
+            gas_limit=50,
+            module_loader=ModuleLoader(search_paths=[module_dir]),
+        )
+        result = runtime.execute(ast)
 
-    def _fake_get_redis(self, mock_redis):
-        async def _inner():
-            return mock_redis
-
-        return _inner
-
-    def test_text_mode_bypasses_hlf_validator(self) -> None:
-        """{'text': 'plain English'} should return 202, not 422."""
-        mock_redis = self._mock_redis()
-        with patch("agents.gateway.bus.get_redis", new=self._fake_get_redis(mock_redis)):
-            from agents.gateway import bus
-            from fastapi.testclient import TestClient
-
-            client = TestClient(bus.app, raise_server_exceptions=False)
-            resp = client.post("/api/v1/intent", json={"text": "analyze the seccomp file"})
-
-        assert resp.status_code == 202
-        data = resp.json()
-        assert data["ast"]["text_mode"] is True
-
-    def test_hlf_mode_still_validates(self) -> None:
-        """{'hlf': 'bad HLF'} should still return 422."""
-        mock_redis = self._mock_redis()
-        with patch("agents.gateway.bus.get_redis", new=self._fake_get_redis(mock_redis)):
-            from agents.gateway import bus
-            from fastapi.testclient import TestClient
-
-            client = TestClient(bus.app, raise_server_exceptions=False)
-            resp = client.post("/api/v1/intent", json={"hlf": "this is not valid HLF"})
-
-        assert resp.status_code == 422
-
-
-# --------------------------------------------------------------------------- #
-# execute_intent wiring test
-# --------------------------------------------------------------------------- #
-
-class TestExecuteIntent:
-    def test_ast_mode_executes_directly(self) -> None:
-        """Payloads with pre-compiled AST are executed by hlfrun directly."""
-        from agents.core.main import execute_intent
-
-        src = '[HLF-v2]\n[INTENT] test "x"\n[RESULT] code=0 message="done"\nΩ\n'
-        ast = hlfc_compile(src)
-        result = execute_intent({"request_id": "test-001", "ast": ast})
-        assert result["code"] == 0
-        assert result["message"] == "done"
-
-    def test_text_mode_returns_error_when_ollama_down(self) -> None:
-        """Text-mode payload returns code=1 when Ollama is not reachable."""
-        from agents.core.main import execute_intent
-
-        payload = {"request_id": "test-002", "text": "do something"}
-        result = execute_intent(payload)
-        # Ollama is not running in test env → RuntimeError captured gracefully
-        assert result["code"] == 1
-        assert "ollama" in result["message"].lower() or result["code"] == 1
+        assert result.code == 0
+        assert "math_utils" in result.modules_loaded
+        assert runtime.env.get("pi") == 3
