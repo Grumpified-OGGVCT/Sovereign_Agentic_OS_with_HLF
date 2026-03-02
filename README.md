@@ -7,7 +7,7 @@
 > **🛠️ In Progress**: Copilot agent/runner factory, real-time HLF translation indicators, vector embeddings (sqlite-vec), Redis active context tiering, fractal summarization.
 > **⏸️ Paused**: Pure cloud-only orchestrations.
 >
-> 🌐 **[Live Demo →](https://grumpified-oggvct.github.io/Sovereign_Agentic_OS_with_HLF/)** | 📊 **[HLF Progress Report →](docs/HLF_PROGRESS.md)**
+> 🌐 **[Live Demo →](https://grumpified-oggvct.github.io/Sovereign_Agentic_OS_with_HLF/)** | 📊 **[HLF Progress Report →](docs/HLF_PROGRESS.md)** | 📓 **[NotebookLM Research Notebook →](https://notebooklm.google.com/notebook/13b9e9f1-77aa-4eba-8760-e38dbdc98bdc)**
 
 ![The Rosetta Stone of Agentic AI Systems](assets/The%20Rosetta%20Stone%20of%20Agentic%20AI%20Systems.svg)
 
@@ -302,7 +302,7 @@ The Sovereign OS is deeply integrated with **Antigravity** (Google DeepMind's ag
 
 ### Goals & Intentions
 - **Glass-Box IDE Control**: Allow an external expert coding agent (Antigravity) to read the internal state, health, and memory of the OS directly from the IDE without breaking security boundaries.
-- **Autonomous OS Maintenance**: Empower Antigravity to trigger "Dream Mode" cycles, read 11-Hat analysis findings from 8 named agents, and suggest architectural improvements based on the OS's own self-reflections.
+- **Autonomous OS Maintenance**: Empower Antigravity to trigger "Dream Mode" cycles, read 11-Hat analysis findings from 11 named agents, and suggest architectural improvements based on the OS's own self-reflections.
 - **Regulated Tool Access**: Expose 8 secure tools (e.g., `check_health`, `dispatch_intent`, `query_memory`, `run_dream_cycle`) that allow the IDE agent to operate the OS like a sysadmin, while remaining fully constrained by the ALIGN governed Gateway Bus.
 
 To start the MCP server, select Option 3 in the `run.bat` boot menu, or use `--auto-launch` in the tray manager. 
@@ -416,7 +416,7 @@ Issue-to-Jules automation: `scripts/jules_dispatch.sh <issue-number>` (supports 
 |------|----------|-------|
 | **CoVE Full** (12-dimension) | `governance/templates/cove_full_validation.md` | Major changes, security PRs |
 | **CoVE Compact** (8-step) | `governance/templates/cove_compact_validation.md` | Small changes (< 200 lines) |
-| **11-Hat Review** | `governance/templates/six_hats_review.md` | Every Jules PR |
+| **11-Hat Review** | `governance/templates/eleven_hats_review.md` | Every Jules PR |
 
 ### Safety Invariants (Non-Negotiable)
 
@@ -437,6 +437,7 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 - [Genesis Stack Blueprint](assets/Genesis_Stack_Blueprint.pdf)
 - [Sovereign Agentic Stack Architecture](assets/Sovereign_Agentic_Stack.pdf)
 - [Ollama Matrix Sync Pipeline](assets/Ollama_Matrix_Sync.pdf)
+- 📓 [NotebookLM Research Notebook](https://notebooklm.google.com/notebook/13b9e9f1-77aa-4eba-8760-e38dbdc98bdc) — The genesis knowledge base containing 291 sources, deep research reports, RFC catalog, ground-truth audit corrections, and the HLF vision for human-machine symbolic bilingualism. Central to all architectural planning and public education.
 
 ## 💻 Tech Stack
 
@@ -461,8 +462,8 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 | GUI Framework | Streamlit (dark mode default) |
 | Installation Tests | 62 deep verification tests |
 | Auto-Update | git-based with GUI approval flow |
-| HLF Test Fixtures | 6 domain-specific `.hlf` files |
-| Total Tests | 197 (pytest collected) |
+| HLF Test Fixtures | 7 domain-specific `.hlf` files |
+| Total Tests | 443 (pytest collected) |
 | Benchmarking | tiktoken cl100k_base compression analysis |
 | Live Demo | [GitHub Pages](https://grumpified-oggvct.github.io/Sovereign_Agentic_OS_with_HLF/) |
 

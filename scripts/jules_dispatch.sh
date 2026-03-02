@@ -16,7 +16,7 @@
 #
 # What it does:
 #   1. Fetches the issue title, body, and labels from GitHub
-#   2. Maps labels to Jules task templates (CoVE, Six Hats, etc.)
+#   2. Maps labels to Jules task templates (CoVE, Eleven Hats, etc.)
 #   3. Constructs a Jules prompt with invariants and context
 #   4. Launches a Jules session with the prompt
 #   5. Monitors the session and reports back to the issue
@@ -105,7 +105,7 @@ ${INVARIANTS}
 3. Make only ADDITIVE changes — never delete or simplify existing code
 4. Run the full test suite: uv run python -m pytest tests/ -v
 5. Ensure all 132+ tests pass before creating a PR
-6. Apply the Six Hats Review protocol from ${GOVERNANCE_DIR}/six_hats_review.md
+6. Apply the Eleven Hats Review protocol from ${GOVERNANCE_DIR}/eleven_hats_review.md
 EOF
 )
 

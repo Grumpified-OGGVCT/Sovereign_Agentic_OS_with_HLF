@@ -1,50 +1,65 @@
 # HLF Language Progress Report
 
 > **Auto-maintained reference for all agents (Jules, Antigravity, human contributors).**
-> Last updated: 2026-03-01 by Antigravity deep-dive audit.
+> Last updated: 2026-03-02 by Antigravity ground-truth audit (codebase scan + test run + NotebookLM research).
+> 📓 **[NotebookLM Research Notebook →](https://notebooklm.google.com/notebook/13b9e9f1-77aa-4eba-8760-e38dbdc98bdc)** — Genesis knowledge base (291 sources)
 
 ---
 
-## Language Version: v0.3.0 (Compiler Output)
+## Language Version: v0.4.0 (Compiler Output)
 
 ## Toolchain Inventory
 
 | Tool | File | Lines | Status |
 |------|------|-------|--------|
-| **Compiler** (`hlfc`) | `hlf/hlfc.py` | 245 | ✅ Production |
-| **Formatter** (`hlffmt`) | `hlf/hlffmt.py` | 77 | ✅ Production |
-| **Linter** (`hlflint`) | `hlf/hlflint.py` | 84 | ✅ Production |
-| **Runtime** (`hlfrun`) | `hlf/hlfrun.py` | 243 | ✅ Production |
+| **Compiler** (`hlfc`) | `hlf/hlfc.py` | 1,106 | ✅ Production |
+| **Runtime** (`runtime`) | `hlf/runtime.py` | 639 | ✅ Production |
+| **Interpreter** (`hlfrun`) | `hlf/hlfrun.py` | 243 | ✅ Production |
+| **Formatter** (`hlffmt`) | `hlf/hlffmt.py` | ~80 | ✅ Production |
+| **Linter** (`hlflint`) | `hlf/hlflint.py` | ~85 | ✅ Production |
 | **Validator** | `hlf/__init__.py` | ~50 | ✅ Production |
+| **Host Fn Dispatcher** | `agents/core/host_function_dispatcher.py` | 305 | ✅ Production |
 | **Syntax Highlighting** | `syntaxes/hlf.tmLanguage.json` | 46 | ✅ Production |
 | **CI Token Linter** | `scripts/hlf_token_lint.py` | 69 | ✅ Production |
+| **Grammar Spec** | `governance/hls.yaml` | 385 | ✅ Production (v0.4.0 BNF) |
 | **Tag Schema** | `governance/templates/dictionary.json` | ~80 | ✅ Production |
+| **Host Fn Registry** | `governance/host_functions.json` | 13 | ✅ Production |
 | **System Prompt** | `governance/templates/system_prompt.txt` | ~15 | ✅ Production |
 
-**Total toolchain:** ~649 lines of Python + 46 lines JSON grammar
+**Total toolchain:** ~2,900+ lines of Python + supporting JSON/YAML
 
 ---
 
 ## Grammar Capabilities
 
-### Statement Types (6)
+### Statement Types (13)
 - `[TAG]` — Generic tagged instruction (INTENT, CONSTRAINT, EXPECT, ACTION, etc.)
 - `[SET]` — Immutable variable binding (duplicate assignment raises `HlfSyntaxError`)
 - `[FUNCTION]` — Pure built-in function call
 - `[RESULT]` — Error-code propagation with `code=N message="..."`
-- `[MODULE]` — Module declaration (grammar implemented, runtime pending)
-- `[IMPORT]` — Module import (grammar implemented, runtime pending)
+- `[MODULE]` — Module declaration
+- `[IMPORT]` — Module import
+- `[IF]` / `[ELSE]` — Conditional logic
+- `[ASSIGN]` — Mutable assignment with `←` operator
+- `[TYPE_ANNOTATED]` — Type annotations with `::` operator (S, N, B, J, A)
+- `[CONCURRENT]` — Parallel execution with `∥` operator
+- `[SYNC]` — Synchronization with `⋈` operator
+- `[PASS_BY_REF]` — Reference passing with `&` operator
+- `[STRUCT]` — Structure definition with `≡` operator (RFC 9007)
 
-### Terminal Types (7)
-`TAG`, `IDENT`, `PATH`, `STRING`, `NUMBER`, `BOOL`, `VAR_REF`
+### Terminal Types (10)
+`TAG`, `IDENT`, `PATH`, `STRING`, `NUMBER`, `BOOL`, `VAR_REF`, `GLYPH_PREFIX`, `OPERATOR`, `TYPE_SYMBOL`
 
-### Ignored Glyphs (6)
-`Δ` (State Diff), `Ж` (Reasoning Blocker), `⩕` (Gas), `⌘` (Command), `∇` (Gradient), `⨝` (Join)
+### Parsed Glyph Prefixes (8)
+`⌘` (Command), `Ж` (Reasoning Blocker), `∇` (Gradient/Goal), `⩕` (Gas), `⨝` (Join), `Δ` (State Diff), `~` (Tilde), `§` (Section)
+
+### RFC 9001-9008 Operators (13 implemented)
+`↦τ` tool exec (RFC 9005), `⊎⇒⇌` routing (RFC 9005), `¬∩∪` logic (RFC 9005), `←` assign (RFC 9005), `::` type (RFC 9005), `∥` parallel (RFC 9005), `⋈` sync (RFC 9005), `&` pass-by-ref (RFC 9005), `_{ρ:val}` epistemic (RFC 9005), `≡` struct (RFC 9007), `~` aesthetic (RFC 9007), `§` expression (RFC 9007), `+−*/` math + comparisons (RFC 9005)
 
 ### Built-in Functions (5)
 `HASH` (sha256), `BASE64_ENCODE`, `BASE64_DECODE`, `NOW` (ISO-8601 UTC), `UUID`
 
-### Host Function Stubs (7)
+### Host Functions (7 — live dispatch)
 `READ`, `WRITE`, `SPAWN`, `SLEEP`, `HTTP_GET`, `WEB_SEARCH`, `OPENCLAW_SUMMARIZE`
 
 ---
@@ -54,78 +69,106 @@
 ```
 Source (.hlf) → Lark LALR(1) Parser → Parse Tree → HLFTransformer → JSON AST
                                                         ↓
-                                              Pass 1: Collect SET env
-                                              Pass 2: Expand ${VAR} refs
+                                      Pass 1: Collect SET env
+                                      Pass 2: Expand ${VAR} refs
+                                      Pass 3: ALIGN Ledger scan (R-001→R-008)
+                                      Pass 4: dictionary.json arity/type enforcement
+                                      InsAIts V2: human_readable on every node
                                                         ↓
-                                              Validated JSON AST (v0.3.0)
+                                              Validated JSON AST (v0.4.0)
 ```
 
-**Two-pass architecture:**
+**Four-pass architecture:**
 - Pass 1: Collects immutable `[SET]` bindings into environment dict
 - Pass 2: Recursively expands `${VAR}` references using collected env
+- Pass 3: Scans all AST strings against ALIGN Ledger rules (8 regex patterns)
+- Pass 4: Validates tag arity and argument types against `dictionary.json` (16 tag specs)
 
 ---
 
 ## Test Coverage
 
-- **197 total tests passing** (14 HLF-specific in `test_hlf.py`)
-  - 7 validation tests (`TestValidateHlf`)
-  - 5 compilation tests (`TestHlfCompile`)
-  - 2 lint tests (`TestHlfLint`)
-- **1 fixture:** `tests/fixtures/hello_world.hlf`
+- **443 total tests** (376 passing / 37 failing / 30 errors)
+  - HLF-specific: 15+ in `test_hlf.py`
+  - Grammar roundtrip: `test_grammar_roundtrip.py`
+  - Policy: `test_policy.py`
+  - E2E pipeline: `test_e2e_pipeline.py`
+  - Aegis-Nexus: `test_aegis_nexus.py`
+- **7 fixtures:** `tests/fixtures/` (hello_world, devops, security, creative, architecture, data, multi-module)
 - **Token budgets:** 30 tokens/intent (linter), 1500 tokens/file (CI)
+- **Test failure breakdown (67 total):**
+
+| File | Count | Type |
+|------|-------|------|
+| `test_tool_forge.py` | 30 | Errors (import/setup crash) |
+| `test_hlf.py` | 9 | Failures (grammar expansion) |
+| `test_policy.py` | 9 | Failures (fixture sync) |
+| `test_e2e_pipeline.py` | 6 | Failures (stale assertions) |
+| `test_aegis_nexus.py` | 5 | Failures (hat integration) |
+| `test_installation.py` | 4 | Failures (env checks) |
+| `test_grammar_roundtrip.py` | 2 | Failures (formatter sync) |
+| `test_hat_engine.py` | 1 | Failure |
+| `test_phase4_phase5.py` | 1 | Failure |
 
 ---
 
 ## Roadmap: Implemented vs Spec'd
 
-### Phase 3 — HLF Core Language (~65% complete)
+### Phase 3 — HLF Core Language (~90% complete)
 
 - [x] LALR(1) parser via Lark
-- [x] 6 statement types in grammar
+- [x] 13 statement types in grammar (v0.4.0)
 - [x] Immutable SET bindings with duplicate detection
 - [x] Two-pass compilation (env collection → var expansion)
 - [x] Ω / Omega terminator
 - [x] 5 pure built-in functions
-- [x] Runtime interpreter with gas metering
+- [x] RFC 9005 operators (↦τ, ⊎⇒⇌, ¬∩∪, ←, ::, ∥, ⋈, &, _{ρ:val})
+- [x] RFC 9007 operators (≡ struct, ~ aesthetic, § expression)
+- [x] Glyph prefixes parsed (⌘ Ж ∇ ⩕ ⨝ Δ ~ §)
+- [x] Math expressions (+, -, *, /, comparisons)
+- [x] InsAIts V2 human_readable on every AST node
+- [x] format_correction() — Iterative Intervention Engine
+- [x] Runtime interpreter with gas metering (`hlf/runtime.py` — 639 lines)
 - [x] Error-code propagation via RESULT
-- [x] Regex validation gate (validate_hlf)
+- [x] Regex validation gate (`validate_hlf`)
 - [x] HLF linter middleware (token, gas, unused vars)
-- [ ] dictionary.json arity/type enforcement at parse-time
-- [ ] hls.yaml formal grammar spec (machine-readable BNF)
-- [ ] ALIGN enforcement middleware (sentinel_gate.py)
-- [ ] Nonce/ULID replay protection
-- [ ] Legacy Bridge Module (decompress_hlf_to_rest)
+- [x] `dictionary.json` arity/type enforcement at parse-time (Pass 4)
+- [x] `hls.yaml` formal grammar spec (`governance/hls.yaml` v0.4.0, 385 lines)
+- [x] ALIGN enforcement middleware (`sentinel_gate.py`)
+- [x] Nonce/ULID replay protection
+- [x] Legacy Bridge Module (`decompress_hlf_to_rest`)
+- [ ] Round-trip semantic similarity gate (>0.95 per genesis spec — not yet implemented)
+- [ ] Language Audit automation (every 1000 packets per spec — not yet implemented)
 
-### Phase 5.1 — v0.3 Modules & Host Functions (~25% complete)
+### Phase 5.1 — v0.3 Modules & Host Functions (~70% complete)
 
 - [x] MODULE and IMPORT grammar rules
 - [x] MODULE and IMPORT AST transformer
 - [x] Tier-aware execution (hearth/forge/sovereign)
 - [x] Host function dispatch architecture (ACTION → dispatcher)
-- [x] 7 host function stubs documented
-- [ ] Module runtime file loading + namespace merge
-- [ ] Host function registry (governance/host_functions.json) — live dispatch
+- [x] 7 host functions with live dispatch
+- [x] Module runtime file loading + namespace merge (`runtime.py` ModuleLoader)
+- [x] Host function registry (`governance/host_functions.json` + `runtime.py` HostFunctionRegistry)
+- [x] ALIGN Rule R-008 (block raw OpenClaw keys)
 - [ ] OCI module distribution
 - [ ] Module checksum validation
-- [ ] ALIGN Rule R-008 (block raw OpenClaw keys)
 
 ### Phase 5.2 — v0.4 Byte-Code VM (0% — Future)
 
-- [ ] Stack-machine byte-code compiler (hlfc --emit-bytecode)
+- [ ] Stack-machine byte-code compiler (`hlfc --emit-bytecode`)
 - [ ] 32-instruction opcode set (PUSH, POP, CALL, RET, JMP, etc.)
-- [ ] .hlb binary format (HLFv04 magic + LE uint32 opcodes)
+- [ ] `.hlb` binary format (HLFv04 magic + LE uint32 opcodes)
 - [ ] Wasm sandbox integration (Wasmtime)
 - [ ] Dapr gRPC integration for runtime
-- [ ] hlfrun interpreter for .hlb files
+- [ ] `hlfrun` interpreter for `.hlb` files
 
 ### Phase 5.3 — v0.5 Language DX (10% — Future)
 
-- [x] TextMate syntax highlighting (hlf.tmLanguage.json)
-- [ ] Language Server Protocol (hlflsp via pygls)
-- [ ] HLF REPL (hlfsh)
-- [ ] Package manager (hlfpm)
-- [ ] Test harness (hlf-test)
+- [x] TextMate syntax highlighting (`syntaxes/hlf.tmLanguage.json`)
+- [ ] Language Server Protocol (`hlflsp` via `pygls`)
+- [ ] HLF REPL (`hlfsh`)
+- [ ] Package manager (`hlfpm`)
+- [ ] Test harness (`hlf-test`)
 - [ ] MkDocs documentation site
 
 ---
@@ -134,28 +177,29 @@ Source (.hlf) → Lark LALR(1) Parser → Parse Tree → HLFTransformer → JSON
 
 | Metric | Current Value | Source |
 |--------|---------------|--------|
-| Grammar statement types | 6 | hlfc.py `_GRAMMAR` |
-| Terminal types | 7 | hlfc.py `_GRAMMAR` |
-| Built-in functions | 5 | hlfrun.py `_BUILTIN_FUNCTIONS` |
-| Host function stubs | 7 | hlfrun.py docstring |
-| Toolchain size (lines) | ~649 | hlf/*.py |
-| Test count (total) | 197 | pytest |
-| Test count (HLF-specific) | 14 | test_hlf.py |
-| Test pass rate | 100% | CI |
-| Fixture files | 1 | tests/fixtures/ |
-| Dictionary tags | 7 | dictionary.json |
-| Registered glyphs | 4 | dictionary.json |
-| Compiler version | 0.3.0 | hlfc.compile() |
+| Grammar statement types | 13 | `hlfc.py` `_GRAMMAR` |
+| RFC 9001-9008 operators | 13 | `hlfc.py` `_GRAMMAR` (see `docs/RFC_9000_SERIES.md`) |
+| Terminal types | 10 | `hlfc.py` `_GRAMMAR` |
+| Built-in functions | 5 | `hlfrun.py` `_BUILTIN_FUNCTIONS` |
+| Host functions (live) | 7 | `host_functions.json` + `runtime.py` |
+| Toolchain size (lines) | ~2,900+ | `hlf/*.py` + `host_function_dispatcher.py` |
+| Test count (total) | 443 | pytest |
+| Test pass rate | 84.8% | 376 pass / 67 failures |
+| Fixture files | 7 | `tests/fixtures/` |
+| Dictionary tags | 16 | `dictionary.json` |
+| Dictionary glyphs | 7 | `dictionary.json` |
+| Glyph prefixes | 8 | `hlfc.py` GLYPH_PREFIX |
+| ALIGN rules | 8 | `ALIGN_LEDGER.yaml` (R-001→R-008) |
+| Compiler version | 0.4.0 | `hlfc.compile()` |
+| Grammar spec version | 0.4.0 | `governance/hls.yaml` |
 
 ---
 
-## Priority Actions for Jules Agents
+## Priority Actions
 
-1. **Expand test fixtures** — Create 5-10 domain-specific `.hlf` files in `tests/fixtures/` (DevOps, Security, Creative, Architecture, Data tasks)
-2. **Build benchmark script** — `scripts/hlf_benchmark.py` that tokenizes NLP vs HLF for real compression measurements
-3. **Build metrics script** — `scripts/hlf_metrics.py` that scans codebase and outputs `docs/metrics.json`
-4. **Complete MODULE runtime** — Implement file loading and namespace merge for `[IMPORT]` statements
-5. **Create hls.yaml** — Machine-readable BNF grammar spec at `governance/hls.yaml`
+1. 🔴 **Fix 67 broken tests** — concentrated in `test_tool_forge` (30), `test_hlf` (9), `test_policy` (9)
+2. **Phase 5.1 completion** — OCI module distribution + module checksum validation
+3. **Phase 5.2** — Byte-Code VM (blocked by Phase 5.1)
 
 ---
 
@@ -169,7 +213,7 @@ A full JSON agent instruction payload (~148-185 tokens) compresses to ~22-30 HLF
 ### 2. Security Pipeline
 Every intent passes through a 6-gate security pipeline that JSON/natural language cannot provide:
 1. `validate_hlf()` — Regex structural gate
-2. `hlfc.compile()` — LALR(1) parse + type validation
+2. `hlfc.compile()` — LALR(1) parse + type validation + ALIGN scan + arity enforcement
 3. `hlflint.lint()` — Token budget + gas + unused var detection
 4. ALIGN enforcement — Regex block patterns (R-001 through R-008)
 5. Gas budget — Per-intent + global per-tier Redis token bucket

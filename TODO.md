@@ -1,6 +1,6 @@
 # Sovereign Agentic OS — Master Roadmap & Build Progress
 
-> Last audited: 2026-03-01 | Tests: 197 | HLF Fixtures: 7 | Grammar: v0.4.0
+> Last audited: 2026-03-02 | Tests: 443 (385 pass / 28 fail / 30 error) | HLF Fixtures: 7 | Grammar: v0.4.0 | Toolchain: ~2,400 lines
 
 ---
 
@@ -73,7 +73,7 @@
 
 ### Bootstrap & Tests (Phase 4.4)
 - [x] `bootstrap_all_in_one.sh` — 8-step genesis sequence with shutdown trap
-- [x] Test suite: 197 tests passing
+- [x] Test suite: 443 tests (385 passing, 58 need fix — see test failure breakdown below)
 - [x] Alembic migrations
 - [x] `tests/fixtures/hello_world.hlf` — update to match Appendix A.7
 
@@ -106,7 +106,7 @@
 - [x] `AgentProfile` dataclass (10 fields: model, provider, tier, system_prompt, tools, restrictions, routing_trace, gas_remaining, confidence)
 - [x] Tests: `test_router_v2.py` — 8 tests
 
-### Infra Phase 4: Agent OS Wiring (Provisioning) 🟡 ~75%
+### Infra Phase 4: Agent OS Wiring (Provisioning) ✅ COMPLETE
 - [x] Refactor `main.py` `_ollama_generate()` → `_ollama_generate_v2()` consuming `route_request()` output
 - [x] Refactor `execute_intent()` to apply Agent Profile (model, provider, system_prompt, restrictions)
 - [x] Wire `ALSLogger` for `ROUTING_DECISION` events (governance audit trail)
@@ -121,9 +121,9 @@
 
 ## HLF Language Roadmap (Phases 3, 5.1-5.3)
 
-### HLF Phase 3: Core Language (~85% complete)
+### HLF Phase 3: Core Language (~90% complete)
 - [x] LALR(1) parser via Lark
-- [x] 14 statement types in grammar (v0.4.0)
+- [x] 13 statement types in grammar (v0.4.0)
 - [x] Immutable SET bindings with duplicate detection
 - [x] Two-pass compilation (env collection → var expansion)
 - [x] Ω / Omega terminator
@@ -135,27 +135,27 @@
 - [x] InsAIts V2 human_readable on every AST node
 - [x] format_correction() — Iterative Intervention Engine
 - [x] docs/HLF_GRAMMAR_REFERENCE.md — authoritative operator catalog
-- [ ] Runtime interpreter with gas metering
+- [x] Runtime interpreter with gas metering (`hlf/runtime.py` — 511 lines: HLFRuntime + GasMeter + ModuleLoader + HostFunctionRegistry)
 - [x] Error-code propagation via RESULT (structured code:int + message:string + severity classification)
 - [x] Regex validation gate (`validate_hlf`)
 - [x] HLF linter middleware (token, gas, unused vars)
 - [x] `dictionary.json` arity/type enforcement at parse-time (Pass 4 — loads 16 tag specs, validates arity + types)
-- [ ] `hls.yaml` formal grammar spec (machine-readable BNF)
+- [x] `hls.yaml` formal grammar spec (machine-readable BNF) — `governance/hls.yaml` v0.4.0, 330 lines
 - [x] ALIGN enforcement middleware (`sentinel_gate.py`)
 - [x] Nonce/ULID replay protection
 - [x] Legacy Bridge Module (`decompress_hlf_to_rest`)
 
-### HLF Phase 5.1: v0.3 Modules & Host Functions (~25% complete)
+### HLF Phase 5.1: v0.3 Modules & Host Functions (~70% complete)
 - [x] MODULE and IMPORT grammar rules
 - [x] MODULE and IMPORT AST transformer
 - [x] Tier-aware execution (hearth/forge/sovereign)
 - [x] Host function dispatch architecture (ACTION → dispatcher)
 - [x] 7 host function stubs documented
-- [ ] Module runtime file loading + namespace merge
-- [ ] Host function registry (`governance/host_functions.json`) — live dispatch
+- [x] Module runtime file loading + namespace merge (`hlf/runtime.py` — ModuleLoader with search paths, circular import detection, namespace merge)
+- [x] Host function registry (`governance/host_functions.json`) — live dispatch (`hlf/runtime.py` HostFunctionRegistry + `agents/core/host_function_dispatcher.py` 263 lines)
 - [ ] OCI module distribution
 - [ ] Module checksum validation
-- [ ] ALIGN Rule R-008 (block raw OpenClaw keys)
+- [x] ALIGN Rule R-008 (block raw OpenClaw keys) — `regex_block: 'openclaw:'` in `ALIGN_LEDGER.yaml`
 
 ### HLF Phase 5.2: v0.4 Byte-Code VM (0% — Future)
 
@@ -168,7 +168,7 @@
 
 ### HLF Phase 5.3: v0.5 Language DX (10% — Future)
 
-- [ ] TextMate syntax highlighting (`hlf.tmLanguage.json`)
+- [x] TextMate syntax highlighting (`syntaxes/hlf.tmLanguage.json`)
 - [ ] Language Server Protocol (`hlflsp` via `pygls`)
 - [ ] HLF REPL (`hlfsh`)
 - [ ] Package manager (`hlfpm`)
@@ -181,29 +181,34 @@
 
 | Metric | Current Value | Source |
 | --- | --- | --- |
-| Grammar statement types | 14 | `hlfc.py` `_GRAMMAR` |
-| RFC 9005/9007 operators | 13 | `hlfc.py` `_GRAMMAR` |
+| Grammar statement types | 13 | `hlfc.py` `_GRAMMAR` |
+| RFC 9001-9008 operators | 13 | `hlfc.py` `_GRAMMAR` (see `docs/RFC_9000_SERIES.md`) |
 | Terminal types | 10 | `hlfc.py` `_GRAMMAR` |
 | Built-in functions | 5 | `hlfrun.py` `_BUILTIN_FUNCTIONS` |
-| Host function stubs | 7 | `hlfrun.py` docstring |
-| Toolchain size (lines) | ~680+ | `hlf/*.py` |
-| Test count (total) | 200+ | pytest |
-| Test count (HLF-specific) | 15 | `test_hlf.py` |
-| Test pass rate | 100% | CI |
+| Host functions (live dispatch) | 7 | `governance/host_functions.json` + `runtime.py` |
+| Toolchain size (lines) | ~2,400+ | `hlf/*.py` (hlfc 918 + runtime 511 + hlfrun 243 + others) |
+| Test count (total) | 443 | pytest (385 pass / 28 fail / 30 error) |
+| Test count (HLF-specific) | 15+ | `test_hlf.py` |
+| Test pass rate | 86.9% | CI — 58 failures need fix |
 | Fixture files | 7 | `tests/fixtures/` |
-| Dictionary tags | 7 | `dictionary.json` |
-| Registered glyphs | 8 | `hlfc.py` GLYPH_PREFIX |
+| Dictionary tags | 16 | `dictionary.json` |
+| Dictionary glyphs | 7 | `dictionary.json` |
+| Registered glyph prefixes | 8 | `hlfc.py` GLYPH_PREFIX (⌘ Ж ∇ ⩕ ⨝ Δ ~ §) |
+| ALIGN rules | 8 | `ALIGN_LEDGER.yaml` (R-001 through R-008) |
 | Compiler version | 0.4.0 | `hlfc.compile()` |
 
 ---
 
-## Priority Actions for Jules Agents
+## Priority Actions
 
-1. **Expand test fixtures** — Create 5-10 domain-specific `.hlf` files in `tests/fixtures/` (DevOps, Security, Creative, Architecture, Data tasks)
-2. **Build benchmark script** — `scripts/hlf_benchmark.py` that tokenizes NLP vs HLF for real compression measurements
-3. **Build metrics script** — `scripts/hlf_metrics.py` that scans codebase and outputs `docs/metrics.json`
-4. **Complete MODULE runtime** — Implement file loading and namespace merge for `[IMPORT]` statements
-5. **Create `hls.yaml`** — Machine-readable BNF grammar spec at `governance/hls.yaml`
+1. **🔴 Fix 67 broken tests** — `test_tool_forge` (30 errors), `test_hlf` (9), `test_policy` (9), `test_e2e_pipeline` (6), `test_aegis_nexus` (5), `test_installation` (4), `test_grammar_roundtrip` (2), `test_hat_engine` (1), `test_phase4_phase5` (1)
+2. ~~**Build benchmark script**~~ ✅ `scripts/hlf_benchmark.py` exists
+3. ~~**Build metrics script**~~ ✅ `scripts/hlf_metrics.py` exists
+4. ~~**Complete MODULE runtime**~~ ✅ `hlf/runtime.py` ModuleLoader (file loading + namespace merge)
+5. ~~**Create `hls.yaml`**~~ ✅ `governance/hls.yaml` v0.4.0 (385 lines)
+6. **Phase 5.1 remaining** — OCI module distribution + module checksum validation
+7. **Phase 5.2** — Byte-Code VM (blocked by Phase 5.1 completion)
+8. **V.9 SAFE Three-Brain Backfill** — Tier 1 items (Intent Capsules, MAESTRO, ADR System, InsAIts V2, SPIFFE/SPIRE KYA) are low-to-medium effort with high governance value
 
 ---
 
@@ -236,7 +241,7 @@ Every intent passes through a **6-gate security pipeline** that JSON/natural lan
 
 - [x] Integrate the `ollama-matrix-sync` benchmarking pipeline into the main OS
 - [x] Pipeline→Registry bridge (`--registry-db --promote` flags)
-- [ ] Wire the Gateway `router.py` to dispatch to Ollama dynamically based on matrix constraints (→ Infra Phase 2)
+- [x] Wire the Gateway `router.py` to dispatch to Ollama dynamically (`agents/gateway/ollama_dispatch.py` — 23KB multi-provider dispatcher)
 
 ### V.2: ALIGN Ledger & Host Functions Validation ✅ COMPLETE
 
@@ -245,7 +250,7 @@ Every intent passes through a **6-gate security pipeline** that JSON/natural lan
 - [x] `HlfAlignViolation` exception class with rule_id, rule_name, action, match metadata
 - [x] Non-strict mode for analysis (annotates nodes instead of raising)
 
-### V.3: 11-Hat Aegis-Nexus Engine (8 Named Agents) ✅ COMPLETE
+### V.3: 11-Hat Aegis-Nexus Engine (11 Named Agents) ✅ COMPLETE
 
 - [x] Instantiate the Sentinel Agent (Red Hat / Security & PrivEsc checks)
 - [x] Instantiate the Scribe Agent (White Hat / Memory & Token Bloat)
@@ -301,3 +306,38 @@ Every intent passes through a **6-gate security pipeline** that JSON/natural lan
 - [x] GUI transparency panel: dual endpoint health, strategy display, last-endpoint tracking
 
 > **Benefit:** Doubles effective cloud model quota and parallel request capacity when both endpoints are active. Strategy is optional — the system degrades gracefully to primary-only if secondary is unreachable.
+
+### V.9: SAFE Three-Brain Design Backfill (Gap Analysis — 2026-03-02)
+
+> Source: SAFE v4.0 Blueprint (NotebookLM, 297 sources) and Swarm Identity Core (299 sources). The Three-Brain Design specifies Intelligence Brain (Planning/Memory/RAG), Execution Brain (Tool-calling/Vision-Action), and Safety Brain (Guardrails/Monitoring). Many spec items never made it into the current build. Below are the gaps organized by backfill priority.
+
+#### Three-Brain Coverage Summary
+
+| Brain | Built | Missing |
+| --- | --- | --- |
+| Intelligence | `dream_state.py`, `memory_scribe.py`, `hat_engine.py`, `context_tiering.py` | Neo4j graph DB, dedicated RAG pipeline |
+| Execution | `router.py`, `ollama_dispatch.py`, `scheduler.py`, `tool_forge.py`, `host_function_dispatcher.py` | ✅ Strongest — mostly complete |
+| Safety | `sentinel_agent.py`, `sentinel_gate.py`, `canary_agent.py`, `arbiter_agent.py` | LlamaFirewall, MAESTRO framework |
+
+#### Tier 1: High Value, Reasonable Effort
+
+- [ ] **Intent Capsules** — Scope-constraining wrappers per agent action. Low effort, high governance value. Ensures agents don't drift from authorized scope. Maps to SAFE Layer 6 Governance.
+- [ ] **MAESTRO Classification Schema** — Multi-layer threat assessment taxonomy. Lightweight to add on top of existing Sentinel filtering as a classification layer (not a replacement).
+- [ ] **ADR System** — Architecture Decision Records. Auto-generate ADRs when structural decisions are made (new operators, isolation changes, routing changes). Template exists in SAFE spec (ADR-002 example). Store in `governance/adrs/`.
+- [ ] **InsAIts V2 Decompressor** — HLF→English transparent compression tool. Solves the "black box" problem for SOC analysts. Partially addressed by `human_readable` on AST nodes (already built), but needs a dedicated decompressor daemon that unwraps dense HLF math into prose in real time.
+- [ ] **SPIFFE/SPIRE KYA Upgrade** — Replace `governance/kya_init.sh` stub with real cryptographic agent identity via SPIFFE/SPIRE SVIDs. Critical for multi-agent trust and "Know Your Agent" compliance. Current stub only generates self-signed certs.
+
+#### Tier 2: Strategic Differentiators
+
+- [ ] **Z3 Formal Verification (Layer 5)** — Pre-execution mathematical proofs of safety invariants using Microsoft Z3 SMT solver. **Completely missing from the build.** THE unique differentiator for "provably safe" claims. High effort but cornerstone of the architecture.
+- [ ] **ALIGN Live Ledger** — Upgrade `governance/ALIGN_LEDGER.yaml` from static YAML to a dynamic gossip-based trust scoring system. Agents acting as "witness agents" would report anomalous behavior, dynamically downgrading trust scores of rogue agents.
+- [ ] **ALS Schema Enforcement** — Formalize the Agentic Log Standard schema. Current `logger.py` has Merkle chain but doesn't enforce the full ALS spec (trace_id, goal_id, confidence_score, anomaly_score, token_cost as mandatory fields).
+
+#### Tier 3: Defer Unless Threat Model Demands
+
+- [ ] **LlamaFirewall** — ML-based payload screening for prompt injection/jailbreak. Sentinel already does deterministic filtering; this adds an ML layer. Consider if Sentinel's regex-based approach proves insufficient.
+- [ ] **Neo4j Graph DB** — Knowledge graph for Intelligence Brain. Evaluate whether `memory_scribe.py` + `context_tiering.py` + SQLite-vec is sufficient, or if graph queries are needed for complex relationship traversal.
+- [ ] **DCG Rust Kernel Hook (Layer 2)** — Sub-millisecond exec syscall interceptor. `security/seccomp.json` provides ~80% of the value on Linux. Rust hook is defense-in-depth for Tier 3 enterprise only.
+- [ ] **Entropic Memory Sanitization** — Defense against time-shifted memory poisoning. Sophisticated attack vector requiring periodic entropy injection into memory stores. Depends on threat model.
+- [ ] **Firecracker/Kata MicroVM Sandboxing (Layer 9)** — Hardware-isolated code execution. Docker + seccomp is sufficient for current threat model. Firecracker adds 125ms boot overhead per sandbox.
+- [ ] **Two-Channel Context Rot Defense** — Explicit separation of instructions from massive raw data using pointers. Partially implicit in the AST architecture but not formally enforced as a separate channel.

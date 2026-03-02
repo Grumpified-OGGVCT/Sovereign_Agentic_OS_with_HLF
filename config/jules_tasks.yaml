@@ -17,7 +17,7 @@
 #       - no_merge_conflicts: true
 #       - no_breaking_changes: true
 #       - cove_validation: "compact"   # full for >200 line changes
-#       - six_hats_review: true
+#       - eleven_hats_review: true
 #     on_conflict: "notify_user"       # pause and alert the user
 #     on_breaking_change: "notify_user" # never auto-merge breaking changes
 #     on_clean: "auto_apply"           # merge + push without user input
@@ -33,7 +33,7 @@ merge_policy:
     - file_deletion_attempt
     - feature_simplification_attempt
   auto_publish: true          # push to origin/main after auto-merge
-  require_six_hats: true      # every PR goes through hats
+  require_eleven_hats: true      # every PR goes through hats
   require_cove: "compact"     # "compact" for <200 lines, "full" for >200
 
 # ═══════════════════════════════════════════════════════════════════
@@ -64,7 +64,7 @@ daily_pipeline:
       - additive_only
       - expand_test_corpus
       - format_correction_feedback_loop
-    six_hats_review: true
+    eleven_hats_review: true
     output: "reports/daily/hlf-grammar-evolution.md"
 
   # ─── Step 2: Dream Cycle Enhancer ─────────────────────────────
@@ -80,7 +80,7 @@ daily_pipeline:
     invariants:
       - never_simplify_cognitive_loops
       - additive_only
-    six_hats_review: true
+    eleven_hats_review: true
     output: "reports/daily/dream-cycle-enhancement.md"
 
   # ─── Step 3: ALIGN Hardener ───────────────────────────────────
@@ -98,7 +98,7 @@ daily_pipeline:
       - never_weaken_governance
       - never_remove_alignment_rules
       - additive_only
-    six_hats_review: true
+    eleven_hats_review: true
     output: "reports/daily/align-hardening.md"
 
   # ─── Step 4: Transparency Assessor ────────────────────────────
@@ -123,7 +123,7 @@ daily_pipeline:
       - "ALS log stream accessible"
       - "User level toggle (minimal/standard/detailed) working"
       - "Inter-agent communication logged and displayable"
-    six_hats_review: true
+    eleven_hats_review: true
     output: "reports/daily/transparency-assessment.md"
 
   # ─── Step 5: GUI Feature Builder ──────────────────────────────
@@ -140,7 +140,7 @@ daily_pipeline:
       - never_remove_gui_features
       - maintain_transparency_panels
       - additive_only
-    six_hats_review: true
+    eleven_hats_review: true
     output: "reports/daily/gui-feature-build.md"
 
   # ─── Step 6: Gemini Model Integrator ──────────────────────────
@@ -157,7 +157,7 @@ daily_pipeline:
     invariants:
       - proper_api_key_management
       - tier_walk_integrity
-    six_hats_review: true
+    eleven_hats_review: true
     output: "reports/daily/gemini-integration.md"
 
   # ─── Step 7: Self-Capability Tracker ──────────────────────────
@@ -172,8 +172,8 @@ daily_pipeline:
     issue_label: "jules-enhancement"
     invariants:
       - never_overstate_capabilities
-      - must_pass_six_hats
-    six_hats_review: true
+      - must_pass_eleven_hats
+    eleven_hats_review: true
     output: "reports/daily/self-capability-update.md"
 
   # ─── Step 8: CI Fixer ─────────────────────────────────────────
@@ -192,7 +192,7 @@ daily_pipeline:
     invariants:
       - never_delete_tests
       - never_reduce_coverage
-    six_hats_review: true
+    eleven_hats_review: true
     output: "reports/daily/ci-fixes.md"
 
   # ─── Step 9: HLF Maximizer ────────────────────────────────────
@@ -211,7 +211,7 @@ daily_pipeline:
       - coverage_gte_baseline
       - never_simplify_hlf
       - additive_only
-    six_hats_review: true
+    eleven_hats_review: true
     output: "reports/daily/hlf-maximization.md"
 
   # ─── Step 10: README Updater (CAPSTONE) ───────────────────────
@@ -226,7 +226,7 @@ daily_pipeline:
       - never_remove_readme_sections
       - reflect_all_daily_changes
       - additive_only
-    six_hats_review: true
+    eleven_hats_review: true
     output: "reports/daily/readme-update.md"
     capstone: true            # marks this as the final step
 
@@ -264,7 +264,7 @@ global_invariants:
   merkle_chain: true
   no_transparency_reduction: true
   no_feature_simplification: true
-  six_hats_on_all_prs: true
+  eleven_hats_on_all_prs: true
   no_scope_reduction: true
   no_reductive_changes: true
 
@@ -280,6 +280,6 @@ anti_reduction_checklist:
   - "No model capabilities reduced"
   - "Coverage >= baseline"
   - "Test count >= baseline"
-  - "Six Hats review completed"
+  - "Eleven Hats review completed"
   - "CoVE validation passed (compact or full)"
   - "README updated to reflect changes"
