@@ -3,26 +3,29 @@
 Hat PR Review — 11-Hat Aegis-Nexus PR Review Engine.
 
 Reusable script that runs the full 11-hat analysis against any GitHub PR
-using the real hat_engine.py infrastructure and Ollama LLM backends.
+using the real hat_engine.py infrastructure. Supports both Ollama (local)
+and cloud Gemini API backends.
 
 Usage:
     python scripts/hat_pr_review.py --pr 50
     python scripts/hat_pr_review.py --pr 50 --hats black purple orange
-    python scripts/hat_pr_review.py --pr 50 --model gemini-3-flash-preview:cloud
-    python scripts/hat_pr_review.py --pr 50 --dry-run          # print only, don't post
-    python scripts/hat_pr_review.py --pr 50 --post-as-comment   # post as issue comment instead of review
+    python scripts/hat_pr_review.py --pr 50 --cloud-backend gemini
+    python scripts/hat_pr_review.py --pr 50 --dry-run
+    python scripts/hat_pr_review.py --pr 50 --diff-file pr_diff.txt --dry-run
 
 Environment:
-    GITHUB_TOKEN  — GitHub personal access token (or uses `gh` CLI auth)
-    OLLAMA_HOST   — Ollama endpoint (default: http://localhost:11434)
-    BASE_DIR      — Project root (default: auto-detected)
+    GEMINI_API_KEY  — Google Gemini API key (for --cloud-backend gemini)
+    GITHUB_TOKEN    — GitHub token with models scope (for --cloud-backend github)
+    OLLAMA_HOST     — Ollama endpoint (default: http://localhost:11434)
+    BASE_DIR        — Project root (default: auto-detected)
 
-The script:
-  1) Fetches the PR diff + file list from GitHub API
-  2) Gathers live system context via hat_engine._build_system_context()
-  3) Runs each hat's analysis with PR context injected into the user prompt
-  4) Formats structured findings into a Markdown review
-  5) Posts the review back to the PR (or prints --dry-run output)
+Circuit Breakers (--cloud-backend only):
+  - API Failure: HTTP 4xx/5xx → skip hat, report error
+  - Rate Limit: 429 → stop remaining hats, post partial + manual request
+  - Timeout: >120s per hat → skip hat, continue others
+  - Parse Failure: Non-JSON response 3x → skip hat with warning
+  - Budget Guard: >$X API cost → abort remaining hats
+  - All Failed: 0 successful hats → full manual review request
 
 Designed for iterative use: Jules submits PR → hats review → Jules reads
 findings → Jules corrects → re-submit → hats review again → until clean.
@@ -235,6 +238,248 @@ def _build_pr_user_prompt(
 
 
 # ---------------------------------------------------------------------------
+# Cloud Gemini backend with circuit breakers
+# ---------------------------------------------------------------------------
+
+_GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+_GEMINI_MODEL = "gemini-2.0-flash"  # fast, cheap, good for structured analysis
+_GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
+_GITHUB_MODELS_DEFAULT = "openai/gpt-4o-mini"  # fast + included in Copilot quota
+_CIRCUIT_BREAKER_STATE = {
+    "rate_limited": False,
+    "budget_exhausted": False,
+    "consecutive_failures": 0,
+    "total_calls": 0,
+    "total_input_chars": 0,
+    "failed_hats": [],
+    "skipped_hats": [],
+}
+
+
+def _call_gemini(
+    system_prompt: str,
+    user_prompt: str,
+    api_key: str,
+    model: str | None = None,
+    max_retries: int = 3,
+    timeout: int = 120,
+) -> str:
+    """Call Google Gemini API with circuit breaker protections.
+
+    Returns the text response, or empty string on failure.
+    Raises CircuitBreakerTripped if rate limited or budget exhausted.
+    """
+    cb = _CIRCUIT_BREAKER_STATE
+    model = model or _GEMINI_MODEL
+
+    # Budget guard: rough estimate — ~4 chars per token, $0.10/M input tokens
+    cb["total_input_chars"] += len(system_prompt) + len(user_prompt)
+    estimated_cost = (cb["total_input_chars"] / 4) / 1_000_000 * 0.10
+    max_budget = float(os.environ.get("HAT_REVIEW_BUDGET_USD", "1.00"))
+    if estimated_cost > max_budget:
+        cb["budget_exhausted"] = True
+        logger.warning(
+            f"CIRCUIT BREAKER: Budget guard tripped — estimated ${estimated_cost:.4f} > ${max_budget}"
+        )
+        raise _CircuitBreakerTripped("budget_exhausted", f"Estimated cost ${estimated_cost:.4f} exceeds budget ${max_budget}")
+
+    url = f"{_GEMINI_API_URL}/{model}:generateContent?key={api_key}"
+    payload = json.dumps({
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"parts": [{"text": user_prompt}]}],
+        "generationConfig": {
+            "temperature": 0.3,
+            "maxOutputTokens": 4096,
+            "responseMimeType": "text/plain",
+        },
+    }).encode()
+
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        req = urllib.request.Request(
+            url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode())
+                text = (
+                    data.get("candidates", [{}])[0]
+                    .get("content", {})
+                    .get("parts", [{}])[0]
+                    .get("text", "")
+                )
+                cb["total_calls"] += 1
+                cb["consecutive_failures"] = 0
+                return text
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else ""
+            if e.code == 429:
+                cb["rate_limited"] = True
+                logger.warning("CIRCUIT BREAKER: Rate limited by Gemini API")
+                raise _CircuitBreakerTripped("rate_limited", f"HTTP 429: {error_body[:200]}")
+            logger.warning(
+                f"  Gemini API error {e.code} (attempt {attempt}/{max_retries}): {error_body[:200]}"
+            )
+            last_error = e
+        except Exception as e:
+            logger.warning(f"  Gemini call failed (attempt {attempt}/{max_retries}): {e}")
+            last_error = e
+
+        # Exponential backoff
+        if attempt < max_retries:
+            wait = 2 ** attempt
+            logger.info(f"  Retrying in {wait}s...")
+            time.sleep(wait)
+
+    cb["consecutive_failures"] += 1
+    logger.error(f"  All {max_retries} Gemini attempts failed: {last_error}")
+    return ""
+
+
+class _CircuitBreakerTripped(Exception):
+    """Raised when a circuit breaker trips (rate limit, budget, etc)."""
+    def __init__(self, breaker_type: str, detail: str):
+        self.breaker_type = breaker_type
+        self.detail = detail
+        super().__init__(f"Circuit breaker [{breaker_type}]: {detail}")
+
+
+def _format_manual_review_request(
+    pr_info: dict,
+    cb_state: dict,
+    partial_reports: list,
+) -> str:
+    """Format a manual review request when circuit breakers trip."""
+    lines = [
+        "## ⚡ Circuit Breaker Tripped — Manual Hat Review Required",
+        "",
+        f"**PR #{pr_info.get('number')}**: {pr_info.get('title', 'N/A')}",
+        "",
+        "The automated 11-Hat review could not complete. A human reviewer or ",
+        "local Ollama-based review is needed.",
+        "",
+        "### What Happened",
+        "",
+    ]
+
+    if cb_state.get("rate_limited"):
+        lines.append("🔴 **Rate Limited** — The Gemini API returned HTTP 429 (too many requests).")
+        lines.append("This typically happens when multiple PRs trigger reviews simultaneously.")
+        lines.append("")
+    if cb_state.get("budget_exhausted"):
+        lines.append(f"🔴 **Budget Guard** — Estimated API cost exceeded the configured budget.")
+        lines.append(f"Adjust `HAT_REVIEW_BUDGET_USD` env var to increase the limit.")
+        lines.append("")
+    if cb_state.get("failed_hats"):
+        lines.append(f"🟠 **Failed Hats** ({len(cb_state['failed_hats'])}): {', '.join(cb_state['failed_hats'])}")
+        lines.append("")
+    if cb_state.get("skipped_hats"):
+        lines.append(f"⚪ **Skipped Hats** ({len(cb_state['skipped_hats'])}): {', '.join(cb_state['skipped_hats'])}")
+        lines.append("")
+
+    lines.extend([
+        "### How to Complete the Review Manually",
+        "",
+        "Run the hat review locally with Ollama (no cloud API needed):",
+        "",
+        "```bash",
+        f"python scripts/hat_pr_review.py --pr {pr_info.get('number', '?')} --post-as-comment",
+        "```",
+        "",
+        "Or run specific hats that failed:",
+        "",
+        "```bash",
+    ])
+    failed = cb_state.get("failed_hats", []) + cb_state.get("skipped_hats", [])
+    if failed:
+        lines.append(f"python scripts/hat_pr_review.py --pr {pr_info.get('number', '?')} --hats {' '.join(failed)} --post-as-comment")
+    lines.extend([
+        "```",
+        "",
+        "### Stats",
+        f"- API calls made: {cb_state.get('total_calls', 0)}",
+        f"- Consecutive failures: {cb_state.get('consecutive_failures', 0)}",
+        f"- Input chars processed: {cb_state.get('total_input_chars', 0):,}",
+        "",
+        "---",
+        f"*Generated by `hat_pr_review.py` circuit breaker at {time.strftime('%Y-%m-%d %H:%M:%S')}*",
+    ])
+
+    return "\n".join(lines)
+
+
+def _call_github_models(
+    system_prompt: str,
+    user_prompt: str,
+    token: str,
+    model: str | None = None,
+    max_retries: int = 3,
+    timeout: int = 120,
+) -> str:
+    """Call GitHub Models API (OpenAI-compatible) with circuit breakers.
+
+    Uses the Copilot monthly quota. Returns text response or empty string.
+    Raises CircuitBreakerTripped on rate limit.
+    """
+    cb = _CIRCUIT_BREAKER_STATE
+    model = model or _GITHUB_MODELS_DEFAULT
+
+    payload = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 4096,
+    }).encode()
+
+    last_error = None
+    for attempt in range(1, max_retries + 1):
+        req = urllib.request.Request(
+            _GITHUB_MODELS_URL,
+            data=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                data = json.loads(resp.read().decode())
+                text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                cb["total_calls"] += 1
+                cb["consecutive_failures"] = 0
+                return text
+        except urllib.error.HTTPError as e:
+            error_body = e.read().decode() if e.fp else ""
+            if e.code == 429:
+                cb["rate_limited"] = True
+                logger.warning("CIRCUIT BREAKER: Rate limited by GitHub Models API")
+                raise _CircuitBreakerTripped("rate_limited", f"HTTP 429: {error_body[:200]}")
+            logger.warning(
+                f"  GitHub Models API error {e.code} (attempt {attempt}/{max_retries}): {error_body[:200]}"
+            )
+            last_error = e
+        except Exception as e:
+            logger.warning(f"  GitHub Models call failed (attempt {attempt}/{max_retries}): {e}")
+            last_error = e
+
+        if attempt < max_retries:
+            wait = 2 ** attempt
+            logger.info(f"  Retrying in {wait}s...")
+            time.sleep(wait)
+
+    cb["consecutive_failures"] += 1
+    logger.error(f"  All {max_retries} GitHub Models attempts failed: {last_error}")
+    return ""
+
+
+# ---------------------------------------------------------------------------
 # Run all hats against a PR
 # ---------------------------------------------------------------------------
 
@@ -247,8 +492,14 @@ def run_hat_pr_review(
     system_context: str,
     ci_status: dict | None = None,
     model: str | None = None,
+    cloud_backend: str | None = None,
+    gemini_api_key: str | None = None,
 ) -> HatReport:
-    """Run a single hat analysis against a PR diff."""
+    """Run a single hat analysis against a PR diff.
+
+    Uses Ollama by default, or --cloud-backend gemini for cloud execution.
+    Circuit breakers may raise _CircuitBreakerTripped.
+    """
     # Resolve agent profile
     agent_name = hat_def.get("agent_name")
     registry = _load_agent_registry()
@@ -267,13 +518,30 @@ def run_hat_pr_review(
         hat_def, pr_info, diff_text, file_summary, system_context, ci_status
     )
 
-    logger.info(f"  Sending {len(user_prompt)} chars to Ollama...")
-    raw = _call_ollama(
-        hat_def["system_prompt"],
-        user_prompt,
-        model=effective_model,
-        restrictions=restrictions,
-    )
+    if cloud_backend == "gemini" and gemini_api_key:
+        logger.info(f"  Sending {len(user_prompt)} chars to Gemini API...")
+        raw = _call_gemini(
+            hat_def["system_prompt"],
+            user_prompt,
+            api_key=gemini_api_key,
+            model=effective_model if effective_model and "gemini" in effective_model else None,
+        )
+    elif cloud_backend == "github" and gemini_api_key:  # gemini_api_key reused as GH token
+        logger.info(f"  Sending {len(user_prompt)} chars to GitHub Models API...")
+        raw = _call_github_models(
+            hat_def["system_prompt"],
+            user_prompt,
+            token=gemini_api_key,  # actually the GitHub token
+            model=effective_model if effective_model and "/" in str(effective_model) else None,
+        )
+    else:
+        logger.info(f"  Sending {len(user_prompt)} chars to Ollama...")
+        raw = _call_ollama(
+            hat_def["system_prompt"],
+            user_prompt,
+            model=effective_model,
+            restrictions=restrictions,
+        )
 
     findings = _parse_findings(hat_name, raw)
 
@@ -294,14 +562,33 @@ def run_all_hats_pr(
     ci_status: dict | None = None,
     hats: list[str] | None = None,
     model: str | None = None,
+    cloud_backend: str | None = None,
+    gemini_api_key: str | None = None,
 ) -> list[HatReport]:
-    """Run all (or specified) hats against a PR."""
+    """Run all (or specified) hats against a PR.
+
+    Circuit breakers may cause partial results. Check _CIRCUIT_BREAKER_STATE
+    after calling to determine if manual review is needed.
+    """
     if hats is None:
         hats = list(HAT_DEFINITIONS.keys())
 
+    cb = _CIRCUIT_BREAKER_STATE
     reports = []
     total = len(hats)
     for i, hat_name in enumerate(hats, 1):
+        # Check circuit breakers before each hat
+        if cb["rate_limited"]:
+            remaining = [h for h in hats[i-1:] if h not in [r.hat for r in reports]]
+            cb["skipped_hats"].extend(remaining)
+            logger.warning(f"CIRCUIT BREAKER: Skipping {len(remaining)} hats due to rate limit")
+            break
+        if cb["budget_exhausted"]:
+            remaining = [h for h in hats[i-1:] if h not in [r.hat for r in reports]]
+            cb["skipped_hats"].extend(remaining)
+            logger.warning(f"CIRCUIT BREAKER: Skipping {len(remaining)} hats due to budget")
+            break
+
         hat_def = HAT_DEFINITIONS.get(hat_name)
         if hat_def is None:
             logger.warning(f"Unknown hat: {hat_name}, skipping")
@@ -310,17 +597,38 @@ def run_all_hats_pr(
         logger.info(f"[{i}/{total}] Running {hat_def['emoji']} {hat_def['name']}...")
         start = time.time()
 
-        report = run_hat_pr_review(
-            hat_name, hat_def, pr_info, diff_text, file_summary,
-            system_context, ci_status, model,
-        )
+        try:
+            report = run_hat_pr_review(
+                hat_name, hat_def, pr_info, diff_text, file_summary,
+                system_context, ci_status, model,
+                cloud_backend=cloud_backend, gemini_api_key=gemini_api_key,
+            )
+            elapsed = time.time() - start
+            logger.info(
+                f"  {report.emoji} {hat_name}: "
+                f"{len(report.findings)} findings ({elapsed:.1f}s)"
+            )
+            reports.append(report)
 
-        elapsed = time.time() - start
-        logger.info(
-            f"  {report.emoji} {hat_name}: "
-            f"{len(report.findings)} findings ({elapsed:.1f}s)"
-        )
-        reports.append(report)
+        except _CircuitBreakerTripped as e:
+            logger.warning(f"  CIRCUIT BREAKER tripped on {hat_name}: {e}")
+            cb["failed_hats"].append(hat_name)
+            # Don't continue if rate limited or budget blown
+            if e.breaker_type in ("rate_limited", "budget_exhausted"):
+                remaining = [h for h in hats[i:] if h != hat_name]
+                cb["skipped_hats"].extend(remaining)
+                break
+
+        except Exception as e:
+            elapsed = time.time() - start
+            logger.error(f"  {hat_name} failed ({elapsed:.1f}s): {e}")
+            cb["failed_hats"].append(hat_name)
+            reports.append(HatReport(
+                hat=hat_name,
+                emoji=hat_def["emoji"],
+                focus=hat_def["focus"],
+                error=str(e)[:200],
+            ))
 
     return reports
 
@@ -524,7 +832,12 @@ def main():
     )
     parser.add_argument(
         "--model", type=str, default=None,
-        help="Override Ollama model for all hats (default: per-agent registry)",
+        help="Override LLM model for all hats",
+    )
+    parser.add_argument(
+        "--cloud-backend", type=str, default=None,
+        choices=["gemini", "github"],
+        help="Use cloud LLM instead of Ollama. 'github' uses GitHub Models (Copilot quota). 'gemini' uses Google Gemini API.",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -618,16 +931,43 @@ def main():
         ci_status = fetch_pr_status(args.pr, token)
         logger.info(f"  CI state: {ci_status.get('state', 'unknown')}")
 
-    # 3) Build system context from live project
+    # 3) Resolve cloud backend API key
+    gemini_api_key = None  # also reused for GitHub token in --cloud-backend github
+    if args.cloud_backend == "gemini":
+        gemini_api_key = os.environ.get("GEMINI_API_KEY", "")
+        if not gemini_api_key:
+            logger.error("GEMINI_API_KEY env var required for --cloud-backend gemini")
+            sys.exit(1)
+        logger.info("Using cloud backend: Gemini API (circuit breakers enabled)")
+    elif args.cloud_backend == "github":
+        gemini_api_key = os.environ.get("GITHUB_TOKEN", "") or (token or "")
+        if not gemini_api_key:
+            logger.error("GITHUB_TOKEN env var required for --cloud-backend github")
+            sys.exit(1)
+        logger.info("Using cloud backend: GitHub Models API (Copilot quota, circuit breakers enabled)")
+
+    # 4) Build system context from live project
     logger.info("Building system context from live project...")
     system_context = _build_system_context()
     logger.info(f"  System context: {len(system_context)} chars")
 
-    # 4) Run hats
+    # 5) Run hats
     logger.info("=" * 60)
-    logger.info("STARTING 11-HAT PR REVIEW")
+    backend_label = f"cloud:{args.cloud_backend}" if args.cloud_backend else "ollama"
+    logger.info(f"STARTING 11-HAT PR REVIEW (backend: {backend_label})")
     logger.info("=" * 60)
     start_time = time.time()
+
+    # Reset circuit breaker state for this run
+    _CIRCUIT_BREAKER_STATE.update({
+        "rate_limited": False,
+        "budget_exhausted": False,
+        "consecutive_failures": 0,
+        "total_calls": 0,
+        "total_input_chars": 0,
+        "failed_hats": [],
+        "skipped_hats": [],
+    })
 
     reports = run_all_hats_pr(
         pr_info=pr_info,
@@ -637,21 +977,46 @@ def main():
         ci_status=ci_status,
         hats=args.hats,
         model=args.model,
+        cloud_backend=args.cloud_backend,
+        gemini_api_key=gemini_api_key,
     )
 
     elapsed = time.time() - start_time
     total_findings = sum(len(r.findings) for r in reports)
+    cb = _CIRCUIT_BREAKER_STATE
     logger.info("=" * 60)
     logger.info(
         f"REVIEW COMPLETE: {total_findings} findings in {elapsed:.1f}s "
-        f"({len(reports)} hats)"
+        f"({len(reports)} hats, {len(cb['failed_hats'])} failed, {len(cb['skipped_hats'])} skipped)"
     )
     logger.info("=" * 60)
 
-    # 5) Format review
-    review_body = format_review_markdown(pr_info, reports, file_summary, ci_status)
+    # 6) Determine if circuit breakers tripped → manual review needed
+    breaker_tripped = (
+        cb["rate_limited"]
+        or cb["budget_exhausted"]
+        or len(cb["failed_hats"]) + len(cb["skipped_hats"]) > 0
+    )
+    all_failed = len(reports) == 0 or all(r.error for r in reports)
 
-    # 6) Output / Post
+    if all_failed:
+        # Total failure — post manual review request only
+        review_body = _format_manual_review_request(pr_info, cb, reports)
+        logger.warning("ALL HATS FAILED — posting manual review request")
+    elif breaker_tripped:
+        # Partial success — post partial review + manual request for remainder
+        review_body = format_review_markdown(pr_info, reports, file_summary, ci_status)
+        manual_notice = _format_manual_review_request(pr_info, cb, reports)
+        review_body = review_body + "\n\n" + manual_notice
+        logger.warning(
+            f"CIRCUIT BREAKERS TRIPPED — partial review posted with manual request "
+            f"(failed: {cb['failed_hats']}, skipped: {cb['skipped_hats']})"
+        )
+    else:
+        # Full success — normal review
+        review_body = format_review_markdown(pr_info, reports, file_summary, ci_status)
+
+    # 7) Output / Post
     if args.output:
         Path(args.output).write_text(review_body, encoding="utf-8")
         logger.info(f"Review saved to: {args.output}")
@@ -673,22 +1038,29 @@ def main():
     print(f"\n{'=' * 40}")
     print(f"  PR #{args.pr}: {total_findings} findings from {len(reports)} hats")
     print(f"  Time: {elapsed:.1f}s")
+    if breaker_tripped:
+        print(f"  ⚡ Circuit breakers: {len(cb['failed_hats'])} failed, {len(cb['skipped_hats'])} skipped")
     for r in reports:
         crits = sum(1 for f in r.findings if f.severity == "CRITICAL")
         highs = sum(1 for f in r.findings if f.severity == "HIGH")
         tag = ""
-        if crits:
+        if r.error:
+            tag = " ❌ ERROR"
+        elif crits:
             tag = f" 🔴 {crits} CRITICAL"
         elif highs:
             tag = f" 🟠 {highs} HIGH"
         print(f"  {r.emoji} {r.hat:8s}: {len(r.findings)} findings{tag}")
     print(f"{'=' * 40}")
 
-    # Exit code: non-zero if critical findings
+    # Exit code: non-zero if critical findings or total failure
     critical_count = sum(
         1 for r in reports for f in r.findings if f.severity == "CRITICAL"
     )
-    if critical_count > 0:
+    if all_failed:
+        logger.warning("Exiting with code 2 (all hats failed — manual review required)")
+        sys.exit(2)
+    elif critical_count > 0:
         logger.warning(f"Exiting with code 1 ({critical_count} critical findings)")
         sys.exit(1)
 

@@ -1,0 +1,66 @@
+name: Hat PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  models: read
+
+jobs:
+  hat-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install uv
+          uv sync --all-extras --frozen
+
+      - name: Run 11-Hat PR Review (GitHub Models)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HAT_REVIEW_BUDGET_USD: "0.50"
+        run: |
+          uv run python scripts/hat_pr_review.py \
+            --pr ${{ github.event.pull_request.number }} \
+            --cloud-backend github \
+            --post-as-comment \
+            --output hat_review.md
+        continue-on-error: true
+        id: hat_review
+
+      # If the cloud review fails completely (exit code 2 = all hats failed),
+      # post a manual review request explaining what happened.
+      - name: Handle circuit breaker fallback
+        if: steps.hat_review.outcome == 'failure'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "::warning::Hat review encountered issues. Check PR comments for manual review instructions."
+          echo "Exit code from hat review: see logs above"
+          echo ""
+          echo "To complete the review manually (Option C):"
+          echo "  python scripts/hat_pr_review.py --pr ${{ github.event.pull_request.number }} --post-as-comment"
+          echo ""
+          echo "This requires Ollama running locally with a model loaded."
+
+      # Upload the review as an artifact for reference
+      - name: Upload review artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hat-review-pr${{ github.event.pull_request.number }}
+          path: hat_review.md
+          if-no-files-found: ignore
