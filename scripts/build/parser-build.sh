@@ -12,7 +12,7 @@ sys.path.insert(0, '.')
 from hlf.hlfc import _parser
 import pickle, base64
 
-serialized = _parser.serialize()
+serialized = pickle.dumps(_parser.serialize())
 encoded = base64.b64encode(serialized).decode()
 output = f'# Auto-generated parser cache — do not edit manually\nPARSER_DATA = "{encoded}"\n'
 with open("hlf/_parser_cache.py", "w") as f:
