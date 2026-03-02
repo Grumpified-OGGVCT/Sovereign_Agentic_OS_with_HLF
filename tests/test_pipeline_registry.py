@@ -10,7 +10,6 @@ import pytest
 # The function under test
 from agents.gateway.matrix_sync.pipeline import _persist_to_registry
 
-
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
 @pytest.fixture()

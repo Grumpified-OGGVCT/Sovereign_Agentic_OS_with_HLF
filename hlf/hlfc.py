@@ -3,6 +3,7 @@ HLF Compiler — Lark LALR(1) parser.
 Compiles .hlf source → validated JSON AST.
 CLI: hlfc input.hlf [output.json]
 """
+
 from __future__ import annotations
 
 import json
@@ -11,7 +12,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from lark import Lark, Transformer, Token, Tree
+from lark import Lark, Token, Transformer
 from lark.exceptions import LarkError
 
 
@@ -21,6 +22,7 @@ class HlfSyntaxError(ValueError):
 
 class HlfRuntimeError(RuntimeError):
     """Raised when HLF execution encounters a runtime fault."""
+
 
 _GRAMMAR = r"""
     start: line+ TERMINATOR
@@ -163,11 +165,7 @@ class HLFTransformer(Transformer):
 
     def start(self, items: list) -> dict[str, Any]:
         program = [i for i in items if i is not None]
-        return {
-            "version": "0.4.0",
-            "compiler": "HLFC-v0.4.0",
-            "program": program
-        }
+        return {"version": "0.4.0", "compiler": "HLFC-v0.4.0", "program": program}
 
     def line(self, items: list) -> Any:
         return items[0] if items else None
@@ -602,8 +600,7 @@ def format_correction(source: str, error: HlfSyntaxError) -> dict[str, Any]:
         "source": source,
         "correction_hlf": None,  # Future: AI-powered suggestion
         "human_readable": (
-            f"HLF compilation failed: {err_str}. "
-            "Review the valid operator list and retry with corrected syntax."
+            f"HLF compilation failed: {err_str}. Review the valid operator list and retry with corrected syntax."
         ),
         "valid_operators": valid_ops,
         "suggestion": (
@@ -624,6 +621,7 @@ _VAR_RE = re.compile(r"\$\{(\w+)\}")
 def _expand_vars(value: Any, env: dict[str, Any]) -> Any:
     """Recursively expand ``${VAR}`` references in string values."""
     if isinstance(value, str):
+
         def _replace(m: re.Match) -> str:
             key = m.group(1)
             return str(env.get(key, m.group(0)))
@@ -646,16 +644,12 @@ def _pass1_collect_env(program: list[dict[str, Any]]) -> dict[str, Any]:
         if node and node.get("tag") == "SET":
             name = node["name"]
             if name in env:
-                raise HlfSyntaxError(
-                    f"Immutable variable '{name}' cannot be reassigned"
-                )
+                raise HlfSyntaxError(f"Immutable variable '{name}' cannot be reassigned")
             env[name] = node["value"]
     return env
 
 
-def _pass2_expand_and_validate(
-    program: list[dict[str, Any]], env: dict[str, Any]
-) -> list[dict[str, Any]]:
+def _pass2_expand_and_validate(program: list[dict[str, Any]], env: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Pass 2 — expand ``${VAR}`` references in all arg values using *env*,
     then return the expanded program.
@@ -681,6 +675,7 @@ def _pass2_expand_and_validate(
 _ALIGN_RULES: list[dict[str, Any]] = []
 _ALIGN_COMPILED: list[tuple[str, str, re.Pattern[str], str]] = []
 
+
 def _load_align_ledger() -> None:
     """Load ALIGN_LEDGER.yaml at module init — compile all regex_block rules.
 
@@ -701,6 +696,7 @@ def _load_align_ledger() -> None:
         # Try PyYAML first, fall back to manual parse
         try:
             import yaml
+
             data = yaml.safe_load(text)
         except ImportError:
             # Manual minimal YAML parse for the flat rule structure
@@ -762,16 +758,14 @@ class HlfAlignViolation(HlfSyntaxError):
         action: The enforcement action (DROP, DROP_AND_QUARANTINE, etc.)
         match: The string that triggered the violation
     """
+
     def __init__(self, rule_id: str, rule_name: str, action: str, match: str, node_tag: str = ""):
         self.rule_id = rule_id
         self.rule_name = rule_name
         self.action = action
         self.match = match
         self.node_tag = node_tag
-        super().__init__(
-            f"ALIGN violation [{rule_id}] {rule_name}: "
-            f"'{match}' in [{node_tag}] blocked by {action}"
-        )
+        super().__init__(f"ALIGN violation [{rule_id}] {rule_name}: '{match}' in [{node_tag}] blocked by {action}")
 
 
 def _extract_strings_from_node(node: dict[str, Any]) -> list[str]:
@@ -836,12 +830,14 @@ def _pass3_align_validate(
                             match=match.group(0),
                             node_tag=node_tag,
                         )
-                    violations.append({
-                        "rule_id": rule_id,
-                        "rule_name": rule_name,
-                        "action": action,
-                        "matched": match.group(0),
-                    })
+                    violations.append(
+                        {
+                            "rule_id": rule_id,
+                            "rule_name": rule_name,
+                            "action": action,
+                            "matched": match.group(0),
+                        }
+                    )
 
         if violations and not strict:
             node = dict(node)
@@ -892,9 +888,7 @@ def compile(source: str, *, align_strict: bool = True) -> dict[str, Any]:  # noq
     result["program"] = _pass2_expand_and_validate(result["program"], env)
 
     # Pass 3 — ALIGN Ledger security validation
-    result["program"] = _pass3_align_validate(
-        result["program"], strict=align_strict
-    )
+    result["program"] = _pass3_align_validate(result["program"], strict=align_strict)
 
     # Pass 4 — dictionary.json arity/type enforcement
     _pass4_dictionary_validate(result["program"])
@@ -902,8 +896,7 @@ def compile(source: str, *, align_strict: bool = True) -> dict[str, Any]:  # noq
     # Record the ALIGN rules that were enforced
     if _ALIGN_COMPILED:
         result["align_rules_enforced"] = [
-            {"id": rid, "name": name, "action": action}
-            for rid, name, _, action in _ALIGN_COMPILED
+            {"id": rid, "name": name, "action": action} for rid, name, _, action in _ALIGN_COMPILED
         ]
 
     # Record dictionary enforcement metadata
@@ -984,6 +977,7 @@ class HlfArityError(HlfSyntaxError):
         expected_max: Maximum expected arguments (None = unlimited)
         actual: Actual argument count provided
     """
+
     def __init__(self, tag: str, expected_min: int, expected_max: int | None, actual: int):
         self.tag = tag
         self.expected_min = expected_min
@@ -995,9 +989,7 @@ class HlfArityError(HlfSyntaxError):
             constraint = f"exactly {expected_min}"
         else:
             constraint = f"{expected_min}-{expected_max}"
-        super().__init__(
-            f"[{tag}] arity violation: expected {constraint} args, got {actual}"
-        )
+        super().__init__(f"[{tag}] arity violation: expected {constraint} args, got {actual}")
 
 
 class HlfTypeError(HlfSyntaxError):
@@ -1009,6 +1001,7 @@ class HlfTypeError(HlfSyntaxError):
         expected_type: The expected type from dictionary.json
         actual_value: The actual value provided
     """
+
     def __init__(self, tag: str, arg_name: str, expected_type: str, actual_value: Any):
         self.tag = tag
         self.arg_name = arg_name
@@ -1055,9 +1048,7 @@ def _pass4_dictionary_validate(program: list[dict[str, Any]]) -> None:
             actual_count = len(raw_args)
         else:
             # Count named fields present on the node itself
-            actual_count = sum(
-                1 for name in spec_arg_names if name in node
-            )
+            actual_count = sum(1 for name in spec_arg_names if name in node)
             # If still zero, fall back to counting dict-style args
             if actual_count == 0 and isinstance(raw_args, dict):
                 actual_count = len(raw_args)

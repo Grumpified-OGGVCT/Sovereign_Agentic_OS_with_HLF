@@ -14,17 +14,20 @@ References:
   - RFC 9007: Struct Operator + Namespace Merge
   - Sovereign_OS_Master_Build_Plan.md § 5.1
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
+import os as _os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from hlf.hlfc import compile as hlfc_compile, HlfSyntaxError
-
+from hlf.hlfc import HlfSyntaxError
+from hlf.hlfc import compile as hlfc_compile
 
 # ─── Configuration ───────────────────────────────────────────────────────────
 
@@ -37,7 +40,7 @@ _MODULE_SEARCH_PATHS: list[Path] = [
 ]
 
 # Default deployment tier (overridable via environment)
-import os as _os
+
 _DEPLOYMENT_TIER = _os.environ.get("DEPLOYMENT_TIER", "hearth")
 
 
@@ -86,9 +89,7 @@ class HostFunction:
         for spec in self.args:
             name = spec["name"]
             if name not in call_args:
-                raise HlfHostFunctionError(
-                    f"Host function {self.name}: missing required argument '{name}'"
-                )
+                raise HlfHostFunctionError(f"Host function {self.name}: missing required argument '{name}'")
 
 
 @dataclass
@@ -155,8 +156,7 @@ class HostFunctionRegistry:
 
         if func_name not in self.functions:
             raise HlfHostFunctionError(
-                f"Unknown host function: '{func_name}'. "
-                f"Available: {list(self.functions.keys())}"
+                f"Unknown host function: '{func_name}'. Available: {list(self.functions.keys())}"
             )
 
         hf = self.functions[func_name]
@@ -164,8 +164,7 @@ class HostFunctionRegistry:
         # Tier check
         if not hf.is_allowed_on_tier(tier):
             raise HlfTierViolation(
-                f"Host function '{func_name}' is not available on tier '{tier}'. "
-                f"Allowed tiers: {hf.tier}"
+                f"Host function '{func_name}' is not available on tier '{tier}'. Allowed tiers: {hf.tier}"
             )
 
         # Gas consumption
@@ -188,9 +187,7 @@ class HostFunctionRegistry:
         # Build result with optional redaction
         log_value = raw_result
         if hf.sensitive and raw_result is not None:
-            log_value = hashlib.sha256(
-                str(raw_result).encode("utf-8")
-            ).hexdigest()
+            log_value = hashlib.sha256(str(raw_result).encode("utf-8")).hexdigest()
 
         return HostFunctionResult(
             function=func_name,
@@ -257,16 +254,15 @@ class GasMeter:
     def consume(self, amount: int, context: str = "") -> int:
         """Consume gas units.  Raises HlfGasExhausted if budget exceeded."""
         if self.consumed + amount > self.limit:
-            raise HlfGasExhausted(
-                f"Gas exhausted: {self.consumed}+{amount} > {self.limit} "
-                f"(context: {context})"
-            )
+            raise HlfGasExhausted(f"Gas exhausted: {self.consumed}+{amount} > {self.limit} (context: {context})")
         self.consumed += amount
-        self.history.append({
-            "amount": amount,
-            "total": self.consumed,
-            "context": context,
-        })
+        self.history.append(
+            {
+                "amount": amount,
+                "total": self.consumed,
+                "context": context,
+            }
+        )
         return self.consumed
 
     @property
@@ -301,9 +297,7 @@ class ModuleNamespace:
     ast: dict[str, Any] | None = None
 
     @classmethod
-    def from_ast(
-        cls, name: str, ast: dict[str, Any], source_path: Path | None = None
-    ) -> ModuleNamespace:
+    def from_ast(cls, name: str, ast: dict[str, Any], source_path: Path | None = None) -> ModuleNamespace:
         """Extract exported symbols from a compiled AST."""
         ns = cls(name=name, source_path=source_path, ast=ast)
 
@@ -371,6 +365,7 @@ class ModuleLoader:
             return {}
         try:
             import yaml
+
             data = yaml.safe_load(self._manifest_path.read_text(encoding="utf-8"))
             return data.get("modules", {})
         except Exception:
@@ -415,17 +410,13 @@ class ModuleLoader:
         # Circular import guard
         if module_name in self._loading:
             raise HlfModuleError(
-                f"Circular import detected: '{module_name}' is already being loaded. "
-                f"Loading chain: {self._loading}"
+                f"Circular import detected: '{module_name}' is already being loaded. Loading chain: {self._loading}"
             )
 
         # Resolve file path
         source_path = self.resolve_path(module_name, relative_to)
         if source_path is None:
-            raise HlfModuleError(
-                f"Module '{module_name}' not found. "
-                f"Searched: {[str(p) for p in self.search_paths]}"
-            )
+            raise HlfModuleError(f"Module '{module_name}' not found. Searched: {[str(p) for p in self.search_paths]}")
 
         # Mark as loading (circular import guard)
         self._loading.add(module_name)
@@ -438,8 +429,7 @@ class ModuleLoader:
 
             if expected_sha and actual_sha != expected_sha:
                 raise HlfModuleError(
-                    f"Checksum mismatch for module '{module_name}'. "
-                    f"Expected: {expected_sha}, Got: {actual_sha}"
+                    f"Checksum mismatch for module '{module_name}'. Expected: {expected_sha}, Got: {actual_sha}"
                 )
 
             # Read and compile
@@ -456,14 +446,8 @@ class ModuleLoader:
                     if dep_name and dep_name != module_name:
                         dep_ns = self.load(dep_name, relative_to=source_path)
                         # Merge dependency namespace into this module
-                        ns.bindings.update({
-                            dep_ns.qualified_name(k): v
-                            for k, v in dep_ns.bindings.items()
-                        })
-                        ns.functions.update({
-                            dep_ns.qualified_name(k): v
-                            for k, v in dep_ns.functions.items()
-                        })
+                        ns.bindings.update({dep_ns.qualified_name(k): v for k, v in dep_ns.bindings.items()})
+                        ns.functions.update({dep_ns.qualified_name(k): v for k, v in dep_ns.functions.items()})
 
             # Cache
             self._cache[module_name] = ns
@@ -623,17 +607,17 @@ class HLFRuntime:
                         call_args[f"arg_{len(call_args)}"] = arg
 
                 try:
-                    result = self.host_registry.dispatch(
-                        func_name, call_args, tier=self.tier, gas_meter=self.gas
-                    )
+                    result = self.host_registry.dispatch(func_name, call_args, tier=self.tier, gas_meter=self.gas)
                     # Store result in env for downstream access
                     self.env[f"__tool_result_{func_name}"] = result.value
-                    self._result.host_calls.append({
-                        "function": func_name,
-                        "gas_cost": result.gas_cost,
-                        "sensitive": result.sensitive,
-                        "log_value": result.log_value,
-                    })
+                    self._result.host_calls.append(
+                        {
+                            "function": func_name,
+                            "gas_cost": result.gas_cost,
+                            "sensitive": result.sensitive,
+                            "log_value": result.log_value,
+                        }
+                    )
                 except (HlfTierViolation, HlfHostFunctionError, HlfGasExhausted) as e:
                     self._result.code = 1
                     self._result.message = str(e)

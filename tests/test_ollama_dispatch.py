@@ -11,20 +11,19 @@ Covers:
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 import agents.gateway.ollama_dispatch as dispatch_mod
 from agents.gateway.ollama_dispatch import (
-    OllamaDispatcher,
     InferenceRequest,
     InferenceResult,
+    OllamaDispatcher,
     StreamChunk,
     complexity_score,
     get_dispatcher,
 )
-
 
 # ─── Complexity Scoring ──────────────────────────────────────────────────────
 

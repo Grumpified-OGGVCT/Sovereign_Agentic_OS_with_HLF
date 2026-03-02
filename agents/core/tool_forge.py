@@ -2,6 +2,7 @@
 Tool Forge — auto-generates tools when an agent loops 3x on the same task.
 Generates Python script + pytest test, validates through LLMJudge, registers dynamically.
 """
+
 from __future__ import annotations
 
 import ast
@@ -15,7 +16,6 @@ from typing import Any
 import requests
 
 from agents.gateway.sentinel_gate import LLMJudge
-
 
 _registered_tools: dict[str, Any] = {}
 _task_loop_counter: dict[str, int] = {}
@@ -53,12 +53,8 @@ def _generate_via_llm(task_description: str, tool_name: str) -> str:
     try:
         resp = requests.post(
             f"{_OLLAMA_HOST}/api/generate",
-            json={
-                "model": "qwen:7b",
-                "prompt": system_prompt,
-                "stream": False
-            },
-            timeout=45.0
+            json={"model": "qwen:7b", "prompt": system_prompt, "stream": False},
+            timeout=45.0,
         )
         resp.raise_for_status()
         generated_snippet = resp.json().get("response", "")
@@ -83,9 +79,13 @@ def _validate_ast(code: str) -> bool:
         tree = ast.parse(code)
         for node in ast.walk(tree):
             if isinstance(node, ast.Call):
-                if isinstance(node.func, ast.Attribute):
-                    if node.func.attr == "system" and isinstance(node.func.value, ast.Name) and node.func.value.id == "os":
-                        return False
+                if (
+                    isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "system"
+                    and isinstance(node.func.value, ast.Name)
+                    and node.func.value.id == "os"
+                ):
+                    return False
                 if isinstance(node.func, ast.Name) and node.func.id == "eval":
                     return False
         return True
@@ -96,10 +96,7 @@ def _validate_ast(code: str) -> bool:
 def _validate_align(code: str) -> bool:
     """Gate 2: Rejects code violating ALIGN security policies."""
     # R-004 blocks .env patterns
-    if ".env" in code:
-        return False
-    # Simplified ALIGN check for now, real implementation would use hlfc._ALIGN_COMPILED
-    return True
+    return ".env" not in code
 
 
 def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
@@ -113,7 +110,8 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
     tool_name = "tool_" + task_description[:20].strip().replace(" ", "_").lower()
     # Collapse multiple underscores
     import re
-    tool_name = re.sub(r'_+', '_', tool_name)
+
+    tool_name = re.sub(r"_+", "_", tool_name)
 
     if tool_name in _registered_tools:
         return _registered_tools[tool_name]
@@ -154,7 +152,7 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
         "sha256": sha256,
         "version": "1.0.0",
         "approved": True,
-        "human_readable": f"Auto-generated tool '{tool_name}' for task: {task_description}"
+        "human_readable": f"Auto-generated tool '{tool_name}' for task: {task_description}",
     }
 
     _registered_tools[tool_name] = tool_meta

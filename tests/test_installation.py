@@ -12,8 +12,6 @@ Run:
 import importlib
 import json
 import os
-import sqlite3
-import sys
 from pathlib import Path
 
 import pytest
@@ -25,6 +23,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # ═══════════════════════════════════════════════════════════════════
 # 1. TestFreshInstall — Required files and structure
 # ═══════════════════════════════════════════════════════════════════
+
 
 class TestFreshInstall:
     """Verify that the project structure is intact and all required files exist."""
@@ -120,6 +119,7 @@ class TestFreshInstall:
 # 2. TestImportChain — Every module imports cleanly
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestImportChain:
     """Verify that all critical modules can be imported without errors."""
 
@@ -180,6 +180,7 @@ class TestImportChain:
 # 3. TestServiceStartup — Services can initialize
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestServiceStartup:
     """Verify that core services can spin up without external dependencies."""
 
@@ -204,6 +205,7 @@ class TestServiceStartup:
         with get_db(":memory:") as conn:
             # Import schema SQL and apply it
             from agents.core.db import _SCHEMA_SQL
+
             conn.executescript(_SCHEMA_SQL)
             assert conn is not None
 
@@ -238,9 +240,7 @@ class TestServiceStartup:
 
         from hlf.hlfc import _GRAMMAR
 
-        assert isinstance(_GRAMMAR, str) and len(_GRAMMAR) > 50, (
-            "HLF grammar string is missing or too short"
-        )
+        assert isinstance(_GRAMMAR, str) and len(_GRAMMAR) > 50, "HLF grammar string is missing or too short"
         parser = Lark(_GRAMMAR, parser="lalr", start="start")
         assert parser is not None
         # Verify it can parse a minimal valid HLF program
@@ -251,6 +251,7 @@ class TestServiceStartup:
 # ═══════════════════════════════════════════════════════════════════
 # 4. TestEndToEndFlow — Full intent lifecycle
 # ═══════════════════════════════════════════════════════════════════
+
 
 class TestEndToEndFlow:
     """Verify end-to-end intent processing works correctly."""
@@ -267,9 +268,10 @@ class TestEndToEndFlow:
 
     def test_hlf_parse_invalid_returns_error(self):
         """An invalid HLF program must return an error, not crash."""
+        from hlf.hlfc import HlfSyntaxError
         from hlf.hlfc import compile as hlfc_compile
 
-        with pytest.raises(Exception):
+        with pytest.raises(HlfSyntaxError):
             hlfc_compile("this is not valid HLF at all")
 
     def test_gateway_rejects_blocked_intent(self):
@@ -330,26 +332,23 @@ class TestEndToEndFlow:
 # 5. TestDataIntegrity — Schema and data consistency
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestDataIntegrity:
     """Verify data files and schemas are consistent."""
 
     def test_registry_schema_has_models_table(self):
         """The registry DB schema must create tables."""
-        from agents.core.db import get_db, _SCHEMA_SQL
+        from agents.core.db import _SCHEMA_SQL, get_db
 
         with get_db(":memory:") as conn:
             conn.executescript(_SCHEMA_SQL)
-            cursor = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            )
+            cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = [row[0] for row in cursor.fetchall()]
             assert len(tables) > 0, "Registry DB has no tables"
 
     def test_settings_tiers_all_present(self):
         """All three deployment tiers must be configured."""
-        data = json.loads(
-            (PROJECT_ROOT / "config" / "settings.json").read_text(encoding="utf-8")
-        )
+        data = json.loads((PROJECT_ROOT / "config" / "settings.json").read_text(encoding="utf-8"))
         allowed = data.get("ollama_allowed_models", {})
         for tier in ["hearth", "forge", "sovereign"]:
             assert tier in allowed, f"Missing tier: {tier}"
@@ -357,11 +356,7 @@ class TestDataIntegrity:
 
     def test_host_functions_have_required_fields(self):
         """Each host function must have name and tier fields."""
-        data = json.loads(
-            (PROJECT_ROOT / "governance" / "host_functions.json").read_text(
-                encoding="utf-8"
-            )
-        )
+        data = json.loads((PROJECT_ROOT / "governance" / "host_functions.json").read_text(encoding="utf-8"))
         functions = data.get("functions", [])
         assert len(functions) > 0, "No host functions defined"
         for i, fn in enumerate(functions):
@@ -385,6 +380,7 @@ class TestDataIntegrity:
 # 6. TestConfigConsistency — Cross-file consistency checks
 # ═══════════════════════════════════════════════════════════════════
 
+
 class TestConfigConsistency:
     """Verify configuration files are consistent with each other."""
 
@@ -407,9 +403,7 @@ class TestConfigConsistency:
                     matches = re.findall(r"scripts/[\w_]+\.py", run_cmd)
                     for script_ref in matches:
                         script_path = PROJECT_ROOT / script_ref
-                        assert script_path.exists(), (
-                            f"CI job '{job_name}' references missing script: {script_ref}"
-                        )
+                        assert script_path.exists(), f"CI job '{job_name}' references missing script: {script_ref}"
 
     def test_pyproject_has_required_deps(self):
         """pyproject.toml must declare core dependencies."""
@@ -421,7 +415,9 @@ class TestConfigConsistency:
         text = (PROJECT_ROOT / "pyproject.toml").read_text(encoding="utf-8")
         data = tomllib.loads(text)
         deps = data.get("project", {}).get("dependencies", [])
-        dep_names = [d.split("[")[0].split(">")[0].split("<")[0].split("=")[0].split("~")[0].strip().lower() for d in deps]
+        dep_names = [
+            d.split("[")[0].split(">")[0].split("<")[0].split("=")[0].split("~")[0].strip().lower() for d in deps
+        ]
 
         # These are absolutely critical
         critical = ["fastapi", "uvicorn", "pydantic", "lark", "httpx"]
@@ -450,9 +446,7 @@ class TestConfigConsistency:
             for py_file in (PROJECT_ROOT / src_dir).rglob("*.py"):
                 text = py_file.read_text(encoding="utf-8", errors="ignore")
                 for pattern in suspicious_patterns:
-                    assert pattern not in text, (
-                        f"Possible hardcoded secret ({pattern}...) found in {py_file.name}"
-                    )
+                    assert pattern not in text, f"Possible hardcoded secret ({pattern}...) found in {py_file.name}"
 
     def test_jules_tasks_yaml_valid(self):
         """jules_tasks.yaml must parse and contain pipeline configuration."""

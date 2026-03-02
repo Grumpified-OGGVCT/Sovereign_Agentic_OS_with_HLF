@@ -11,6 +11,7 @@ Exercises the complete flow:
 
 Uses a temporary SQLite DB and mocked httpx/Ollama responses throughout.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -23,7 +24,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from agents.core.db import (
-    _SCHEMA_SQL,
     create_snapshot,
     get_db,
     get_models_by_tier,
@@ -34,10 +34,9 @@ from agents.core.db import (
     upsert_model,
     upsert_model_equivalent,
 )
-from agents.core.logger import ALSLogger, _compute_trace_id, _SEED_HASH
+from agents.core.logger import _SEED_HASH, ALSLogger, _compute_trace_id
 from agents.gateway.router import AgentProfile, route_request
 from hlf.hlfc import compile as hlfc_compile
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -110,9 +109,7 @@ class TestRegistrySeeding:
 
         conn_raw = sqlite3.connect(str(registry_db))
         conn_raw.row_factory = sqlite3.Row
-        snap = conn_raw.execute(
-            "SELECT * FROM snapshots WHERE is_promoted = 1"
-        ).fetchone()
+        snap = conn_raw.execute("SELECT * FROM snapshots WHERE is_promoted = 1").fetchone()
         conn_raw.close()
 
         assert snap is not None
@@ -150,12 +147,6 @@ class TestRouterWithRegistry:
         with get_db(registry_db) as conn:
             _seed_registry(conn)
 
-        known_models = {
-            "qwen3-vl:32b-cloud",
-            "qwen-max",
-            "llama3.1:8b",
-        }
-
         with patch("agents.core.db.db_path", return_value=registry_db):
             profile = route_request("generate a report", {})
 
@@ -186,11 +177,13 @@ class TestRouterWithRegistry:
             logged_events.append(entry)
             return entry
 
-        with patch("agents.core.db.db_path", return_value=registry_db):
+        with (
+            patch("agents.core.db.db_path", return_value=registry_db),
+            patch("agents.gateway.router._routing_logger") as mock_logger,
+        ):
             # Patch the routing logger on the router module
-            with patch("agents.gateway.router._routing_logger") as mock_logger:
-                mock_logger.log.side_effect = _capture_log
-                route_request("analyze code quality", {})
+            mock_logger.log.side_effect = _capture_log
+            route_request("analyze code quality", {})
 
         routing_decisions = [e for e in logged_events if e["event"] == "ROUTING_DECISION"]
         assert len(routing_decisions) >= 1, "Expected at least one ROUTING_DECISION log"
@@ -203,12 +196,7 @@ class TestRouterWithRegistry:
 # ─── Stage 3: Executor Processes Intent ──────────────────────────────────────
 
 
-_SIMPLE_HLF = (
-    "[HLF-v2]\n"
-    "[INTENT] greet \"world\"\n"
-    '[RESULT] code=0 message="ok"\n'
-    "Ω\n"
-)
+_SIMPLE_HLF = '[HLF-v2]\n[INTENT] greet "world"\n[RESULT] code=0 message="ok"\nΩ\n'
 
 _MOCK_HLF_RESPONSE = _SIMPLE_HLF
 
@@ -270,6 +258,7 @@ class TestExecutorWithMockedOllama:
     def test_execute_with_ollama_error_returns_error_code(self) -> None:
         """When Ollama is unreachable, execute_intent returns code=1 gracefully."""
         import httpx
+
         from agents.core.main import execute_intent
 
         with patch("httpx.post", side_effect=httpx.ConnectError("connection refused")):
@@ -301,9 +290,7 @@ class TestExecutorWithMockedOllama:
                 _seed_registry(conn)
             execute_intent({"request_id": "test-log-001", "text": "summarize the document"})
 
-        assert "ROUTE_DECISION" in logged_events, (
-            f"Expected ROUTE_DECISION in logged events; got: {logged_events}"
-        )
+        assert "ROUTE_DECISION" in logged_events, f"Expected ROUTE_DECISION in logged events; got: {logged_events}"
 
 
 # ─── Stage 4: Merkle Chain Integrity ─────────────────────────────────────────
@@ -318,34 +305,31 @@ class TestMerkleChainIntegrity:
         entries: list[dict[str, Any]] = []
 
         # Capture log entries without writing to disk
-        with patch("agents.core.logger._write_last_hash"), patch(
-            "agents.core.logger._read_last_hash", return_value=_SEED_HASH
+        with (
+            patch("agents.core.logger._write_last_hash"),
+            patch("agents.core.logger._read_last_hash", return_value=_SEED_HASH),
         ):
             entry = logger.log("TEST_EVENT", {"key": "value"})
             entries.append(entry)
 
         entry = entries[0]
-        expected_payload = json.dumps(
-            {"event": "TEST_EVENT", "data": {"key": "value"}}, sort_keys=True
-        )
-        expected_trace_id = hashlib.sha256(
-            f"{_SEED_HASH}{expected_payload}".encode()
-        ).hexdigest()
+        expected_payload = json.dumps({"event": "TEST_EVENT", "data": {"key": "value"}}, sort_keys=True)
+        expected_trace_id = hashlib.sha256(f"{_SEED_HASH}{expected_payload}".encode()).hexdigest()
         assert entry["trace_id"] == expected_trace_id
         assert entry["parent_trace_hash"] == _SEED_HASH
 
     def test_merkle_chain_links_consecutive_entries(self) -> None:
         """Consecutive log entries must chain: entry[n].trace_id == entry[n+1].parent_hash."""
         logger = ALSLogger(agent_role="test", goal_id="merkle-chain")
-        chain: list[str] = [_SEED_HASH]
         entries: list[dict[str, Any]] = []
 
         # Simulate a fresh chain starting from seed
         current_hash = _SEED_HASH
 
         for i in range(3):
-            with patch("agents.core.logger._write_last_hash"), patch(
-                "agents.core.logger._read_last_hash", return_value=current_hash
+            with (
+                patch("agents.core.logger._write_last_hash"),
+                patch("agents.core.logger._read_last_hash", return_value=current_hash),
             ):
                 entry = logger.log(f"EVENT_{i}", {"seq": i})
                 entries.append(entry)
@@ -356,15 +340,9 @@ class TestMerkleChainIntegrity:
 
         # Each entry's trace_id must equal re-computed value from its parent_hash
         for entry in entries:
-            recomputed_payload = json.dumps(
-                {"event": entry["event"], "data": entry["data"]}, sort_keys=True
-            )
-            recomputed_id = hashlib.sha256(
-                f"{entry['parent_trace_hash']}{recomputed_payload}".encode()
-            ).hexdigest()
-            assert entry["trace_id"] == recomputed_id, (
-                f"Merkle chain broken at event {entry['event']}"
-            )
+            recomputed_payload = json.dumps({"event": entry["event"], "data": entry["data"]}, sort_keys=True)
+            recomputed_id = hashlib.sha256(f"{entry['parent_trace_hash']}{recomputed_payload}".encode()).hexdigest()
+            assert entry["trace_id"] == recomputed_id, f"Merkle chain broken at event {entry['event']}"
 
     def test_compute_trace_id_helper(self) -> None:
         """_compute_trace_id() produces deterministic output."""
@@ -411,10 +389,12 @@ class TestFullPipelineFlow:
             routing_log_events.append({"event": event, "data": data or {}})
             return {"trace_id": "mock", "parent_trace_hash": "mock"}
 
-        with patch("agents.core.db.db_path", return_value=registry_db):
-            with patch("agents.gateway.router._routing_logger") as mock_rlog:
-                mock_rlog.log.side_effect = _capture_routing
-                profile = route_request("process the uploaded image", {})
+        with (
+            patch("agents.core.db.db_path", return_value=registry_db),
+            patch("agents.gateway.router._routing_logger") as mock_rlog,
+        ):
+            mock_rlog.log.side_effect = _capture_routing
+            profile = route_request("process the uploaded image", {})
 
         assert isinstance(profile, AgentProfile)
         assert profile.model != ""
@@ -435,10 +415,12 @@ class TestFullPipelineFlow:
             patch("agents.core.main._logger") as mock_logger,
         ):
             mock_logger.log.side_effect = _capture_executor
-            result = execute_intent({
-                "request_id": "e2e-001",
-                "text": "process the uploaded image",
-            })
+            result = execute_intent(
+                {
+                    "request_id": "e2e-001",
+                    "text": "process the uploaded image",
+                }
+            )
 
         # Step 5 — verify results
         assert isinstance(result, dict)
@@ -460,9 +442,7 @@ class TestFullPipelineFlow:
             executor_events.append(event)
             return {"trace_id": "mock", "parent_trace_hash": "mock"}
 
-        with patch("httpx.post") as mock_post, patch(
-            "agents.core.main._logger"
-        ) as mock_logger:
+        with patch("httpx.post") as mock_post, patch("agents.core.main._logger") as mock_logger:
             mock_logger.log.side_effect = _capture
             result = execute_intent(payload)
 
@@ -531,7 +511,7 @@ class TestCompilerSecurityGates:
 
     def test_set_immutability_annotation(self) -> None:
         """SET nodes get immutable: true from dictionary.json spec."""
-        source = '[HLF-v2]\n[SET] x = 42\nΩ\n'
+        source = "[HLF-v2]\n[SET] x = 42\nΩ\n"
         ast = hlfc_compile(source)
 
         set_nodes = [n for n in ast["program"] if n.get("tag") == "SET"]
@@ -550,20 +530,18 @@ class TestCompilerSecurityGates:
     def test_human_readable_on_every_node(self) -> None:
         """InsAIts V2 mandate: every AST node must have a human_readable field."""
         source = (
-            '[HLF-v2]\n'
+            "[HLF-v2]\n"
             '[INTENT] greet "world"\n'
             '[THOUGHT] "analyzing"\n'
             '[OBSERVATION] "data received"\n'
             '[RESULT] 0 "ok"\n'
-            'Ω\n'
+            "Ω\n"
         )
         ast = hlfc_compile(source)
 
         for node in ast["program"]:
             if isinstance(node, dict) and node.get("tag"):
-                assert "human_readable" in node, (
-                    f"Node {node.get('tag')} missing human_readable field"
-                )
+                assert "human_readable" in node, f"Node {node.get('tag')} missing human_readable field"
 
 
 # ─── Stage 7: GUI Module Import Verification ────────────────────────────────
@@ -599,9 +577,7 @@ class TestGUIModuleHealth:
             pytest.skip("gui/app.py not found")
 
         content = gui_app.read_text(encoding="utf-8")
-        assert "Model Registry" in content or "model_registry" in content, (
-            "Expected Model Registry panel in gui/app.py"
-        )
+        assert "Model Registry" in content or "model_registry" in content, "Expected Model Registry panel in gui/app.py"
 
     def test_gui_app_contains_feedback_ui(self) -> None:
         """gui/app.py includes the Model Feedback UI code."""
@@ -610,9 +586,7 @@ class TestGUIModuleHealth:
             pytest.skip("gui/app.py not found")
 
         content = gui_app.read_text(encoding="utf-8")
-        assert "feedback" in content.lower() or "Feedback" in content, (
-            "Expected Model Feedback UI code in gui/app.py"
-        )
+        assert "feedback" in content.lower() or "Feedback" in content, "Expected Model Feedback UI code in gui/app.py"
 
 
 # ─── Stage 8: Scheduler Integration ─────────────────────────────────────────
@@ -628,6 +602,7 @@ class TestSchedulerIntegration:
             pytest.skip("scheduler.py not found")
 
         import py_compile
+
         py_compile.compile(str(sched_path), doraise=True)
 
     def test_scheduler_telemetry_class_exists(self) -> None:

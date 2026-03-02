@@ -4,15 +4,17 @@ Autonomous Model & Agent Registry — SQL persistence layer.
 Uses stdlib sqlite3 (no ORM) to stay within the Layer 1 "4 GB RAM" constraint.
 All tables are created with IF NOT EXISTS for idempotent init.
 """
+
 from __future__ import annotations
 
 import enum
 import json
 import sqlite3
 import time
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Generator, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Database location — next to the project root's data directory
@@ -30,8 +32,10 @@ def db_path() -> Path:
 # Enums
 # ---------------------------------------------------------------------------
 
-class ModelTier(str, enum.Enum):
+
+class ModelTier(enum.StrEnum):
     """Mirrors the tier strings produced by scoring.py map_tier()."""
+
     S = "S"
     A_PLUS = "A+"
     A = "A"
@@ -46,7 +50,7 @@ class ModelTier(str, enum.Enum):
 TIER_MAP: dict[str, ModelTier] = {t.value: t for t in ModelTier}
 
 
-class Provider(str, enum.Enum):
+class Provider(enum.StrEnum):
     OLLAMA = "ollama"
     OPENROUTER = "openrouter"
     CLOUD = "cloud"
@@ -55,6 +59,7 @@ class Provider(str, enum.Enum):
 # ---------------------------------------------------------------------------
 # Connection helpers
 # ---------------------------------------------------------------------------
+
 
 @contextmanager
 def get_db(path: Path | str | None = None) -> Generator[sqlite3.Connection, None, None]:
@@ -175,6 +180,7 @@ def init_db(path: Path | str | None = None) -> None:
 # CRUD helpers — Snapshots
 # ---------------------------------------------------------------------------
 
+
 def create_snapshot(
     conn: sqlite3.Connection,
     families: list[str] | None = None,
@@ -194,24 +200,19 @@ def promote_snapshot(conn: sqlite3.Connection, snapshot_id: int) -> None:
     conn.execute("UPDATE snapshots SET is_promoted = 1 WHERE id = ?", (snapshot_id,))
 
 
-def get_active_snapshot(conn: sqlite3.Connection) -> Optional[sqlite3.Row]:
+def get_active_snapshot(conn: sqlite3.Connection) -> sqlite3.Row | None:
     """Return the currently promoted snapshot, or None."""
-    return conn.execute(
-        "SELECT * FROM snapshots WHERE is_promoted = 1 ORDER BY id DESC LIMIT 1"
-    ).fetchone()
+    return conn.execute("SELECT * FROM snapshots WHERE is_promoted = 1 ORDER BY id DESC LIMIT 1").fetchone()
 
 
-def update_snapshot_model_count(
-    conn: sqlite3.Connection, snapshot_id: int, count: int
-) -> None:
-    conn.execute(
-        "UPDATE snapshots SET model_count = ? WHERE id = ?", (count, snapshot_id)
-    )
+def update_snapshot_model_count(conn: sqlite3.Connection, snapshot_id: int, count: int) -> None:
+    conn.execute("UPDATE snapshots SET model_count = ? WHERE id = ?", (count, snapshot_id))
 
 
 # ---------------------------------------------------------------------------
 # CRUD helpers — Models
 # ---------------------------------------------------------------------------
+
 
 def upsert_model(
     conn: sqlite3.Connection,
@@ -246,7 +247,7 @@ def upsert_model(
 def get_models_by_tier(
     conn: sqlite3.Connection,
     tier: str,
-    snapshot_id: Optional[int] = None,
+    snapshot_id: int | None = None,
 ) -> list[sqlite3.Row]:
     """Return models for a given tier in the active (or specified) snapshot."""
     if snapshot_id is None:
@@ -262,7 +263,7 @@ def get_models_by_tier(
 
 def get_all_models(
     conn: sqlite3.Connection,
-    snapshot_id: Optional[int] = None,
+    snapshot_id: int | None = None,
 ) -> list[sqlite3.Row]:
     """Return every model in the active (or specified) snapshot."""
     if snapshot_id is None:
@@ -279,6 +280,7 @@ def get_all_models(
 # ---------------------------------------------------------------------------
 # CRUD helpers — Local Inventory
 # ---------------------------------------------------------------------------
+
 
 def upsert_local_inventory(
     conn: sqlite3.Connection,
@@ -304,9 +306,7 @@ def upsert_local_inventory(
 
 def get_local_inventory(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     """Return all locally available models, ordered by last_seen descending."""
-    return conn.execute(
-        "SELECT * FROM user_local_inventory ORDER BY last_seen DESC"
-    ).fetchall()
+    return conn.execute("SELECT * FROM user_local_inventory ORDER BY last_seen DESC").fetchall()
 
 
 def upsert_local_metadata(
@@ -333,6 +333,7 @@ def upsert_local_metadata(
 # ---------------------------------------------------------------------------
 # CRUD helpers — Agent Templates
 # ---------------------------------------------------------------------------
+
 
 def upsert_agent_template(
     conn: sqlite3.Connection,
@@ -364,15 +365,14 @@ def upsert_agent_template(
     return cur.lastrowid  # type: ignore[return-value]
 
 
-def get_agent_template(conn: sqlite3.Connection, name: str) -> Optional[sqlite3.Row]:
-    return conn.execute(
-        "SELECT * FROM agent_templates WHERE name = ?", (name,)
-    ).fetchone()
+def get_agent_template(conn: sqlite3.Connection, name: str) -> sqlite3.Row | None:
+    return conn.execute("SELECT * FROM agent_templates WHERE name = ?", (name,)).fetchone()
 
 
 # ---------------------------------------------------------------------------
 # CRUD helpers — Model Equivalents
 # ---------------------------------------------------------------------------
+
 
 def upsert_model_equivalent(
     conn: sqlite3.Connection,
@@ -391,17 +391,14 @@ def upsert_model_equivalent(
     )
 
 
-def get_equivalents(
-    conn: sqlite3.Connection, canonical_id: str
-) -> list[sqlite3.Row]:
-    return conn.execute(
-        "SELECT * FROM model_equivalents WHERE canonical_id = ?", (canonical_id,)
-    ).fetchall()
+def get_equivalents(conn: sqlite3.Connection, canonical_id: str) -> list[sqlite3.Row]:
+    return conn.execute("SELECT * FROM model_equivalents WHERE canonical_id = ?", (canonical_id,)).fetchall()
 
 
 # ---------------------------------------------------------------------------
 # CRUD helpers — Policy Bundles
 # ---------------------------------------------------------------------------
+
 
 def upsert_policy_bundle(
     conn: sqlite3.Connection,
@@ -424,14 +421,13 @@ def upsert_policy_bundle(
 
 
 def get_active_policies(conn: sqlite3.Connection) -> list[sqlite3.Row]:
-    return conn.execute(
-        "SELECT * FROM policy_bundles WHERE active = 1"
-    ).fetchall()
+    return conn.execute("SELECT * FROM policy_bundles WHERE active = 1").fetchall()
 
 
 # ---------------------------------------------------------------------------
 # CRUD helpers — Model Feedback
 # ---------------------------------------------------------------------------
+
 
 def add_feedback(
     conn: sqlite3.Connection,
@@ -446,9 +442,7 @@ def add_feedback(
     return cur.lastrowid  # type: ignore[return-value]
 
 
-def get_feedback(
-    conn: sqlite3.Connection, model_id: str, limit: int = 50
-) -> list[sqlite3.Row]:
+def get_feedback(conn: sqlite3.Connection, model_id: str, limit: int = 50) -> list[sqlite3.Row]:
     return conn.execute(
         "SELECT * FROM model_feedback WHERE model_id = ? ORDER BY ts DESC LIMIT ?",
         (model_id, limit),
@@ -458,6 +452,7 @@ def get_feedback(
 # ---------------------------------------------------------------------------
 # CRUD helpers — Model Tier History
 # ---------------------------------------------------------------------------
+
 
 def record_tier_change(
     conn: sqlite3.Connection,
@@ -476,7 +471,7 @@ def record_tier_change(
     )
 
 
-def get_current_tier(conn: sqlite3.Connection, model_id: str) -> Optional[str]:
+def get_current_tier(conn: sqlite3.Connection, model_id: str) -> str | None:
     row = conn.execute(
         "SELECT tier FROM model_tiers WHERE model_id = ? AND effective_to IS NULL",
         (model_id,),
@@ -497,7 +492,7 @@ def seed_aegis_templates(conn: sqlite3.Connection) -> None:
             "for ALIGN policy violations and privilege escalation attempts."
         ),
         tools=["READ", "WEB_SEARCH"],
-        restrictions={"max_gas": 50, "allow_network": True, "gas_per_scan": 1}
+        restrictions={"max_gas": 50, "allow_network": True, "gas_per_scan": 1},
     )
 
     # Scribe: Medium-tier, logging and audit-focused
@@ -511,7 +506,7 @@ def seed_aegis_templates(conn: sqlite3.Connection) -> None:
             "global gas budget is not exceeded."
         ),
         tools=["READ", "WRITE"],
-        restrictions={"max_gas": 30, "allow_network": False, "budget_gate_pct": 0.8}
+        restrictions={"max_gas": 30, "allow_network": False, "budget_gate_pct": 0.8},
     )
 
     # Arbiter: High-tier, decision and adjudication-focused
@@ -525,5 +520,5 @@ def seed_aegis_templates(conn: sqlite3.Connection) -> None:
             "You can quarantine malicious agents and authorize emergency overrides."
         ),
         tools=["READ", "WRITE", "SPAWN"],
-        restrictions={"max_gas": 100, "allow_network": True, "gas_per_adjudication": 2}
+        restrictions={"max_gas": 100, "allow_network": True, "gas_per_adjudication": 2},
     )

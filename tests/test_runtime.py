@@ -9,30 +9,26 @@ Covers:
   - Sensitive output redaction
   - HLFRuntime end-to-end execution
 """
+
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 
 from hlf.runtime import (
     GasMeter,
     HlfGasExhausted,
-    HlfModuleError,
-    HlfTierViolation,
     HlfHostFunctionError,
-    HostFunction,
+    HlfModuleError,
+    HLFRuntime,
+    HlfTierViolation,
     HostFunctionRegistry,
     HostFunctionResult,
-    HLFRuntime,
     ModuleLoader,
-    ModuleNamespace,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -57,21 +53,13 @@ def module_dir(tmp_path: Path) -> Path:
 
     # Simple module with SET and FUNCTION
     (mod_dir / "math_utils.hlf").write_text(
-        '[HLF-v2]\n'
-        '[SET] pi = 3\n'
-        '[FUNCTION] square x\n'
-        '[RESULT] 0 "ok"\n'
-        'Ω\n',
+        '[HLF-v2]\n[SET] pi = 3\n[FUNCTION] square x\n[RESULT] 0 "ok"\nΩ\n',
         encoding="utf-8",
     )
 
     # Module that imports another
     (mod_dir / "advanced.hlf").write_text(
-        '[HLF-v2]\n'
-        '[IMPORT] math_utils\n'
-        '[SET] tau = 6\n'
-        '[RESULT] 0 "ok"\n'
-        'Ω\n',
+        '[HLF-v2]\n[IMPORT] math_utils\n[SET] tau = 6\n[RESULT] 0 "ok"\nΩ\n',
         encoding="utf-8",
     )
 
@@ -176,12 +164,8 @@ class TestGasMeter:
     def test_dispatch_consumes_gas(self, host_registry: HostFunctionRegistry) -> None:
         meter = GasMeter(limit=50)
         # Use READ (gas=1) — SLEEP has gas=0 so would not show consumption
-        host_registry.register_dispatcher(
-            "dapr_file_read", lambda name, args: "test content"
-        )
-        host_registry.dispatch(
-            "READ", {"path": "/test"}, tier="hearth", gas_meter=meter
-        )
+        host_registry.register_dispatcher("dapr_file_read", lambda name, args: "test content")
+        host_registry.dispatch("READ", {"path": "/test"}, tier="hearth", gas_meter=meter)
         assert meter.consumed == 1
 
     def test_to_dict(self, gas_meter: GasMeter) -> None:
@@ -294,7 +278,7 @@ class TestModuleLoader:
         mod_dir = tmp_path / "secure_modules"
         mod_dir.mkdir()
         mod_file = mod_dir / "secure.hlf"
-        content = '[HLF-v2]\n[SET] secret = 42\nΩ\n'
+        content = "[HLF-v2]\n[SET] secret = 42\nΩ\n"
         mod_file.write_text(content, encoding="utf-8")
 
         sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
@@ -308,7 +292,7 @@ class TestModuleLoader:
         assert ns.bindings["secret"] == 42
 
         # Tamper with the file
-        mod_file.write_text('[HLF-v2]\n[SET] secret = 666\nΩ\n', encoding="utf-8")
+        mod_file.write_text("[HLF-v2]\n[SET] secret = 666\nΩ\n", encoding="utf-8")
 
         # Clear cache and reload
         loader._cache.clear()
@@ -325,10 +309,8 @@ class TestHLFRuntime:
     def test_simple_execution(self) -> None:
         ast = {
             "program": [
-                {"tag": "INTENT", "args": ["greet", "world"],
-                 "human_readable": "Execute INTENT"},
-                {"tag": "RESULT", "code": 0, "message": "ok",
-                 "human_readable": "Return 0 ok"},
+                {"tag": "INTENT", "args": ["greet", "world"], "human_readable": "Execute INTENT"},
+                {"tag": "RESULT", "code": 0, "message": "ok", "human_readable": "Return 0 ok"},
             ]
         }
 
@@ -340,11 +322,7 @@ class TestHLFRuntime:
         assert result.gas_used > 0
 
     def test_gas_exhaustion_terminates(self) -> None:
-        program = [
-            {"tag": "INTENT", "args": [f"step_{i}"],
-             "human_readable": f"Step {i}"}
-            for i in range(20)
-        ]
+        program = [{"tag": "INTENT", "args": [f"step_{i}"], "human_readable": f"Step {i}"} for i in range(20)]
         ast = {"program": program}
 
         runtime = HLFRuntime(gas_limit=5)
@@ -356,10 +334,8 @@ class TestHLFRuntime:
     def test_set_bindings_collected(self) -> None:
         ast = {
             "program": [
-                {"tag": "SET", "name": "x", "value": 42,
-                 "human_readable": "Set x=42"},
-                {"tag": "RESULT", "code": 0, "message": "ok",
-                 "human_readable": "ok"},
+                {"tag": "SET", "name": "x", "value": 42, "human_readable": "Set x=42"},
+                {"tag": "RESULT", "code": 0, "message": "ok", "human_readable": "ok"},
             ]
         }
 
@@ -371,8 +347,7 @@ class TestHLFRuntime:
     def test_execution_result_to_dict(self) -> None:
         ast = {
             "program": [
-                {"tag": "RESULT", "code": 0, "message": "done",
-                 "human_readable": "done"},
+                {"tag": "RESULT", "code": 0, "message": "done", "human_readable": "done"},
             ]
         }
 
@@ -388,10 +363,8 @@ class TestHLFRuntime:
     def test_module_import_in_runtime(self, module_dir: Path) -> None:
         ast = {
             "program": [
-                {"tag": "IMPORT", "name": "math_utils",
-                 "human_readable": "Import math_utils"},
-                {"tag": "RESULT", "code": 0, "message": "ok",
-                 "human_readable": "ok"},
+                {"tag": "IMPORT", "name": "math_utils", "human_readable": "Import math_utils"},
+                {"tag": "RESULT", "code": 0, "message": "ok", "human_readable": "ok"},
             ]
         }
 
