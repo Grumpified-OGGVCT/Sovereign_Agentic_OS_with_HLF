@@ -186,6 +186,9 @@ All agents handling HLF components MUST be maximized for usefulness and power.
 
 ## Anti-Reduction Checklist (MANDATORY for every Jules PR)
 
+> **PR Completion Gate** — every item below MUST be checked before a PR may be merged.
+> A PR that has not passed the CoVE audit (compact or full) **must not be merged**.
+
 - [ ] No files deleted
 - [ ] No tests removed or weakened
 - [ ] No features simplified or scope-reduced
@@ -195,5 +198,5 @@ All agents handling HLF components MUST be maximized for usefulness and power.
 - [ ] Coverage >= baseline
 - [ ] Test count >= baseline
 - [ ] Six Hats review completed
-- [ ] CoVE validation passed (compact or full)
+- [ ] **CoVE audit passed (compact or full)** — run `scripts/verify_chain.py --cove` and attach output
 

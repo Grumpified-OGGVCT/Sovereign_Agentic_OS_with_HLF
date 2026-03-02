@@ -32,7 +32,7 @@ Code quality must NEVER decrease. Every PR must satisfy:
 4. **No hardcoded values** — all config flows through `.env` → `settings.json`.
 5. **No memory budget violations** — services must stay under 4GB RAM.
 6. **HLF intents must parse** — `hlfc.compile()` is the only valid parser, no raw regex.
-7. **All PRs must pass CI** — `pytest` (217+ tests), `ruff`, `hlf_token_lint.py`, model whitelist.
+7. **All PRs must pass CI** — `pytest` (217+ tests), `ruff`, `hlf_token_lint.py`, model whitelist, and **CoVE audit** (compact or full).
 8. **No import of banned modules** — `os.system`, `subprocess.call`, `eval()`, `exec()`.
 
 ## RULES
