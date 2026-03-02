@@ -74,6 +74,7 @@ HAT_DEFINITIONS: dict[str, dict] = {
     "red": {
         "emoji": "🔴",
         "name": "Red Hat — Fail-States & Chaos",
+        "agent_name": "sentinel",
         "focus": "Cascading failures, service crashes, database locking, single points of failure",
         "system_prompt": (
             "You are the RED HAT analyst for a Sovereign Agentic OS. "
@@ -104,6 +105,7 @@ HAT_DEFINITIONS: dict[str, dict] = {
     "white": {
         "emoji": "⚪",
         "name": "White Hat — Efficiency & Resources",
+        "agent_name": "scribe",
         "focus": "Token usage, gas budgets, wasted LLM calls, context sizes, DB bloat",
         "system_prompt": (
             "You are the WHITE HAT analyst for a Sovereign Agentic OS. "
@@ -151,6 +153,7 @@ HAT_DEFINITIONS: dict[str, dict] = {
     "blue": {
         "emoji": "🔵",
         "name": "Blue Hat — Process & Completeness",
+        "agent_name": "arbiter",
         "focus": "Internal consistency, spec completeness, documentation accuracy",
         "system_prompt": (
             "You are the BLUE HAT analyst for a Sovereign Agentic OS. "
@@ -166,6 +169,7 @@ HAT_DEFINITIONS: dict[str, dict] = {
     "indigo": {
         "emoji": "🟣",
         "name": "Indigo Hat — Cross-Feature Architecture",
+        "agent_name": "synthesizer",
         "focus": "Pipeline consolidation, redundant components, macro-level DRY violations, gate fusion",
         "system_prompt": (
             "You are the INDIGO HAT analyst for a Sovereign Agentic OS. "
@@ -184,6 +188,7 @@ HAT_DEFINITIONS: dict[str, dict] = {
     "cyan": {
         "emoji": "🩵",
         "name": "Cyan Hat — Innovation & Feasibility",
+        "agent_name": "scout",
         "focus": "Forward-looking features, HLF extensions, technology validation, feasibility checks",
         "system_prompt": (
             "You are the CYAN HAT analyst for a Sovereign Agentic OS. "
@@ -203,6 +208,7 @@ HAT_DEFINITIONS: dict[str, dict] = {
     "purple": {
         "emoji": "🟪",
         "name": "Purple Hat — AI Safety & Compliance",
+        "agent_name": "guardian",
         "focus": "OWASP LLM Top 10, ALIGN rule coverage, epistemic modifier abuse, PII leakage",
         "system_prompt": (
             "You are the PURPLE HAT analyst for a Sovereign Agentic OS. "
@@ -221,6 +227,7 @@ HAT_DEFINITIONS: dict[str, dict] = {
     "orange": {
         "emoji": "🟠",
         "name": "Orange Hat — DevOps & Automation",
+        "agent_name": "operator",
         "focus": "CI/CD pipeline health, Docker configuration, Git hygiene, deployment gaps",
         "system_prompt": (
             "You are the ORANGE HAT analyst for a Sovereign Agentic OS. "
@@ -238,6 +245,7 @@ HAT_DEFINITIONS: dict[str, dict] = {
     "silver": {
         "emoji": "🪨",
         "name": "Silver Hat — Context & Token Optimization",
+        "agent_name": "compressor",
         "focus": "Token budgets, gas formula efficiency, context window utilization, prompt compression",
         "system_prompt": (
             "You are the SILVER HAT analyst for a Sovereign Agentic OS. "
@@ -312,8 +320,56 @@ def _build_system_context(conn: sqlite3.Connection | None = None) -> str:
     return "\n\n".join(context_parts) if context_parts else "No system context available."
 
 
-def _call_ollama(system_prompt: str, user_prompt: str, model: str | None = None) -> str:
-    """Call Ollama /api/chat for hat analysis."""
+# ---------------------------------------------------------------------------
+# Agent registry — loads named agent profiles from config/agent_registry.json
+# ---------------------------------------------------------------------------
+
+_agent_registry_cache: dict | None = None
+
+
+def _load_agent_registry() -> dict:
+    """Load agent profiles from config/agent_registry.json.
+
+    Returns a dict keyed by agent name (e.g. 'sentinel') with model,
+    provider, tier, and restrictions fields.  Cached after first load.
+    """
+    global _agent_registry_cache
+    if _agent_registry_cache is not None:
+        return _agent_registry_cache
+
+    from pathlib import Path
+    registry_path = (
+        Path(os.environ.get("BASE_DIR", ".")) / "config" / "agent_registry.json"
+    )
+    if not registry_path.exists():
+        logger.warning("agent_registry.json not found — agents will use defaults")
+        _agent_registry_cache = {}
+        return _agent_registry_cache
+
+    try:
+        data = json.loads(registry_path.read_text())
+        _agent_registry_cache = data.get("hat_agents", {})
+        logger.info(
+            f"Loaded {len(_agent_registry_cache)} agent profiles from registry"
+        )
+        return _agent_registry_cache
+    except Exception as exc:
+        logger.error(f"Failed to load agent_registry.json: {exc}")
+        _agent_registry_cache = {}
+        return _agent_registry_cache
+
+
+def _call_ollama(
+    system_prompt: str,
+    user_prompt: str,
+    model: str | None = None,
+    restrictions: dict | None = None,
+) -> str:
+    """Call Ollama /api/chat for hat analysis.
+
+    If *restrictions* is provided (from an agent profile), temperature
+    and max_tokens are applied to the request.
+    """
     if model is None:
         # Read from settings if available
         try:
@@ -327,14 +383,26 @@ def _call_ollama(system_prompt: str, user_prompt: str, model: str | None = None)
         except Exception:
             model = "kimi-k2.5:cloud"
 
-    payload = json.dumps({
+    # Apply agent profile restrictions if available
+    options = {}
+    if restrictions:
+        if "temperature" in restrictions:
+            options["temperature"] = restrictions["temperature"]
+        if "max_tokens" in restrictions:
+            options["num_ctx"] = restrictions["max_tokens"]
+
+    payload_dict = {
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
         "stream": False,
-    }).encode()
+    }
+    if options:
+        payload_dict["options"] = options
+
+    payload = json.dumps(payload_dict).encode()
 
     req = urllib.request.Request(
         f"{_OLLAMA_HOST}/api/chat",
@@ -401,12 +469,34 @@ def run_hat(
     conn: sqlite3.Connection | None = None,
     model: str | None = None,
 ) -> HatReport:
-    """Run a single hat analysis and return its report."""
+    """Run a single hat analysis and return its report.
+
+    If the hat has a named agent in `agent_registry.json`, its model,
+    provider, and restrictions are loaded automatically.  The *model*
+    parameter still overrides if explicitly passed.
+    """
     hat_def = HAT_DEFINITIONS.get(hat_name)
     if hat_def is None:
         return HatReport(
             hat=hat_name, emoji="❓", focus="unknown",
             error=f"Unknown hat: {hat_name}",
+        )
+
+    # Resolve agent profile from registry (if this hat has a named agent)
+    agent_name = hat_def.get("agent_name")
+    registry = _load_agent_registry()
+    agent_profile = registry.get(agent_name, {}) if agent_name else {}
+
+    # Agent profile provides model + restrictions; explicit param overrides
+    effective_model = model or agent_profile.get("model")
+    restrictions = agent_profile.get("restrictions", {})
+
+    if agent_profile:
+        logger.info(
+            f"  Agent '{agent_name}' loaded: "
+            f"model={agent_profile.get('model')}, "
+            f"provider={agent_profile.get('provider')}, "
+            f"temp={restrictions.get('temperature', 'default')}"
         )
 
     system_context = _build_system_context(conn)
@@ -418,7 +508,12 @@ def run_hat(
         f"Return your findings as a JSON array."
     )
 
-    raw = _call_ollama(hat_def["system_prompt"], user_prompt, model=model)
+    raw = _call_ollama(
+        hat_def["system_prompt"],
+        user_prompt,
+        model=effective_model,
+        restrictions=restrictions,
+    )
     findings = _parse_findings(hat_name, raw)
 
     return HatReport(

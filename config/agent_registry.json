@@ -1,0 +1,92 @@
+{
+  "hat_agents": {
+    "sentinel": {
+      "hat": "red",
+      "role": "Chaos Engineer",
+      "model": "kimi-k2.5:cloud",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.3,
+        "max_tokens": 4096
+      }
+    },
+    "scribe": {
+      "hat": "white",
+      "role": "Efficiency Auditor",
+      "model": "kimi-k2.5:cloud",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.1,
+        "max_tokens": 4096
+      }
+    },
+    "arbiter": {
+      "hat": "blue",
+      "role": "Process Auditor",
+      "model": "kimi-k2.5:cloud",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.2,
+        "max_tokens": 4096
+      }
+    },
+    "synthesizer": {
+      "hat": "indigo",
+      "role": "Cross-Feature Architect",
+      "model": "kimi-k2.5:cloud",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.4,
+        "max_tokens": 4096
+      }
+    },
+    "scout": {
+      "hat": "cyan",
+      "role": "Innovation Architect",
+      "model": "kimi-k2.5:cloud",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.6,
+        "max_tokens": 4096
+      }
+    },
+    "guardian": {
+      "hat": "purple",
+      "role": "AI Safety & Compliance",
+      "model": "kimi-k2.5:cloud",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.1,
+        "max_tokens": 4096
+      }
+    },
+    "operator": {
+      "hat": "orange",
+      "role": "DevOps & Automation",
+      "model": "kimi-k2.5:cloud",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.2,
+        "max_tokens": 4096
+      }
+    },
+    "compressor": {
+      "hat": "silver",
+      "role": "Context & Token Optimizer",
+      "model": "kimi-k2.5:cloud",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.2,
+        "max_tokens": 4096
+      }
+    }
+  }
+}

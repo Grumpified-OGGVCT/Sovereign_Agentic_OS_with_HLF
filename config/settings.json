@@ -20,7 +20,7 @@
   "dream_mode": {
     "schedule_hour": 3,
     "hlf_practice_count": 5,
-    "hats_enabled": ["red", "black", "white", "yellow", "green", "blue"],
+    "hats_enabled": ["red", "black", "white", "yellow", "green", "blue", "indigo", "cyan", "purple", "orange", "silver"],
     "analysis_model": "kimi-k2.5:cloud"
   },
   "gas_buckets": { "hearth": 1000, "forge": 10000, "sovereign": 100000 },
