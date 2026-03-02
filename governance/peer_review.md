@@ -189,68 +189,75 @@ def visit_node(node):
 
 ### I. Agentic & Governance Opcodes (The Differentiators)
 
-| Hex | Opcode | Glyph | Purpose |
-|-----|--------|-------|---------|
-| `0x1A` | `YIELD_TO_ROUTER` | — | Pause VM, package stack, hand to MoMA |
-| `0x1B` | `CHECK_ALIGN` | — | Interrupt: query Layer 2 before state change |
-| `0x1C` | `EMIT_DIFF` | Δ | Output state changes |
-| `0x1D` | `HALT_PARADOX` | Ж | Dump stack trace for Arbiter |
-| `0x1E` | `SET_EPISTEMIC` | — | Set active M_E for runtime gas metering |
-| `0x1F` | `CONSUME_GAS` | — | Explicit gas check injected before expensive ops |
-| `0x20` | `INVOKE_TOOL` | — | Execute bounded tool from Tool Forge |
+| Hex | Opcode | Glyph | Stack Effect | Purpose |
+|-----|--------|-------|--------------|--------|
+| `0x1A` | `YIELD_TO_ROUTER` | — | — | Pause VM, package stack, hand to MoMA |
+| `0x1B` | `CHECK_ALIGN` | — | — | Interrupt: query Layer 2 before state change |
+| `0x1C` | `EMIT_DIFF` | Δ | value → | Output state changes |
+| `0x1D` | `HALT_PARADOX` | Ж | — | Dump stack trace for Arbiter |
+| `0x1E` | `SET_EPISTEMIC` | — | multiplier → | Set active M_E for runtime gas metering |
+| `0x1F` | `CONSUME_GAS` | — | — | Explicit gas check injected before expensive ops |
+| `0x20` | `INVOKE_TOOL` | — | args... → result | Execute bounded tool from Tool Forge |
 
 ### II. Standard Stack & Control Flow Opcodes
 
 **Stack Manipulation:**
 
-| Hex | Opcode | Purpose |
-|-----|--------|---------|
-| `0x01` | `PUSH_CONST` | Push literal to stack |
-| `0x02` | `POP` | Remove top of stack |
-| `0x03` | `DUP` | Duplicate top of stack |
-| `0x04` | `SWAP` | Swap top two elements |
+| Hex | Opcode | Stack Effect | Purpose |
+|-----|--------|--------------|--------|
+| `0x01` | `PUSH_CONST` | → value | Push literal to stack |
+| `0x02` | `POP` | value → | Remove top of stack |
+| `0x03` | `DUP` | value → value, value | Duplicate top of stack |
+| `0x04` | `SWAP` | a, b → b, a | Swap top two elements |
 
 **Memory & Variables (for `[SET]` bindings):**
 
-| Hex | Opcode | Purpose |
-|-----|--------|---------|
-| `0x05` | `STORE_LOCAL` | Pop stack, store in local frame index |
-| `0x06` | `LOAD_LOCAL` | Push local frame index to stack |
-| `0x07` | `STORE_GLOBAL` | Store in agent's persistent memory |
-| `0x08` | `LOAD_GLOBAL` | Load from agent's persistent memory |
+| Hex | Opcode | Stack Effect | Purpose |
+|-----|--------|--------------|--------|
+| `0x05` | `STORE_LOCAL` | value → | Pop to local variable frame |
+| `0x06` | `LOAD_LOCAL` | → value | Push local variable to stack |
+| `0x07` | `STORE_GLOBAL` | value → | Pop to agent persistent memory |
+| `0x08` | `LOAD_GLOBAL` | → value | Push global to stack |
 
 **Control Flow & Concurrency:**
 
-| Hex | Opcode | Purpose |
-|-----|--------|---------|
-| `0x09` | `JUMP` | Unconditional jump (requires backpatching) |
-| `0x0A` | `JUMP_IF_FALSE` | Conditional jump for `[IF]`/`[ELSE]` |
-| `0x0B` | `CALL` | Invoke internal function |
-| `0x0C` | `RETURN` | Return from function |
-| `0x0D` | `SPAWN_CONC` | Fork VM state for `[CONCURRENT]` |
-| `0x0E` | `AWAIT` | Join concurrent threads |
+| Hex | Opcode | Stack Effect | Purpose |
+|-----|--------|--------------|--------|
+| `0x09` | `JUMP` | — | Unconditional jump (requires backpatching) |
+| `0x0A` | `JUMP_IF_FALSE` | cond → | Conditional jump for `[IF]`/`[ELSE]` |
+| `0x0B` | `CALL` | — | Invoke function (pushes return addr) |
+| `0x0C` | `RETURN` | — | Return to caller |
+| `0x0D` | `SPAWN_CONC` | — | Fork VM state for `[CONCURRENT]` |
+| `0x0E` | `AWAIT` | — | Join concurrent threads |
 
 **Math & Logic:**
 
-| Hex | Opcode | Purpose |
-|-----|--------|---------|
-| `0x0F` | `ADD` | Addition |
-| `0x10` | `SUB` | Subtraction |
-| `0x11` | `MUL` | Multiplication |
-| `0x12` | `DIV` | Division |
-| `0x13` | `CMP_EQ` | Equals |
-| `0x14` | `CMP_LT` | Less than |
-| `0x15` | `CMP_GT` | Greater than |
-| `0x16` | `AND` | Logical AND |
-| `0x17` | `OR` | Logical OR |
-| `0x18` | `NOT` | Logical NOT |
+| Hex | Opcode | Stack Effect | Purpose |
+|-----|--------|--------------|--------|
+| `0x0F` | `ADD` | a, b → (a+b) | Arithmetic addition |
+| `0x10` | `SUB` | a, b → (a-b) | Arithmetic subtraction |
+| `0x11` | `MUL` | a, b → (a*b) | Arithmetic multiplication |
+| `0x12` | `DIV` | a, b → (a/b) | Arithmetic division (checked) |
+| `0x13` | `CMP_EQ` | a, b → bool | Equality comparison |
+| `0x14` | `CMP_LT` | a, b → bool | Less-than comparison |
+| `0x15` | `CMP_GT` | a, b → bool | Greater-than comparison |
+| `0x16` | `AND` | a, b → (a&&b) | Logical AND |
+| `0x17` | `OR` | a, b → (a\|\|b) | Logical OR |
+| `0x18` | `NOT` | a → (!a) | Logical NOT |
 
 **System:**
 
-| Hex | Opcode | Purpose |
-|-----|--------|---------|
-| `0x00` | `NOP` | No operation |
-| `0x19` | `TERMINATE` | Clean exit (maps to Ω glyph) |
+| Hex | Opcode | Stack Effect | Purpose |
+|-----|--------|--------------|--------|
+| `0x00` | `NOP` | — | No operation |
+| `0x19` | `TERMINATE` | — | Clean exit (maps to Ω glyph) |
+
+### III. Compiler Injection Rules
+
+> [!WARNING]
+> The compiler **must** inject `CONSUME_GAS` before every `CALL`, `SPAWN_CONC`,
+> and `INVOKE_TOOL` instruction. Without this, agents can evade gas metering by
+> dispatching expensive operations through cheap-looking calls, defeating Gate 5.
 
 ---
 
@@ -293,3 +300,31 @@ Do **not** train on raw Input/Output pairs. The model must learn *when* to use H
 - **Rank:** r=16 or r=32 (syntax requires deep structural rewiring, not surface-level adaptation)
 - **Target layers:** All linear layers (`q_proj`, `k_proj`, `v_proj`, `o_proj`)
 - **Base model:** Qwen 2.5 7B (balances size with instruction-following capacity)
+- **Learning rate:** 2e-4 with cosine decay
+- **Context length:** 512 tokens (HLF is compact; ~22 tokens avg vs ~160 for equivalent JSON)
+
+---
+
+# Decision Log: Alternative Spec Review
+
+> **Date:** 2026-03-01
+> **Source:** Alternative AI reviewer (parallel spec for Phase 5.2)
+> **Reviewed by:** Build team
+
+## Accepted (Merged Into This Document)
+
+| Item | Source | Reason |
+|------|--------|--------|
+| Stack Effect notation | Alt spec | Essential for VM implementation — defines how each opcode manipulates the stack pointer |
+| `CONSUME_GAS` compiler injection rule | Alt spec | We missed that the compiler must inject gas checks before `CALL`, `SPAWN_CONC`, `INVOKE_TOOL` to prevent gate evasion |
+| Learning rate + context length | Alt spec | Practical hyperparameters (2e-4 cosine, 512 ctx) supplement our existing rank/layer guidance |
+
+## Rejected (Not Merged)
+
+| Item | Source | Reason |
+|------|--------|--------|
+| 5-bit / 32-opcode constraint (drop `INVOKE_TOOL`) | Alt spec | We chose 6-bit / 33 opcodes. Extension space needed — string ops (`PUSH_STRING`, `CONCAT`, `CMP_STRING`) already identified as future requirements |
+| LoRA corpus expansion script (template rotation) | Alt spec | Mechanically rotates templates via `modulo` index. Produces overfit-prone data. Gemini's approach (LLM-generated variations validated through `hlfc.compile()`) is categorically better for syntax diversity |
+| Epistemic math section | Alt spec | Identical to Gemini 3.1 Pro's analysis already committed — no new information |
+| MCP Task Manager CLI integration | Alt spec | Irrelevant to our build pipeline — we use our own task tracking |
+| `INVOKE_TOOL` → `YIELD_TO_ROUTER` consolidation | Alt spec | Valid architectural argument (tool invocation *should* go through MoMA), noted here as an alternative but not adopted. Keeping `INVOKE_TOOL` distinct provides clearer semantics for debugging and tracing |
