@@ -309,6 +309,7 @@
         <a href="#security">Security</a>
         <a href="#architecture">Architecture</a>
         <a href="#grammar">Grammar</a>
+        <a href="#agents">Agents</a>
         <a href="#status">Status</a>
         <a href="#roadmap">Roadmap</a>
     </div>
@@ -456,7 +457,7 @@ graph TB
     L3["🔮 Layer 3: HLF Language<br/>Compiler, Runtime, Linter<br/>format_correction feedback loop"]
     L4["⚡ Layer 4: Agent Services<br/>Pipeline → Registry → Router → Executor<br/>MoMA routing, gas metering"]
     L5["🖥️ Layer 5: Applications<br/>GUI Cognitive SOC<br/>Tool Forge, Dream State"]
-    L6["📋 Layer 6: Governance<br/>CoVE validation<br/>Six Thinking Hats review"]
+    L6["📋 Layer 6: Governance<br/>CoVE validation<br/>11-Hat Review Matrix"]
     L7["👁️ Layer 7: Observability<br/>OpenLLMetry tracing<br/>Redis metrics"]
 
     L1 --> L2 --> L3 --> L4 --> L5
@@ -480,10 +481,10 @@ graph TB
         <div class="layer-header" onclick="toggleLayer(this)">
             <div class="layer-num l1">1</div>
             <div><div class="layer-title">Physical — Agent-Centric File System</div>
-            <div class="layer-subtitle">Cryptographic trust boundaries, container topology, 4GB RAM ceilings</div></div>
+            <div class="layer-subtitle">Cryptographic trust boundaries, container topology, resource isolation</div></div>
             <span class="layer-chevron">▸</span>
         </div>
-        <div class="layer-body">Defines how agents own files, how cryptographic trust boundaries work, and how the physical deployment topology is structured. Every agent service runs in its own Docker container with a 4GB RAM ceiling. The ACFS ensures agents cannot access each other's filesystems without explicit cryptographic authorization.</div>
+        <div class="layer-body">Defines how agents own files, how cryptographic trust boundaries work, and how the physical deployment topology is structured. Every agent service runs in its own Docker container with configurable resource limits. The ACFS ensures agents cannot access each other's filesystems without explicit cryptographic authorization.</div>
     </div>
 
     <div class="layer-card">
@@ -520,10 +521,10 @@ graph TB
         <div class="layer-header" onclick="toggleLayer(this)">
             <div class="layer-num l5">5</div>
             <div><div class="layer-title">Applications</div>
-            <div class="layer-subtitle">Streamlit GUI, Tool Forge, Dream State, Six Thinking Hats</div></div>
+            <div class="layer-subtitle">Streamlit GUI, Tool Forge, Dream State, 11-Hat Engine (8 Named Agents)</div></div>
             <span class="layer-chevron">▸</span>
         </div>
-        <div class="layer-body">The face. A <strong>Cognitive SOC</strong> (Streamlit dashboard) for real-time agent visualization. A <strong>Tool Forge</strong> for dynamic tool creation. A <strong>Dream State</strong> engine for subconscious background processing during idle times. A <strong>Six Thinking Hats</strong> engine for structured multi-perspective analysis.</div>
+        <div class="layer-body">The face. A <strong>Cognitive SOC</strong> (Streamlit dashboard) for real-time agent visualization. A <strong>Tool Forge</strong> for dynamic tool creation. A <strong>Dream State</strong> engine for subconscious background processing during idle times. An <strong>11-Hat Engine</strong> with <strong>8 named cloud agents</strong> (Sentinel, Scribe, Arbiter, Synthesizer, Scout, Guardian, Operator, Compressor) for structured multi-perspective analysis — each with tuned temperature and cloud model profiles.</div>
     </div>
 
     <div class="layer-card">
@@ -686,16 +687,79 @@ gantt
     <p>The compiler currently emits JSON AST. The next major milestone: a <strong>stack-machine bytecode compiler</strong> — <code>hlfc --emit-bytecode</code> producing <code>.hlb</code> binaries with a 32-instruction opcode set, executed in hermetically sealed Wasm sandboxes via Wasmtime. This is when HLF stops being "a clever DSL" and becomes <strong>a real virtual machine for agent cognition</strong>.</p>
 
     <h3>The Aegis-Nexus Engine (The Endgame)</h3>
-    <p>A tri-perspective autonomous governance system with three specialized agents:</p>
-    <div class="gate-grid" style="grid-template-columns: repeat(3, 1fr);">
-        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">🛡️ Sentinel</div><div class="gate-desc">Security watchdog. Monitors for ALIGN violations.</div></div>
-        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">📜 Scribe</div><div class="gate-desc">Record keeper. Immutable audit trail of every decision.</div></div>
-        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">⚖️ Arbiter</div><div class="gate-desc">Conflict resolver. Formal logic mediation.</div></div>
+    <p>An 11-hat autonomous governance system with <strong>8 named cloud agents</strong>, each tuned with role-specific temperature and token limits:</p>
+    <div class="gate-grid">
+        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">🛡️ Sentinel</div><div class="gate-desc">Security watchdog. ALIGN violation detection.</div></div>
+        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">📜 Scribe</div><div class="gate-desc">Record keeper. Immutable audit trail.</div></div>
+        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">⚖️ Arbiter</div><div class="gate-desc">Conflict resolver. Process orchestration.</div></div>
+        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">🟣 Synthesizer</div><div class="gate-desc">Cross-system fusion. Emergent insights.</div></div>
+        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">🩵 Scout</div><div class="gate-desc">Innovation explorer. Blue-sky proposals.</div></div>
+        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">🟪 Guardian</div><div class="gate-desc">Compliance auditor. ALIGN verification.</div></div>
+        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">🟠 Operator</div><div class="gate-desc">Deployment engineer. Container health.</div></div>
+        <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">🪨 Compressor</div><div class="gate-desc">Waste eliminator. Token optimization.</div></div>
     </div>
 
     <div class="callout vision">
         <div class="callout-title">🌍 The Ultimate Vision</div>
-        A self-sovereign operating system for AI agents where: (1) agents communicate in a formal, auditable language, (2) every message is governed by immutable, crypto-signed rules, (3) every decision is transparent to humans, (4) the system self-corrects when agents err, (5) the system self-governs through specialized oversight agents, and (6) humans retain ultimate authority — not through constant supervision, but through <strong>structural guarantees embedded in the protocol itself</strong>.
+        A self-sovereign operating system for AI agents where: (1) agents communicate in a formal, auditable language, (2) every message is governed by immutable, crypto-signed rules, (3) every decision is transparent to humans, (4) the system self-corrects when agents err, (5) the system self-governs through 8 specialized oversight agents, and (6) humans retain ultimate authority — not through constant supervision, but through <strong>structural guarantees embedded in the protocol itself</strong>.
+    </div>
+</section>
+
+<hr class="divider">
+
+<!-- ═══ AGENT ROSTER ═══ -->
+<section class="section" id="agents">
+    <h2>The 11-Hat Agent Roster</h2>
+    <p class="section-lead">8 named cloud agents, each with a tuned temperature and specific focus area. Click any agent card for the full deep-dive.</p>
+
+    <div class="gate-grid" id="agent-roster-grid">
+        <div class="gate" onclick="openAgentModal('sentinel')" style="cursor:pointer;">
+            <div class="gate-num">Agent</div>
+            <div class="gate-name">🔴 Sentinel</div>
+            <div class="gate-desc">Red Hat · Security watchdog · temp 0.3</div>
+        </div>
+        <div class="gate" onclick="openAgentModal('scribe')" style="cursor:pointer;">
+            <div class="gate-num">Agent</div>
+            <div class="gate-name">⚪ Scribe</div>
+            <div class="gate-desc">White Hat · Data integrity · temp 0.1</div>
+        </div>
+        <div class="gate" onclick="openAgentModal('arbiter')" style="cursor:pointer;">
+            <div class="gate-num">Agent</div>
+            <div class="gate-name">🔵 Arbiter</div>
+            <div class="gate-desc">Blue Hat · Process mediator · temp 0.2</div>
+        </div>
+        <div class="gate" onclick="openAgentModal('synthesizer')" style="cursor:pointer;">
+            <div class="gate-num">Agent</div>
+            <div class="gate-name">🟣 Synthesizer</div>
+            <div class="gate-desc">Indigo Hat · Cross-system fuser · temp 0.4</div>
+        </div>
+        <div class="gate" onclick="openAgentModal('scout')" style="cursor:pointer;">
+            <div class="gate-num">Agent</div>
+            <div class="gate-name">🩵 Scout</div>
+            <div class="gate-desc">Cyan Hat · Innovation explorer · temp 0.6</div>
+        </div>
+        <div class="gate" onclick="openAgentModal('guardian')" style="cursor:pointer;">
+            <div class="gate-num">Agent</div>
+            <div class="gate-name">🟪 Guardian</div>
+            <div class="gate-desc">Purple Hat · Compliance auditor · temp 0.1</div>
+        </div>
+        <div class="gate" onclick="openAgentModal('operator')" style="cursor:pointer;">
+            <div class="gate-num">Agent</div>
+            <div class="gate-name">🟠 Operator</div>
+            <div class="gate-desc">Orange Hat · Deployment engineer · temp 0.2</div>
+        </div>
+        <div class="gate" onclick="openAgentModal('compressor')" style="cursor:pointer;">
+            <div class="gate-num">Agent</div>
+            <div class="gate-name">🪨 Compressor</div>
+            <div class="gate-desc">Silver Hat · Waste eliminator · temp 0.2</div>
+        </div>
+    </div>
+
+    <p>The remaining 3 hats — <strong>⬛ Black</strong> (Risk), <strong>🟡 Yellow</strong> (Value), <strong>🟢 Green</strong> (Innovation) — use default model settings without named agent profiles.</p>
+
+    <div class="callout technical">
+        <div class="callout-title">⚙️ How It Works</div>
+        Each named agent is defined in <code>config/agent_registry.json</code> with a specific <strong>cloud model</strong> (kimi-k2.5:cloud), <strong>provider</strong> (cloud), and <strong>restrictions</strong> (temperature, max tokens). When the Dream State engine triggers a hat analysis cycle, <code>hat_engine.py</code> loads these profiles automatically via <code>_load_agent_registry()</code> and routes inference through <code>_ollama_generate_v2()</code> — the same cloud-routed pipeline all other OS agents use.
     </div>
 </section>
 
@@ -736,6 +800,187 @@ gantt
         const inner = document.querySelector(`#${id} .mermaid-inner`);
         inner.style.transform = 'scale(1)';
     }
+</script>
+
+<!-- ═══ AGENT DETAIL MODAL ═══ -->
+<div id="agent-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; z-index:200; background:rgba(0,0,0,0.8); backdrop-filter:blur(8px);">
+    <div style="max-width:680px; margin:5vh auto; max-height:90vh; overflow-y:auto; background:var(--bg-secondary); border:1px solid var(--border); border-radius:16px; padding:2rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+            <h2 id="modal-title" style="font-size:1.5rem; font-weight:800;"></h2>
+            <button onclick="closeAgentModal()" style="background:none; border:1px solid var(--border); color:var(--text-secondary); font-size:1.2rem; cursor:pointer; border-radius:8px; width:36px; height:36px;">✕</button>
+        </div>
+        <div id="modal-body"></div>
+    </div>
+</div>
+
+<script>
+const agentData = {
+    sentinel: {
+        title: '🔴 Sentinel — The Security Watchdog',
+        hat: 'Red Hat',
+        model: 'kimi-k2.5:cloud',
+        temp: 0.3,
+        maxTokens: 2048,
+        focus: 'Emotional pulse, risk intuition, threat gut-checks',
+        description: 'The Sentinel is your early warning system. While other agents analyze data and process logic, the Sentinel reacts on <strong>instinct</strong> — scanning for danger signals that bypass rational analysis. In the Sovereign OS, this maps directly to threat detection: ALIGN violations, privilege escalation attempts, memory corruption patterns, and anomalous request patterns.',
+        useCases: [
+            '<strong>Dream Cycle Security Scan:</strong> During nightly Dream State cycles, the Sentinel reviews all agent actions from the past 24 hours for patterns that look like security breaches — even if no individual action triggered a formal alert.',
+            '<strong>Pre-Deployment Gate:</strong> Before any container or service restarts, the Sentinel runs a rapid emotional/intuitive sweep: "Does this deployment <em>feel</em> dangerous?" — checking for unusual model changes, config drift, or unexpected dependency changes.',
+            '<strong>Real-Time Intent Monitoring:</strong> Every HLF intent that passes through the 6-gate pipeline is also echoed to the Sentinel for a soft check. High-severity findings trigger alerts to the human operator.'
+        ],
+        restrictions: 'Temperature 0.3 keeps outputs focused but allows some intuitive latitude. Max 2,048 tokens ensures fast, decisive assessments rather than lengthy analysis.'
+    },
+    scribe: {
+        title: '⚪ Scribe — The Record Keeper',
+        hat: 'White Hat',
+        model: 'kimi-k2.5:cloud',
+        temp: 0.1,
+        maxTokens: 4096,
+        focus: 'Factual accuracy, data completeness, objective reporting',
+        description: 'The Scribe deals exclusively in <strong>verifiable facts</strong>. No opinions, no predictions, no evaluations. It looks at the system state and asks: "What data do we have? What data is missing? Are the metrics reliable?" In the Sovereign OS, this translates to analyzing database integrity, configuration completeness, and audit trail validity.',
+        useCases: [
+            '<strong>Configuration Auditing:</strong> The Scribe compares the current <code>settings.json</code> against the expected schema, flagging any missing keys, invalid types, or undocumented fields.',
+            '<strong>Test Coverage Reporting:</strong> After every CI run, the Scribe produces an objective delta: "233 tests passing. 0 removed. 0 weakened. Coverage delta: +0.4%." No commentary — just facts.',
+            '<strong>ALIGN Ledger Verification:</strong> Periodically validates that the ALIGN Ledger has not been tampered with by computing SHA-256 checksums and comparing against the Merkle chain.',
+            '<strong>Fact Store Integrity:</strong> Cross-references the SQLite <code>fact_store</code> against the <code>rolling_context</code> to detect orphaned records, stale embeddings, or duplicated entries.'
+        ],
+        restrictions: 'Temperature 0.1 (near-deterministic) ensures outputs are maximally factual and reproducible. Max 4,096 tokens allows thorough, detailed data reporting.'
+    },
+    arbiter: {
+        title: '🔵 Arbiter — The Process Mediator',
+        hat: 'Blue Hat',
+        model: 'kimi-k2.5:cloud',
+        temp: 0.2,
+        maxTokens: 2048,
+        focus: 'Process control, meta-cognition, decision orchestration',
+        description: 'The Arbiter is the <strong>conductor of the orchestra</strong>. It doesn\'t analyze the OS itself — it analyzes <em>how the other agents are doing their analysis</em>. Are the Dream Cycles properly scheduled? Is the hat engine covering all perspectives? Are agent priorities balanced? The Arbiter resolves conflicts between agents and ensures the overall review process is complete and unbiased.',
+        useCases: [
+            '<strong>Hat Cycle Orchestration:</strong> During 11-Hat review cycles, the Arbiter monitors which hats have been run, identifies gaps, and decides if additional passes are needed.',
+            '<strong>Agent Conflict Resolution:</strong> When the Sentinel flags a security risk that the Scout wants to explore as an innovation opportunity, the Arbiter mediates — weighing the risk/reward tradeoff and issuing a final decision.',
+            '<strong>Dream State Quality:</strong> After each Dream cycle completes, the Arbiter evaluates whether the synthesis was thorough enough or if another cycle is needed.',
+            '<strong>Process Improvement:</strong> Recommends changes to the review workflow itself — "The Guardian and Sentinel overlap on 60% of findings; consider merging their security scopes."'
+        ],
+        restrictions: 'Temperature 0.2 keeps process decisions consistent and predictable. Max 2,048 tokens keeps orchestration directives concise.'
+    },
+    synthesizer: {
+        title: '🟣 Synthesizer — The Cross-System Integrator',
+        hat: 'Indigo Hat',
+        model: 'kimi-k2.5:cloud',
+        temp: 0.4,
+        maxTokens: 3072,
+        focus: 'Cross-domain pattern recognition, emergent insight detection',
+        description: 'The Synthesizer sees the <strong>connections between things</strong> that no single-perspective agent can see. It reads the outputs of all other hats and asks: "What patterns emerge when we look at security + performance + architecture together?" In the Sovereign OS, this means identifying systemic risks that span multiple subsystems — a memory leak in the Gateway that, combined with a misconfigured gas budget, could cause a cascading failure in the Dream State.',
+        useCases: [
+            '<strong>Cross-Hat Synthesis:</strong> After all 11 hats have run, the Synthesizer reads their combined findings and generates higher-order insights: "The Scribe\'s data gaps + the Sentinel\'s security flags + the Operator\'s deployment notes collectively indicate an under-tested migration path."',
+            '<strong>Architecture Drift Detection:</strong> Identifies when small, individually harmless changes across multiple modules are collectively pushing the system toward an architectural anti-pattern.',
+            '<strong>Dream State Enrichment:</strong> Takes the raw Dream cycle output and synthesizes it into actionable rules for the next cycle.'
+        ],
+        restrictions: 'Temperature 0.4 allows creative cross-domain connections while maintaining analytical rigor. Max 3,072 tokens provides space for multi-perspective synthesis.'
+    },
+    scout: {
+        title: '🩵 Scout — The Innovation Explorer',
+        hat: 'Cyan Hat',
+        model: 'kimi-k2.5:cloud',
+        temp: 0.6,
+        maxTokens: 3072,
+        focus: 'Innovation opportunities, untapped potential, blue-sky thinking',
+        description: 'The Scout looks at the system and asks: <strong>"What could this become?"</strong> — not what\'s wrong, but what\'s possible. It identifies opportunities for new features, novel integrations, and capabilities the system doesn\'t have yet but could. The Scout is the only agent explicitly encouraged to think speculatively.',
+        useCases: [
+            '<strong>Feature Discovery:</strong> "The HLF compiler could emit WebAssembly directly, enabling browser-based agent execution without a server."',
+            '<strong>Integration Opportunities:</strong> "The Infinite RAG Memory Matrix + the LoRA training pipeline could enable the system to fine-tune its own routing model based on historical interaction quality."',
+            '<strong>Ecosystem Expansion:</strong> "An HLF Language Server Protocol (LSP) would enable real-time syntax highlighting and autocompletion in VS Code, lowering the barrier for new contributors."',
+            '<strong>Novel Use Cases:</strong> Proposes entirely new applications for existing infrastructure — "The gas metering system could be repurposed as a billing layer for multi-tenant deployments."'
+        ],
+        restrictions: 'Temperature 0.6 (the highest in the roster) encourages creative, exploratory thinking. Max 3,072 tokens provides space for detailed proposals.'
+    },
+    guardian: {
+        title: '🟪 Guardian — The Compliance Auditor',
+        hat: 'Purple Hat',
+        model: 'kimi-k2.5:cloud',
+        temp: 0.1,
+        maxTokens: 2048,
+        focus: 'ALIGN compliance, governance integrity, security hardening',
+        description: 'While the Sentinel watches for threats using intuition, the Guardian audits using <strong>formal rules</strong>. It checks every ALIGN rule systematically, verifies that governance templates are being used correctly, ensures that security configurations match their specifications, and validates that the seccomp profiles, rate limits, and access controls are all correctly applied.',
+        useCases: [
+            '<strong>ALIGN Rule Verification:</strong> Systematically checks R-001 through R-008 against the current codebase, verifying that each rule is enforced by at least one gate in the pipeline.',
+            '<strong>Seccomp Profile Validation:</strong> Confirms that the container security profiles match the documented specifications and haven\'t drifted.',
+            '<strong>Gas Budget Compliance:</strong> Verifies that per-tier gas budgets are correctly configured and that no agent is bypassing the gas metering system.',
+            '<strong>Governance Template Completeness:</strong> Ensures all PR review templates include the required sections and that no mandatory checklist items have been removed.'
+        ],
+        restrictions: 'Temperature 0.1 (near-deterministic) ensures compliance checks are precise and reproducible. Max 2,048 tokens keeps audit reports focused.'
+    },
+    operator: {
+        title: '🟠 Operator — The Deployment Engineer',
+        hat: 'Orange Hat',
+        model: 'kimi-k2.5:cloud',
+        temp: 0.2,
+        maxTokens: 2048,
+        focus: 'Operational readiness, deployment health, resource management',
+        description: 'The Operator thinks about <strong>running systems in production</strong>. Docker container health, Redis connection pools, Ollama endpoint availability, SQLite WAL mode performance, deployment pipeline reliability. If it affects uptime, latency, or resource consumption, the Operator cares about it.',
+        useCases: [
+            '<strong>Container Health Monitoring:</strong> Reviews Docker container resource usage, restart counts, and log volumes to identify degrading services before they fail.',
+            '<strong>Pipeline Reliability:</strong> Analyzes CI/CD pipeline execution history for flaky tests, timeout patterns, or resource exhaustion trends.',
+            '<strong>Model Endpoint Availability:</strong> Checks that all configured model endpoints (Ollama, OpenRouter, cloud) are responsive and within acceptable latency bounds.',
+            '<strong>Resource Capacity Planning:</strong> Reviews current resource consumption patterns and projects when the system will need scaling — more Redis memory, larger SQLite WAL pages, or additional compute for the Dream State.'
+        ],
+        restrictions: 'Temperature 0.2 ensures operational recommendations are conservative and reliable. Max 2,048 tokens keeps assessments actionable.'
+    },
+    compressor: {
+        title: '🪨 Compressor — The Waste Eliminator',
+        hat: 'Silver Hat',
+        model: 'kimi-k2.5:cloud',
+        temp: 0.2,
+        maxTokens: 2048,
+        focus: 'Token waste, redundancy elimination, efficiency optimization',
+        description: 'The Compressor is the <strong>Marie Kondo of the codebase</strong>. It identifies bloated prompts, duplicated logic, oversized configurations, redundant API calls, and any form of computational waste. In a system where every token costs money and every millisecond matters, the Compressor ensures nothing is wasted.',
+        useCases: [
+            '<strong>Prompt Compression:</strong> Analyzes system prompts across all agents for redundant phrasing, unnecessary context injection, or verbose instructions that could be shortened without losing meaning.',
+            '<strong>Dead Code Detection:</strong> Identifies imported-but-unused modules, defined-but-uncalled functions, and configuration keys that no code references.',
+            '<strong>API Call Deduplication:</strong> Spots patterns where multiple agents make identical or near-identical API calls that could be cached or batched.',
+            '<strong>Config Bloat:</strong> Flags configuration files that have grown beyond their original scope, containing deprecated keys or settings inherited from earlier architecture versions.'
+        ],
+        restrictions: 'Temperature 0.2 ensures compression recommendations are precise and won\'t accidentally remove necessary functionality. Max 2,048 tokens keeps findings concise.'
+    }
+};
+
+function openAgentModal(agentKey) {
+    const agent = agentData[agentKey];
+    if (!agent) return;
+    document.getElementById('modal-title').textContent = agent.title;
+    let useCaseHtml = agent.useCases.map(uc => `<li style="margin-bottom:0.8rem;line-height:1.6;">${uc}</li>`).join('');
+    document.getElementById('modal-body').innerHTML = `
+        <table style="margin-bottom:1.5rem;">
+            <tr><td style="font-weight:600;color:var(--accent-cyan);width:140px;">Hat</td><td>${agent.hat}</td></tr>
+            <tr><td style="font-weight:600;color:var(--accent-cyan);">Model</td><td><code>${agent.model}</code></td></tr>
+            <tr><td style="font-weight:600;color:var(--accent-cyan);">Temperature</td><td>${agent.temp}</td></tr>
+            <tr><td style="font-weight:600;color:var(--accent-cyan);">Max Tokens</td><td>${agent.maxTokens.toLocaleString()}</td></tr>
+            <tr><td style="font-weight:600;color:var(--accent-cyan);">Focus</td><td>${agent.focus}</td></tr>
+        </table>
+        <h3 style="color:var(--accent-purple);font-size:1.1rem;margin-bottom:0.8rem;">Overview</h3>
+        <p style="margin-bottom:1.5rem;line-height:1.7;color:var(--text-secondary);">${agent.description}</p>
+        <h3 style="color:var(--accent-green);font-size:1.1rem;margin-bottom:0.8rem;">Use Cases & Examples</h3>
+        <ul style="padding-left:1.2rem;color:var(--text-secondary);">${useCaseHtml}</ul>
+        <div style="margin-top:1.5rem;padding:1rem;background:rgba(88,166,255,0.06);border-radius:10px;border-left:3px solid var(--accent-blue);">
+            <div style="font-weight:700;font-size:0.85rem;color:var(--accent-blue);margin-bottom:0.4rem;">⚙️ Restrictions</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);line-height:1.6;">${agent.restrictions}</p>
+        </div>
+    `;
+    document.getElementById('agent-modal').style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeAgentModal() {
+    document.getElementById('agent-modal').style.display = 'none';
+    document.body.style.overflow = '';
+}
+
+document.getElementById('agent-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeAgentModal();
+});
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closeAgentModal();
+});
 </script>
 
 </body>

@@ -89,7 +89,7 @@ Jules MUST continuously assess and enhance system-wide transparency. This is not
    - `detailed` — raw HLF output, full routing traces, max token budget
 3. **Inter-agent communication** — All agent-to-agent messages MUST be logged and displayable
 4. **Real-time HLF translation** — Show the user what HLF the system generates, with natural-language equivalents
-5. **Run through Six Hats** — Every transparency enhancement MUST pass the Six Hats review protocol
+5. **Run through Eleven Hats** — Every transparency enhancement MUST pass the Eleven Hats review protocol
 6. **Never reduce visibility** — You may ONLY add transparency features. Never remove, simplify, or hide existing ones.
 
 ## Self-Capability Tracking
@@ -105,7 +105,7 @@ Jules MUST maintain awareness of its own capabilities and limitations.
 2. **Enhancement proposals** — When Jules identifies a way to expand its usefulness:
    - Create a GitHub issue with label `jules-enhancement`
    - Include: what it would enable, what it requires, estimated effort, risk assessment
-   - Pass the proposal through Six Hats before submitting
+   - Pass the proposal through Eleven Hats before submitting
 3. **Capability growth log** — Track capability expansions over time in `reports/jules_capability_log.md`
 4. **Never overstate capabilities** — If Jules cannot verify it can do something, it MUST say so
 
@@ -197,6 +197,6 @@ All agents handling HLF components MUST be maximized for usefulness and power.
 - [ ] No model capabilities reduced
 - [ ] Coverage >= baseline
 - [ ] Test count >= baseline
-- [ ] Six Hats review completed
+- [ ] Eleven Hats review completed
 - [ ] **CoVE audit passed (compact or full)** — run `scripts/verify_chain.py --cove` and attach output
 

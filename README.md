@@ -3,7 +3,7 @@
 > 🟢 **Development Status (Mar 2026)**
 > Now on **Google Ultimate Plan** with full Antigravity, Jules, and GitHub Copilot integration.
 > 
-> **✅ Working**: Dream Mode (111/111), 6-Hat Engine, Gateway Bus + ALIGN, C-SOC GUI (dark mode), Ollama Matrix, deep installation tests (62/62), auto-update with user approval, Jules 10-step daily pipeline, MCP Server auto-launch, **Infinite RAG Memory Matrix** (SQLite WAL + MCP bridge + Dream State), HLF metrics & benchmark infrastructure.
+> **✅ Working**: Dream Mode (111/111), 11-Hat Engine (8 named cloud agents), Gateway Bus + ALIGN, C-SOC GUI (dark mode), Ollama Matrix, deep installation tests (62/62), auto-update with user approval, Jules 10-step daily pipeline, MCP Server auto-launch, **Infinite RAG Memory Matrix** (SQLite WAL + MCP bridge + Dream State), HLF metrics & benchmark infrastructure.
 > **🛠️ In Progress**: Copilot agent/runner factory, real-time HLF translation indicators, vector embeddings (sqlite-vec), Redis active context tiering, fractal summarization.
 > **⏸️ Paused**: Pure cloud-only orchestrations.
 >
@@ -107,7 +107,7 @@ graph TD
 The Sovereign OS began as a simple question asked when cloud API tokens ran dry: *"Why not create a compressed language exclusively for AI-to-AI communication to save tokens?"* Those scattered notes morphed into the foundational "God View" stack via intensive prompting sessions spanning days.
 
 **Forging the Manifest (The Plan from the Plans):**
-After the initial NotebookLM brainstorming exhausted context windows, the raw concepts were dumped into a monolithic baseline plan. We subjected the entire architecture to a **De Bono 6-Hat Agentic Matrix** cycle (Red, Black, White, Yellow, Green, Blue Hats) to forge the ironclad, verified system you see here.
+After the initial NotebookLM brainstorming exhausted context windows, the raw concepts were dumped into a monolithic baseline plan. We subjected the entire architecture to a **De Bono 11-Hat Agentic Matrix** — the original 6 perspective hats (Red, Black, White, Yellow, Green, Blue) plus 5 Sovereign OS-specific extended hats (Indigo, Cyan, Purple, Orange, Silver) — to forge the ironclad, verified system you see here.
 
 **Architectural Credits & Gratitude:**
 - **My Wife:** For her constant, patient support and giving me the massive amounts of unmanaged time required to architect this.
@@ -275,7 +275,7 @@ HLF and the Infinite RAG are designed to amplify each other:
 ## 🌟 The Sovereign Advantage: Why it Matters
 
 The Sovereign Agentic OS represents a paradigm shift in AI autonomy:
-- **Aegis-Nexus Engine**: Our tri-perspective audit cycle (Red/White/Blue Hats) ensures your agents never hallucinate into privilege escalation or memory leaks.
+- **Aegis-Nexus Engine**: Our 11-hat autonomous audit cycle (8 named cloud agents: Sentinel, Scribe, Arbiter, Synthesizer, Scout, Guardian, Operator, Compressor) ensures your agents never hallucinate into privilege escalation or memory leaks.
 - **MoMA Dynamic Routing**: Intelligent "Downshifting" means you never pay for a Frontier-tier model when a local small-language model (SLM) can do the same task for free.
 - **Glass-Box Transparency**: The C-SOC dashboard allows you to see every "thought" and "action" in real-time—no secret LLM decision-making.
 - **Start Strong Mandate**: Built from day one with the assumption that AI agents will be the primary operators of the next generation of infrastructure.
@@ -300,7 +300,7 @@ The Sovereign OS is deeply integrated with **Antigravity** (Google DeepMind's ag
 
 ### Goals & Intentions
 - **Glass-Box IDE Control**: Allow an external expert coding agent (Antigravity) to read the internal state, health, and memory of the OS directly from the IDE without breaking security boundaries.
-- **Autonomous OS Maintenance**: Empower Antigravity to trigger "Dream Mode" cycles, read Six-Hat analysis findings, and suggest architectural improvements based on the OS's own self-reflections.
+- **Autonomous OS Maintenance**: Empower Antigravity to trigger "Dream Mode" cycles, read 11-Hat analysis findings from 8 named agents, and suggest architectural improvements based on the OS's own self-reflections.
 - **Regulated Tool Access**: Expose 8 secure tools (e.g., `check_health`, `dispatch_intent`, `query_memory`, `run_dream_cycle`) that allow the IDE agent to operate the OS like a sysadmin, while remaining fully constrained by the ALIGN governed Gateway Bus.
 
 To start the MCP server, select Option 3 in the `run.bat` boot menu, or use `--auto-launch` in the tray manager. 
@@ -402,7 +402,7 @@ Automated tasks are defined in `config/jules_tasks.yaml`:
 
 - **Nightly:** Pipeline sync, model health check, regression suite
 - **Weekly:** HLF grammar tests, dependency audit, linter sweep
-- **Monthly:** ALIGN governance audit, CoVE full validation, Six Hats review
+- **Monthly:** ALIGN governance audit, CoVE full validation, 11-Hat review
 - **Suggested Tasks:** Auto-surface `TODO`/`FIXME`/`HACK`/`SECURITY` comments
 
 Issue-to-Jules automation: `scripts/jules_dispatch.sh <issue-number>` (supports `--dry-run`)
@@ -413,7 +413,7 @@ Issue-to-Jules automation: `scripts/jules_dispatch.sh <issue-number>` (supports 
 |------|----------|-------|
 | **CoVE Full** (12-dimension) | `governance/templates/cove_full_validation.md` | Major changes, security PRs |
 | **CoVE Compact** (8-step) | `governance/templates/cove_compact_validation.md` | Small changes (< 200 lines) |
-| **Six Hats Review** | `governance/templates/six_hats_review.md` | Every Jules PR |
+| **11-Hat Review** | `governance/templates/six_hats_review.md` | Every Jules PR |
 
 ### Safety Invariants (Non-Negotiable)
 
@@ -423,7 +423,7 @@ Issue-to-Jules automation: `scripts/jules_dispatch.sh <issue-number>` (supports 
 | No coverage reduction | Scheduled `pytest --cov` baseline comparison |
 | No simplification | `AGENTS.md` explicitly forbids reductive changes |
 | Additive-only | Every Jules prompt includes "Do NOT delete or simplify" |
-| 4GB RAM constraint | Layer 1 compliance enforced in `AGENTS.md` |
+| No overcommit | Cloud model routing via `agent_registry.json` profiles |
 
 ---
 

@@ -243,16 +243,19 @@ Every intent passes through a **6-gate security pipeline** that JSON/natural lan
 - [ ] Implement robust token validation in `hlfc.py` using `ALIGN_LEDGER.yaml`
 - [ ] Enforce deterministic mathematical verification of HLF tokens against the ledger
 
-### V.3: Tri-Perspective Aegis-Nexus Engine (Core Agents)
+### V.3: 11-Hat Aegis-Nexus Engine (8 Named Agents) ✅ COMPLETE
 
-- [ ] Instantiate the Sentinel Agent (Red Hat / Security & PrivEsc checks)
-- [ ] Instantiate the Scribe Agent (White Hat / Memory & Token Bloat)
-- [ ] Instantiate the Arbiter Agent (Blue Hat / Exception Handling & Governance)
-- [ ] Instantiate the Synthesizer Agent (Indigo Hat / Cross-Feature Architecture)
-- [ ] Instantiate the Scout Agent (Cyan Hat / Innovation & Feasibility)
-- [ ] Instantiate the Guardian Agent (Purple Hat / AI Safety & Compliance)
-- [ ] Instantiate the Operator Agent (Orange Hat / DevOps & Automation)
-- [ ] Instantiate the Compressor Agent (Silver Hat / Context & Token Optimization)
+- [x] Instantiate the Sentinel Agent (Red Hat / Security & PrivEsc checks)
+- [x] Instantiate the Scribe Agent (White Hat / Memory & Token Bloat)
+- [x] Instantiate the Arbiter Agent (Blue Hat / Exception Handling & Governance)
+- [x] Instantiate the Synthesizer Agent (Indigo Hat / Cross-Feature Architecture)
+- [x] Instantiate the Scout Agent (Cyan Hat / Innovation & Feasibility)
+- [x] Instantiate the Guardian Agent (Purple Hat / AI Safety & Compliance)
+- [x] Instantiate the Operator Agent (Orange Hat / DevOps & Automation)
+- [x] Instantiate the Compressor Agent (Silver Hat / Context & Token Optimization)
+- [x] `config/agent_registry.json` — 8 profiles with cloud model + restrictions
+- [x] `hat_engine.py` — `_load_agent_registry()` + profile-aware `run_hat()`
+- [x] All 11 hats enabled in `settings.json`
 
 ### V.4: OpenClaw Strategy Integration (Appendix B)
 

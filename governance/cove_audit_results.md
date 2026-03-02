@@ -114,7 +114,7 @@
 | GOV-01 | ✅ PASS | ALIGN Ledger (R-001→R-008) exists and is enforced via `sentinel_gate.py`. |
 | GOV-02 | ✅ PASS | `copilot-instructions.md` has model-agnostic + anti-devolution rules. |
 | GOV-03 | ✅ PASS | Pre-commit hooks include `detect-private-key`. |
-| GOV-04 | ✅ PASS | CoVE and Six Hats review templates exist in `governance/templates/`. |
+| GOV-04 | ✅ PASS | CoVE and Eleven Hats review templates exist in `governance/templates/`. |
 
 ---
 
