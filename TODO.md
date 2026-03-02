@@ -90,10 +90,10 @@
 - [x] Map existing `score_to_tier()` letter grades → `ModelTier` enum via `TIER_MAP`
 - [x] Unit tests for schema integrity (`tests/test_db.py`)
 
-### Infra Phase 2: Pipeline Upgrade (Global + Local Cycles) 🟡 ~40%
-- [ ] Refactor `run_pipeline()` to persist to `registry.db` alongside existing CSV artifacts
-- [ ] Implement snapshot creation and atomic promotion logic (call `create_snapshot()` + `promote_snapshot()`)
-- [ ] Add 6-hour scheduler/cron trigger
+### Infra Phase 2: Pipeline Upgrade (Global + Local Cycles) ✅ COMPLETE
+- [x] Refactor `run_pipeline()` to persist to `registry.db` alongside existing CSV artifacts
+- [x] Implement snapshot creation and atomic promotion logic (call `create_snapshot()` + `promote_snapshot()`)
+- [x] Add 6-hour scheduler/cron trigger (`agents/core/scheduler.py` — daemon with health endpoint, rollback, telemetry)
 - [x] Implement Local Inventory Heartbeat in `bus.py` (`sync_inventory()` endpoint)
 - [x] Heartbeat calls `fetch_tags(LOCAL_OLLAMA)` → upserts `user_local_inventory`
 
@@ -238,10 +238,12 @@ Every intent passes through a **6-gate security pipeline** that JSON/natural lan
 - [x] Pipeline→Registry bridge (`--registry-db --promote` flags)
 - [ ] Wire the Gateway `router.py` to dispatch to Ollama dynamically based on matrix constraints (→ Infra Phase 2)
 
-### V.2: ALIGN Ledger & Host Functions Validation
+### V.2: ALIGN Ledger & Host Functions Validation ✅ COMPLETE
 
-- [ ] Implement robust token validation in `hlfc.py` using `ALIGN_LEDGER.yaml`
-- [ ] Enforce deterministic mathematical verification of HLF tokens against the ledger
+- [x] Implement robust token validation in `hlfc.py` using `ALIGN_LEDGER.yaml` (Pass 3 — compile-time security gate)
+- [x] Enforce deterministic mathematical verification of HLF tokens against the ledger (8 rules compiled, regex scan of all AST strings)
+- [x] `HlfAlignViolation` exception class with rule_id, rule_name, action, match metadata
+- [x] Non-strict mode for analysis (annotates nodes instead of raising)
 
 ### V.3: 11-Hat Aegis-Nexus Engine (8 Named Agents) ✅ COMPLETE
 
