@@ -66,6 +66,26 @@ jobs:
       - name: Run pytest
         run: uv run python -m pytest tests/ -v
 
+  dependency-scan:
+    needs: ensure-no-sandbox-in-prod
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies (with dev extras)
+        run: uv sync --all-extras --frozen
+      - name: Run pip-audit
+        run: |
+          uv export --no-dev --format requirements-txt > /tmp/requirements-audit.txt
+          uv run pip-audit --requirement /tmp/requirements-audit.txt --progress-spinner off
+
   validate-models:
     needs: ensure-no-sandbox-in-prod
     runs-on: ubuntu-latest
