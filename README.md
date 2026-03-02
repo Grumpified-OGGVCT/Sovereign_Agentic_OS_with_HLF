@@ -91,7 +91,9 @@ graph TD
     ASB-->Router["MoMA Router\n(Model Selector)"]
     Router-->Executor["Agent Executor\n(:40405)"]
     Executor-->Memory["Memory Core\n(SQLite + Redis :40406)"]
-    Router-->Ollama["Ollama Matrix\n(:11434)"]
+    Router-->Ollama["Ollama Primary\n(:11434 local)"]
+    Router-->Ollama2["Ollama Secondary\n(:11435 Docker)"]
+    Ollama2-.->|failover / round-robin|Ollama
     Executor-->DockerOrch["Docker Orchestrator\n(:40407)\n[forge/sovereign only]"]
     ASB-->Redis["Redis Broker\n(:6379)"]
     Gateway-->AutoUpdate["Auto-Update Checker\n(git fetch + user approval)"]
@@ -316,7 +318,8 @@ For deploying the Agent OS autonomously in cloud environments (e.g., GitHub Acti
 1. **Configure Environment Secrets**:
    In your GitHub repository, navigate to **Settings > Environments > Configure Secrets**. Add your provider keys exactly as follows (see `.github/workflows/autonomous-runner.yml` for usage):
    - `OPENROUTER_API` (Primary fallback for cloud models)
-   - `OLLAMA_API_KEY` (If using a managed Ollama Cloud endpoint)
+   - `OLLAMA_API_KEY` (Primary Ollama Cloud endpoint)
+   - `OLLAMA_API_KEY_SECONDARY` (Secondary Ollama at `:11435` — doubles cloud quota)
    - `DEEPSEEK_API`
    - `GEMINI_API`
    - `GROK_API`

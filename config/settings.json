@@ -37,5 +37,12 @@
     "enabled": true,
     "interval_hours": 6,
     "promote": true
+  },
+  "ollama_dual": {
+    "enabled": true,
+    "primary_host": "http://localhost:11434",
+    "secondary_host": "http://localhost:11435",
+    "strategy": "failover",
+    "cloud_models_synced": 31
   }
 }

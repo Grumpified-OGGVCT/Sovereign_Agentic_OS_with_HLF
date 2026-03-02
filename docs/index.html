@@ -950,7 +950,9 @@ uv sync</pre>
             </ul>
             <p>Optional but recommended:</p>
             <ul>
-                <li><code>OLLAMA_HOST</code> — Local model endpoint (default: <code>http://localhost:11434</code>)</li>
+                <li><code>OLLAMA_HOST</code> — Primary Ollama endpoint (default: <code>http://localhost:11434</code>)</li>
+                <li><code>OLLAMA_HOST_SECONDARY</code> — Secondary Ollama at <code>:11435</code> (doubles cloud quota)</li>
+                <li><code>OLLAMA_LOAD_STRATEGY</code> — <code>failover</code> | <code>round_robin</code> | <code>primary_only</code></li>
                 <li><code>SLACK_WEBHOOK_URL</code> — Agent alert notifications</li>
                 <li><code>STREAMLIT_SECRET_KEY</code> — GUI session encryption</li>
             </ul>

@@ -58,8 +58,13 @@ GITHUB_TOKEN=ghp_xxxxxx
 ### Optional Keys
 
 ```env
-# Local model endpoint (Ollama)
+# Primary Ollama (local)
 OLLAMA_HOST=http://localhost:11434
+
+# Secondary Ollama (Docker — doubles cloud quota via failover/round-robin)
+OLLAMA_HOST_SECONDARY=http://localhost:11435
+OLLAMA_API_KEY_SECONDARY=your-secondary-key
+OLLAMA_LOAD_STRATEGY=failover
 
 # Slack alerts for agent notifications
 SLACK_WEBHOOK_URL=https://hooks.slack.com/services/xxx/yyy/zzz
@@ -111,7 +116,7 @@ Jules is the autonomous maintenance and evolution agent:
 | Cadence | Tasks |
 |---------|-------|
 | **Daily** | Dream Mode cycles, lint & test sweeps, HLF token audits, ALIGN compliance scans |
-| **Weekly** | Architecture diagram sync, README refresh, Six-Hat reviews, grammar evolution proposals |
+| **Weekly** | Architecture diagram sync, README refresh, Eleven-Hat reviews, grammar evolution proposals |
 | **Monthly** | Full integration test sweeps, tier promotion reviews, security assessments, release cuts |
 
 Jules will auto-create PRs with grammar proposals, test fixes, and dependency updates.

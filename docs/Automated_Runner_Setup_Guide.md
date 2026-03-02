@@ -36,9 +36,14 @@ env:
   OPENAI_BASE_URL: "https://openrouter.ai/api/v1"
   OPENAI_API_KEY: ${{ secrets.OPENROUTER_API }}
   
-  # Or use standard Ollama python library against a cloud endpoint
+  # Primary Ollama cloud endpoint
   OLLAMA_HOST: "https://your-ollama-cloud-endpoint.com"
   OLLAMA_API_KEY: ${{ secrets.OLLAMA_API_KEY }}
+
+  # Secondary Ollama (Docker at :11435) — doubles cloud model quota
+  OLLAMA_HOST_SECONDARY: "http://localhost:11435"
+  OLLAMA_API_KEY_SECONDARY: ${{ secrets.OLLAMA_API_KEY_SECONDARY }}
+  OLLAMA_LOAD_STRATEGY: "failover"  # or "round_robin"
 ```
 
 ## Step 3: Integrating Future Models (DeepSeek, Gemini, Grok)
