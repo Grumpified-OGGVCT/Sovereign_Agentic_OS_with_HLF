@@ -203,10 +203,39 @@ class HLFTransformer(Transformer):
 
     def result_stmt(self, items: list) -> dict[str, Any]:
         args = items[0] if items else []
+        # Parse structured error-code: RESULT code message
+        code = None
+        message = None
+        if args:
+            # First arg is the error code (int)
+            try:
+                code = int(args[0]) if len(args) > 0 else 0
+            except (ValueError, TypeError):
+                code = None
+            # Second arg is the message (string)
+            message = str(args[1]) if len(args) > 1 else None
+
+        # Classification: 0=success, 1-99=recoverable, 100+=fatal
+        if code is not None:
+            if code == 0:
+                severity = "SUCCESS"
+            elif code < 100:
+                severity = "RECOVERABLE"
+            else:
+                severity = "FATAL"
+            hr = f"Return {severity} (code={code})"
+            if message:
+                hr += f": {message}"
+        else:
+            hr = f"Return result with {len(args)} field(s)"
+
         return {
             "tag": "RESULT",
+            "code": code,
+            "message": message,
             "args": args,
-            "human_readable": f"Return result with {len(args)} field(s)",
+            "terminator": True,
+            "human_readable": hr,
         }
 
     def module_stmt(self, items: list) -> dict[str, Any]:
@@ -821,11 +850,12 @@ def _pass3_align_validate(
 
 def compile(source: str, *, align_strict: bool = True) -> dict[str, Any]:  # noqa: A001
     """
-    Three-pass HLF compiler.
+    Four-pass HLF compiler.
 
     Pass 1: collect immutable SET bindings.
     Pass 2: expand ``${VAR}`` references.
     Pass 3: validate against ALIGN Ledger security rules.
+    Pass 4: enforce dictionary.json arity/type constraints.
 
     Args:
         source: HLF source code string.
@@ -862,6 +892,9 @@ def compile(source: str, *, align_strict: bool = True) -> dict[str, Any]:  # noq
         result["program"], strict=align_strict
     )
 
+    # Pass 4 — dictionary.json arity/type enforcement
+    _pass4_dictionary_validate(result["program"])
+
     # Record the ALIGN rules that were enforced
     if _ALIGN_COMPILED:
         result["align_rules_enforced"] = [
@@ -869,7 +902,173 @@ def compile(source: str, *, align_strict: bool = True) -> dict[str, Any]:  # noq
             for rid, name, _, action in _ALIGN_COMPILED
         ]
 
+    # Record dictionary enforcement metadata
+    if _DICT_TAGS:
+        result["dictionary_enforced"] = True
+        result["dictionary_version"] = _DICT_VERSION
+
     return result
+
+
+# ------------------------------------------------------------------ #
+# Pass 4 — dictionary.json Arity / Type Enforcement
+# ------------------------------------------------------------------ #
+
+# Type checkers for dictionary.json "type" field
+_TYPE_VALIDATORS: dict[str, Any] = {
+    "string": lambda v: isinstance(v, str),
+    "int": lambda v: isinstance(v, (int, float)) and not isinstance(v, bool),
+    "bool": lambda v: isinstance(v, bool) or str(v).lower() in ("true", "false"),
+    "any": lambda _: True,
+    "path": lambda v: isinstance(v, str),
+    "identifier": lambda v: isinstance(v, str) and v.isidentifier(),
+}
+
+# Tag registry loaded from dictionary.json
+_DICT_TAGS: dict[str, dict[str, Any]] = {}
+_DICT_VERSION: str = "unknown"
+
+
+def _load_dictionary() -> None:
+    """Load governance/templates/dictionary.json at module init.
+
+    Builds a tag registry mapping tag names to their argument specs,
+    including expected arity, types, and properties (pure, immutable, etc.).
+    """
+    global _DICT_TAGS, _DICT_VERSION
+    dict_path = Path(__file__).parent.parent / "governance" / "templates" / "dictionary.json"
+    if not dict_path.exists():
+        return
+
+    try:
+        data = json.loads(dict_path.read_text(encoding="utf-8"))
+        _DICT_VERSION = data.get("version", "unknown")
+
+        for tag_def in data.get("tags", []):
+            name = tag_def.get("name")
+            if not name:
+                continue
+
+            args_spec = tag_def.get("args", [])
+            # Calculate arity bounds
+            required = sum(1 for a in args_spec if not a.get("repeat"))
+            has_repeat = any(a.get("repeat") for a in args_spec)
+
+            _DICT_TAGS[name] = {
+                "args": args_spec,
+                "min_arity": required,
+                "max_arity": None if has_repeat else len(args_spec),
+                "pure": tag_def.get("pure", False),
+                "immutable": tag_def.get("immutable", False),
+                "terminator": tag_def.get("terminator", False),
+            }
+    except Exception:
+        pass  # fail open — no dictionary, no enforcement
+
+
+# Load at module init
+_load_dictionary()
+
+
+class HlfArityError(HlfSyntaxError):
+    """Raised when an AST node violates dictionary.json arity constraints.
+
+    Attributes:
+        tag: The tag name that violated arity
+        expected_min: Minimum expected arguments
+        expected_max: Maximum expected arguments (None = unlimited)
+        actual: Actual argument count provided
+    """
+    def __init__(self, tag: str, expected_min: int, expected_max: int | None, actual: int):
+        self.tag = tag
+        self.expected_min = expected_min
+        self.expected_max = expected_max
+        self.actual = actual
+        if expected_max is None:
+            constraint = f"at least {expected_min}"
+        elif expected_min == expected_max:
+            constraint = f"exactly {expected_min}"
+        else:
+            constraint = f"{expected_min}-{expected_max}"
+        super().__init__(
+            f"[{tag}] arity violation: expected {constraint} args, got {actual}"
+        )
+
+
+class HlfTypeError(HlfSyntaxError):
+    """Raised when an AST node argument violates dictionary.json type constraints.
+
+    Attributes:
+        tag: The tag name
+        arg_name: The argument name
+        expected_type: The expected type from dictionary.json
+        actual_value: The actual value provided
+    """
+    def __init__(self, tag: str, arg_name: str, expected_type: str, actual_value: Any):
+        self.tag = tag
+        self.arg_name = arg_name
+        self.expected_type = expected_type
+        self.actual_value = actual_value
+        super().__init__(
+            f"[{tag}] type violation: arg '{arg_name}' expects {expected_type}, "
+            f"got {type(actual_value).__name__} ({actual_value!r})"
+        )
+
+
+def _pass4_dictionary_validate(program: list[dict[str, Any]]) -> None:
+    """Pass 4 — Validate AST nodes against dictionary.json tag specs.
+
+    Checks:
+    - Arity: min/max argument count per tag definition
+    - Types: argument types match dictionary.json type specs
+    - Properties: terminators, purity, immutability annotations
+
+    Raises HlfArityError or HlfTypeError on violations.
+    """
+    if not _DICT_TAGS:
+        return  # no dictionary loaded — pass through
+
+    for node in program:
+        if node is None:
+            continue
+
+        tag = node.get("tag")
+        if not tag or tag not in _DICT_TAGS:
+            continue  # unknown tags are allowed (forward compatibility)
+
+        spec = _DICT_TAGS[tag]
+        args = node.get("args", [])
+        actual_count = len(args) if isinstance(args, list) else 1
+
+        # --- Arity check ---
+        min_arity = spec["min_arity"]
+        max_arity = spec["max_arity"]
+
+        if actual_count < min_arity:
+            raise HlfArityError(tag, min_arity, max_arity, actual_count)
+        if max_arity is not None and actual_count > max_arity:
+            raise HlfArityError(tag, min_arity, max_arity, actual_count)
+
+        # --- Type check (positional args) ---
+        if isinstance(args, list):
+            for i, arg_spec in enumerate(spec["args"]):
+                if i >= len(args):
+                    break  # remaining args are optional/repeat
+
+                arg_name = arg_spec.get("name", f"arg{i}")
+                expected_type = arg_spec.get("type", "any")
+                validator = _TYPE_VALIDATORS.get(expected_type, lambda _: True)
+
+                if not validator(args[i]):
+                    raise HlfTypeError(tag, arg_name, expected_type, args[i])
+
+        # --- Annotate properties from dictionary ---
+        if spec.get("pure") and "pure" not in node:
+            node["pure"] = True
+        if spec.get("terminator") and "terminator" not in node:
+            node["terminator"] = True
+        if spec.get("immutable") and "immutable" not in node:
+            node["immutable"] = True
 
 
 def main() -> None:

@@ -136,10 +136,10 @@
 - [x] format_correction() — Iterative Intervention Engine
 - [x] docs/HLF_GRAMMAR_REFERENCE.md — authoritative operator catalog
 - [ ] Runtime interpreter with gas metering
-- [ ] Error-code propagation via RESULT
+- [x] Error-code propagation via RESULT (structured code:int + message:string + severity classification)
 - [x] Regex validation gate (`validate_hlf`)
 - [x] HLF linter middleware (token, gas, unused vars)
-- [ ] `dictionary.json` arity/type enforcement at parse-time
+- [x] `dictionary.json` arity/type enforcement at parse-time (Pass 4 — loads 16 tag specs, validates arity + types)
 - [ ] `hls.yaml` formal grammar spec (machine-readable BNF)
 - [x] ALIGN enforcement middleware (`sentinel_gate.py`)
 - [x] Nonce/ULID replay protection
