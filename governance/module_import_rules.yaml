@@ -31,10 +31,11 @@ rules:
       - "sqlite3"
       - "textwrap"
       - "typing"
+      - "importlib"
+      - "tempfile"
     forbidden_prefixes:
       - "ctypes"
       - "cffi"
-      - "importlib.util.spec_from_file_location"
   - id: "M-002"
     name: "No Dynamic Import"
     description: "importlib.import_module with untrusted paths is forbidden"

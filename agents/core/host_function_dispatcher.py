@@ -18,8 +18,8 @@ Security guarantees enforced here:
 """
 from __future__ import annotations
 
-import hashlib
 import functools
+import hashlib
 import json
 import os
 import time
@@ -103,6 +103,8 @@ def _dispatch_backend(backend: str, name: str, args: list, meta: dict) -> Any:
         return _docker_spawn(args, meta)
     if backend == "dapr_container_spawn":
         return _dapr_container_spawn(name, args, meta)
+    if backend == "tool_forge":
+        return _tool_forge(args)
     raise RuntimeError(f"Unknown backend: {backend}")
 
 
@@ -301,4 +303,18 @@ def _dapr_container_spawn(name: str, args: list, meta: dict) -> str:
             anomaly_score=0.4,
         )
         return f"{name}_UNAVAILABLE: Neither Dapr container nor Ollama OpenClaw reachable"
+
+
+def _tool_forge(args: list) -> str:
+    """FORGE_TOOL <task> — invoke Tool Forge to auto-generate a sandboxed utility."""
+    task = str(args[0]) if args else ""
+    if not task:
+        return "FORGE_TOOL_ERROR: no task description provided"
+    from agents.core.tool_forge import forge_tool
+
+    meta = forge_tool(task, loop_count=3)
+    if not meta:
+        return "FORGE_TOOL_REJECTED: code failed validation gates"
+    _logger.log("FORGE_TOOL_REGISTERED", {"name": meta["name"], "sha256": meta.get("sha256", "")})
+    return json.dumps({"name": meta["name"], "sha256": meta.get("sha256", "")})
 

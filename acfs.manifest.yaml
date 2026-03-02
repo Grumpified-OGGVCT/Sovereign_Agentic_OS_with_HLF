@@ -4,6 +4,7 @@ directories:
   - { path: "/data/sqlite", permissions: "700" }
   - { path: "/data/cold_archive", permissions: "700" }
   - { path: "/data/quarantine_dumps", permissions: "700" }
+  - { path: "/data/tool_forge", permissions: "700" }
   - { path: "/governance", permissions: "555" }
   - { path: "/agents", permissions: "555" }
   - { path: "/security", permissions: "555" }
