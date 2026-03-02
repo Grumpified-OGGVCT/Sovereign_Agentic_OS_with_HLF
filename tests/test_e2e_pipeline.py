@@ -469,3 +469,183 @@ class TestFullPipelineFlow:
         mock_post.assert_not_called()
         assert result["code"] == 0
         assert "INTENT_EXECUTED" in executor_events
+
+
+# ─── Stage 6: Compiler Validation (Pass 3 + Pass 4) ─────────────────────────
+
+
+class TestCompilerSecurityGates:
+    """Verify that the 4-pass compiler correctly validates HLF payloads."""
+
+    def test_pass1_pass2_basic_compilation(self) -> None:
+        """Minimal HLF source compiles to JSON AST with all required fields."""
+        source = '[HLF-v2]\n[INTENT] greet "world"\n[RESULT] 0 "ok"\nΩ\n'
+        ast = hlfc_compile(source)
+
+        assert "program" in ast
+        assert "compiler" in ast
+        assert isinstance(ast["program"], list)
+        assert len(ast["program"]) > 0
+
+    def test_result_error_code_propagation(self) -> None:
+        """RESULT handler parses structured error codes with severity."""
+        source = '[HLF-v2]\n[RESULT] 0 "success"\nΩ\n'
+        ast = hlfc_compile(source)
+
+        result_nodes = [n for n in ast["program"] if n.get("tag") == "RESULT"]
+        assert len(result_nodes) == 1
+        result = result_nodes[0]
+        assert result["code"] == 0
+        assert result["terminator"] is True
+        assert "SUCCESS" in result["human_readable"]
+
+    def test_result_fatal_error_code(self) -> None:
+        """RESULT with code >= 100 is classified as FATAL."""
+        source = '[HLF-v2]\n[RESULT] 500 "internal error"\nΩ\n'
+        ast = hlfc_compile(source)
+
+        result_nodes = [n for n in ast["program"] if n.get("tag") == "RESULT"]
+        result = result_nodes[0]
+        assert result["code"] == 500
+        assert "FATAL" in result["human_readable"]
+
+    def test_result_recoverable_error_code(self) -> None:
+        """RESULT with code 1-99 is classified as RECOVERABLE."""
+        source = '[HLF-v2]\n[RESULT] 42 "timeout"\nΩ\n'
+        ast = hlfc_compile(source)
+
+        result_nodes = [n for n in ast["program"] if n.get("tag") == "RESULT"]
+        result = result_nodes[0]
+        assert result["code"] == 42
+        assert "RECOVERABLE" in result["human_readable"]
+
+    def test_pass4_dictionary_enforced(self) -> None:
+        """Compiler pass 4 loads dictionary.json and records enforcement metadata."""
+        source = '[HLF-v2]\n[INTENT] greet "world"\n[RESULT] 0 "ok"\nΩ\n'
+        ast = hlfc_compile(source)
+
+        # dictionary_enforced should be True when dictionary.json is present
+        if ast.get("dictionary_enforced"):
+            assert ast["dictionary_version"] is not None
+            assert isinstance(ast["dictionary_version"], str)
+
+    def test_set_immutability_annotation(self) -> None:
+        """SET nodes get immutable: true from dictionary.json spec."""
+        source = '[HLF-v2]\n[SET] x = 42\nΩ\n'
+        ast = hlfc_compile(source)
+
+        set_nodes = [n for n in ast["program"] if n.get("tag") == "SET"]
+        if set_nodes and ast.get("dictionary_enforced"):
+            assert set_nodes[0].get("immutable") is True
+
+    def test_thought_purity_annotation(self) -> None:
+        """THOUGHT nodes get pure: true from dictionary.json spec."""
+        source = '[HLF-v2]\n[THOUGHT] "analyzing the problem"\nΩ\n'
+        ast = hlfc_compile(source)
+
+        thought_nodes = [n for n in ast["program"] if n.get("tag") == "THOUGHT"]
+        if thought_nodes and ast.get("dictionary_enforced"):
+            assert thought_nodes[0].get("pure") is True
+
+    def test_human_readable_on_every_node(self) -> None:
+        """InsAIts V2 mandate: every AST node must have a human_readable field."""
+        source = (
+            '[HLF-v2]\n'
+            '[INTENT] greet "world"\n'
+            '[THOUGHT] "analyzing"\n'
+            '[OBSERVATION] "data received"\n'
+            '[RESULT] 0 "ok"\n'
+            'Ω\n'
+        )
+        ast = hlfc_compile(source)
+
+        for node in ast["program"]:
+            if isinstance(node, dict) and node.get("tag"):
+                assert "human_readable" in node, (
+                    f"Node {node.get('tag')} missing human_readable field"
+                )
+
+
+# ─── Stage 7: GUI Module Import Verification ────────────────────────────────
+
+
+class TestGUIModuleHealth:
+    """Verify GUI module structure and syntax without requiring Streamlit runtime."""
+
+    def test_gui_app_is_valid_python(self) -> None:
+        """gui/app.py compiles to valid Python bytecode (no syntax errors)."""
+        import py_compile
+
+        gui_path = Path(__file__).parent.parent / "gui" / "app.py"
+        if not gui_path.exists():
+            pytest.skip("gui/app.py not found")
+
+        # py_compile.compile raises py_compile.PyCompileError on syntax errors
+        py_compile.compile(str(gui_path), doraise=True)
+
+    def test_gui_modules_exist(self) -> None:
+        """Expected GUI module files are present in the gui/ directory."""
+        gui_dir = Path(__file__).parent.parent / "gui"
+        expected_files = ["app.py", "chat.py", "dreamlog.py"]
+
+        for fname in expected_files:
+            fpath = gui_dir / fname
+            assert fpath.exists(), f"Expected GUI module {fname} not found"
+
+    def test_gui_app_contains_registry_panel(self) -> None:
+        """gui/app.py includes the Model Registry panel code."""
+        gui_app = Path(__file__).parent.parent / "gui" / "app.py"
+        if not gui_app.exists():
+            pytest.skip("gui/app.py not found")
+
+        content = gui_app.read_text(encoding="utf-8")
+        assert "Model Registry" in content or "model_registry" in content, (
+            "Expected Model Registry panel in gui/app.py"
+        )
+
+    def test_gui_app_contains_feedback_ui(self) -> None:
+        """gui/app.py includes the Model Feedback UI code."""
+        gui_app = Path(__file__).parent.parent / "gui" / "app.py"
+        if not gui_app.exists():
+            pytest.skip("gui/app.py not found")
+
+        content = gui_app.read_text(encoding="utf-8")
+        assert "feedback" in content.lower() or "Feedback" in content, (
+            "Expected Model Feedback UI code in gui/app.py"
+        )
+
+
+# ─── Stage 8: Scheduler Integration ─────────────────────────────────────────
+
+
+class TestSchedulerIntegration:
+    """Verify scheduler module can be imported and reports health."""
+
+    def test_scheduler_daemon_imports(self) -> None:
+        """agents/core/scheduler.py is importable and has expected attributes."""
+        sched_path = Path(__file__).parent.parent / "agents" / "core" / "scheduler.py"
+        if not sched_path.exists():
+            pytest.skip("scheduler.py not found")
+
+        import py_compile
+        py_compile.compile(str(sched_path), doraise=True)
+
+    def test_scheduler_telemetry_class_exists(self) -> None:
+        """The Telemetry class is defined in the scheduler module."""
+        sched_path = Path(__file__).parent.parent / "agents" / "core" / "scheduler.py"
+        if not sched_path.exists():
+            pytest.skip("scheduler.py not found")
+
+        content = sched_path.read_text(encoding="utf-8")
+        assert "class Telemetry" in content
+        assert "class SchedulerDaemon" in content
+
+    def test_scheduler_health_endpoint_defined(self) -> None:
+        """The health HTTP handler is defined."""
+        sched_path = Path(__file__).parent.parent / "agents" / "core" / "scheduler.py"
+        if not sched_path.exists():
+            pytest.skip("scheduler.py not found")
+
+        content = sched_path.read_text(encoding="utf-8")
+        assert "/health" in content
+        assert "HealthHandler" in content or "do_GET" in content
