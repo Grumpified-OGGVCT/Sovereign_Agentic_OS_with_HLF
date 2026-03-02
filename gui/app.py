@@ -8,6 +8,7 @@ real-time metrics. Falls back gracefully when services are unavailable.
 
 import json
 import os
+import time  # ADD THIS LINE
 import urllib.request
 from pathlib import Path
 
@@ -148,6 +149,91 @@ def get_host_function_count() -> int:
         pass
     return 0
 
+
+@st.cache_data(ttl=30)
+def get_active_snapshot_info() -> dict:
+    """Load active snapshot metadata from the SQL registry."""
+    try:
+        from agents.core.db import get_active_snapshot, get_all_models, get_db
+
+        with get_db() as conn:
+            snap = get_active_snapshot(conn)
+            if snap:
+                models = get_all_models(conn)
+                return {
+                    "id": snap["id"],
+                    "families": snap["families"] or "—",
+                    "model_count": snap["model_count"] or len(models),
+                    "promoted_at": snap["promoted_at"] or "—",
+                    "is_promoted": bool(snap["is_promoted"]),
+                }
+    except Exception:
+        pass
+    return {}
+
+
+@st.cache_data(ttl=30)
+def get_local_inventory_data() -> list[dict]:
+    """Load local Ollama inventory from the SQL registry."""
+    try:
+        from agents.core.db import get_db, get_local_inventory
+
+        with get_db() as conn:
+            rows = get_local_inventory(conn)
+            return [
+                {
+                    "model_id": r["model_id"],
+                    "name": r["name"] or r["model_id"],
+                    "size_gb": round((r["size_bytes"] or 0) / 1e9, 2),
+                    "last_seen": r["last_seen"] or "—",
+                    "is_running": bool(r["is_running"]),
+                }
+                for r in rows
+            ]
+    except Exception:
+        pass
+    return []
+
+
+def get_gas_remaining(tier: str) -> int | None:
+    """Read the current gas balance for *tier* from Redis."""
+    redis_ok, r = check_redis()
+    if not redis_ok or r is None:
+        return None
+    try:
+        val = r.get(f"gas:{tier}")
+        return int(val) if val is not None else None
+    except Exception:
+        return None
+
+
+def get_routing_trace() -> list[dict]:
+    """Read the last routing decision trace stored in Redis."""
+    redis_ok, r = check_redis()
+    if not redis_ok or r is None:
+        return []
+    try:
+        import json as _json
+
+        raw = r.lrange("routing:trace_log", 0, 9)
+        return [_json.loads(item) for item in raw if item]
+    except Exception:
+        return []
+
+
+def record_model_feedback(model_id: str, rating: int, context: str = "") -> bool:
+    """Persist a thumbs-up (+1) or thumbs-down (-1) rating to the SQL registry."""
+    try:
+        from agents.core.db import add_feedback, get_db
+
+        with get_db() as conn:
+            add_feedback(conn, model_id, rating, context)
+            conn.commit()
+        return True
+    except Exception:
+        return False
+
+
 def check_local_node_status() -> tuple[str, str]:
     """Check if the Local Autonomous Node is running by inspecting its heartbeat log."""
     log_path = _PROJECT_ROOT / "logs" / "local_node.log"
@@ -156,7 +242,7 @@ def check_local_node_status() -> tuple[str, str]:
             # Check if updated in the last 2 minutes
             mtime = os.path.getmtime(log_path)
             if (time.time() - mtime) < 120:
-                with open(log_path, 'r') as f:
+                with open(log_path) as f:
                     lines = f.readlines()
                     if lines:
                         last_line = lines[-1].strip()
@@ -784,11 +870,13 @@ with center_canvas:
         "agents, dispatch HLF commands, and monitor swarm execution.",
     )
 
-    chat_tab, dispatch_tab, swarm_tab = st.tabs(
+    chat_tab, dispatch_tab, swarm_tab, transparency_tab, registry_tab = st.tabs(
         [
             "💬 Agent Chat",
             "🚀 Intent Dispatch",
             "🚦 Swarm State",
+            "🔍 Transparency",
+            "🗄️ Registry",
         ]
     )
 
@@ -1024,6 +1112,46 @@ with center_canvas:
                         st.error(err_msg)
                         st.session_state["chat_messages"].append({"role": "assistant", "content": err_msg})
 
+        # Feedback UI — thumbs-up/down for the last assistant response
+        if st.session_state.get("chat_messages"):
+            assistant_msgs = [
+                (i, m)
+                for i, m in enumerate(st.session_state["chat_messages"])
+                if m["role"] == "assistant" and not m["content"].startswith("🚫")
+            ]
+            if assistant_msgs:
+                last_idx, last_msg = assistant_msgs[-1]
+                feedback_key = f"feedback_given_{last_idx}"
+                if not st.session_state.get(feedback_key):
+                    fb_cols = st.columns([1, 1, 4])
+                    with fb_cols[0]:
+                        if st.button(
+                            "👍",
+                            key=f"thumb_up_{last_idx}",
+                            help="Mark this response as helpful. Saves +1 rating to the model registry.",
+                        ):
+                            ok = record_model_feedback(
+                                active_model, 1, context=last_msg["content"][:200]
+                            )
+                            st.session_state[feedback_key] = "up"
+                            if ok:
+                                st.toast("✅ Positive feedback recorded!", icon="👍")
+                    with fb_cols[1]:
+                        if st.button(
+                            "👎",
+                            key=f"thumb_down_{last_idx}",
+                            help="Mark this response as unhelpful. Saves -1 rating to the model registry.",
+                        ):
+                            ok = record_model_feedback(
+                                active_model, -1, context=last_msg["content"][:200]
+                            )
+                            st.session_state[feedback_key] = "down"
+                            if ok:
+                                st.toast("❌ Negative feedback recorded!", icon="👎")
+                else:
+                    given = st.session_state[feedback_key]
+                    st.caption(f"Feedback recorded: {'👍' if given == 'up' else '👎'} — Thank you!")
+
         # Clear chat button
         if st.session_state.get("chat_messages") and st.button(
             "🗑️ Clear Conversation",
@@ -1155,10 +1283,35 @@ with center_canvas:
             except Exception:
                 pass
 
-        s1, s2, s3 = st.columns(3)
-        s1.metric("🟢 Working", working_count, help="Agents actively processing intents.")
-        s2.metric("🟡 Input Required", input_count, help="Agents paused, waiting for human input.")
-        s3.metric("🔴 Exceptions", exception_count, help="Agents that hit a logic gate error or hallucination.")
+        # A2A Traffic Light — visual traffic-light indicator
+        total_agents = working_count + input_count + exception_count
+        if total_agents == 0:
+            tl_color = "⚫"
+            tl_status = "Idle"
+            tl_help = "No active agents. The system is idle."
+        elif exception_count > 0:
+            tl_color = "🔴"
+            tl_status = "Alert"
+            tl_help = f"{exception_count} agent(s) in exception state. Immediate review recommended."
+        elif input_count > 0:
+            tl_color = "🟡"
+            tl_status = "Waiting"
+            tl_help = f"{input_count} agent(s) awaiting human input. Use A2UI Intervention to resume."
+        else:
+            tl_color = "🟢"
+            tl_status = "Clear"
+            tl_help = f"All {working_count} agent(s) processing normally."
+
+        tl_col, m1_col, m2_col, m3_col = st.columns([1, 1, 1, 1])
+        with tl_col:
+            st.markdown(
+                f'<div style="font-size:3rem;text-align:center;line-height:1">{tl_color}</div>'
+                f'<div style="text-align:center;font-size:0.85rem;color:#888">{tl_status}</div>',
+                unsafe_allow_html=True,
+            )
+        m1_col.metric("🟢 Working", working_count, help="Agents actively processing intents.")
+        m2_col.metric("🟡 Input Required", input_count, help="Agents paused, waiting for human input.")
+        m3_col.metric("🔴 Exceptions", exception_count, help="Agents that hit a logic gate error or hallucination.")
 
         # A2UI Intervention form
         with st.expander("🔧 Inject A2UI Intervention (Resume Paused Agent)", expanded=False):
@@ -1263,6 +1416,253 @@ with center_canvas:
                 "the full pipeline: context compression → trace archival → "
                 "HLF practice → Six Thinking Hats analysis."
             )
+
+
+    # ================================================================
+    # TAB 4: TRANSPARENCY PANEL
+    # ================================================================
+    with transparency_tab:
+        st.markdown(
+            "### 🔍 Routing Transparency\n"
+            "Full visibility into how each intent was routed, which model was selected, "
+            "and how much gas was consumed."
+        )
+
+        # --- Tier & Gas Status ---
+        gas_remaining = get_gas_remaining(tier_selection)
+        _TIER_GAS_CAPS = {"hearth": 1000, "forge": 10000, "sovereign": 100000}
+        gas_cap = _TIER_GAS_CAPS.get(tier_selection, 1000)
+        tp_c1, tp_c2, tp_c3 = st.columns(3)
+        with tp_c1, st.container(border=True):
+            st.metric(
+                "Active Tier",
+                tier_selection.capitalize(),
+                help=f"Current deployment tier. Gas cap: {gas_cap:,} units/day.",
+            )
+        with tp_c2, st.container(border=True):
+            gas_display = f"{gas_remaining:,}" if gas_remaining is not None else "N/A"
+            gas_pct = f" ({int(gas_remaining / gas_cap * 100)}%)" if gas_remaining is not None else ""
+            st.metric(
+                "Gas Remaining",
+                gas_display + gas_pct,
+                help="Remaining gas budget for this tier. Replenished nightly.",
+            )
+        with tp_c3, st.container(border=True):
+            snap_info = get_active_snapshot_info()
+            snap_display = f"#{snap_info['id']}" if snap_info else "None"
+            snap_count = snap_info.get("model_count", 0) if snap_info else 0
+            st.metric(
+                "Active Snapshot",
+                snap_display,
+                help=f"Registry snapshot ID. {snap_count} models tracked.",
+            )
+
+        st.markdown("---")
+
+        # --- Routing Trace Log ---
+        st.markdown("**Routing Decision Log** (last 10)")
+        trace_entries = get_routing_trace()
+        if trace_entries:
+            for entry in trace_entries:
+                with st.expander(
+                    f"📋 {entry.get('event', 'ROUTING_DECISION')} — "
+                    f"Model: `{entry.get('data', {}).get('model', '?')}` | "
+                    f"Phase: `{entry.get('data', {}).get('phase', '?')}`",
+                    expanded=False,
+                ):
+                    data = entry.get("data", {})
+                    cols = st.columns(3)
+                    cols[0].markdown(f"**Tier:** `{data.get('tier', '?')}`")
+                    cols[1].markdown(f"**Provider:** `{data.get('provider', entry.get('agent_role', '?'))}`")
+                    cols[2].markdown(f"**Trace Steps:** `{data.get('trace_steps', '?')}`")
+                    if data.get("specialization"):
+                        st.markdown(f"**Specialization:** `{data['specialization']}`")
+                    if data.get("intent_preview"):
+                        st.caption(f"Intent: *{data['intent_preview']}*")
+                    if entry.get("timestamp"):
+                        st.caption(f"Timestamp: {entry['timestamp']}")
+        else:
+            st.info(
+                "No routing decisions recorded yet. Submit an intent through "
+                "the Gateway Bus to see live routing traces here.",
+                icon="ℹ️",
+            )
+
+        st.markdown("---")
+
+        # --- Snapshot Details ---
+        if snap_info:
+            st.markdown("**Active Registry Snapshot**")
+            sc1, sc2, sc3 = st.columns(3)
+            sc1.markdown(f"**Snapshot ID:** `{snap_info['id']}`")
+            sc2.markdown(f"**Models:** `{snap_info['model_count']}`")
+            sc3.markdown(f"**Promoted At:** `{snap_info['promoted_at']}`")
+            if snap_info.get("families"):
+                st.caption(f"Families: {snap_info['families']}")
+        else:
+            st.caption(
+                "No active registry snapshot. Run the pipeline sync to create one."
+            )
+
+    # ================================================================
+    # TAB 5: REGISTRY MANAGEMENT
+    # ================================================================
+    with registry_tab:
+        st.markdown(
+            "### 🗄️ Registry Management\n"
+            "Sync the local Ollama inventory with the SQL registry, view the model catalog, "
+            "and manage model tiers."
+        )
+
+        # --- Inventory Sync Button ---
+        reg_sync_col, reg_status_col = st.columns([1, 2])
+        with reg_sync_col:
+            if st.button(
+                "🔄 Sync Local Inventory",
+                type="primary",
+                use_container_width=True,
+                help="Calls POST /api/v1/inventory/sync to pull the latest Ollama model list "
+                "into the SQL registry. Run this after installing or removing models.",
+            ):
+                with st.spinner("Syncing inventory with Gateway Bus..."):
+                    try:
+                        resp = httpx.post(
+                            f"{GATEWAY_URL}/api/v1/inventory/sync",
+                            timeout=15.0,
+                        )
+                        if resp.status_code == 200:
+                            sync_data = resp.json()
+                            st.session_state["last_sync_result"] = sync_data
+                            st.success(
+                                f"✅ Synced {sync_data.get('synced', 0)} model(s). "
+                                "Registry is up to date."
+                            )
+                            st.cache_data.clear()
+                        else:
+                            st.error(f"Sync failed: HTTP {resp.status_code}")
+                    except httpx.ConnectError:
+                        st.error(
+                            "🔴 Gateway unreachable. Start the Gateway Bus before syncing."
+                        )
+                    except Exception as e:
+                        st.error(f"Sync error: {e}")
+
+        with reg_status_col:
+            last_sync = st.session_state.get("last_sync_result")
+            if last_sync:
+                st.info(
+                    f"**Last sync:** {last_sync.get('synced', 0)} models synced. "
+                    f"Models: {', '.join(last_sync.get('models', [])[:5]) or 'none'}"
+                )
+            else:
+                st.caption("No sync has been performed this session.")
+
+        st.markdown("---")
+
+        # --- Local Inventory Table ---
+        st.markdown("**Local Inventory** (from `user_local_inventory`)")
+        local_inv = get_local_inventory_data()
+        if local_inv:
+            inv_df = pd.DataFrame(local_inv)
+            inv_df["Running"] = inv_df["is_running"].map({True: "🟢", False: "⚫"})
+            inv_df["Size"] = inv_df["size_gb"].apply(lambda x: f"{x:.1f} GB" if x > 0 else "API")
+            st.dataframe(
+                inv_df[["model_id", "name", "Size", "Running", "last_seen"]].rename(
+                    columns={
+                        "model_id": "Model ID",
+                        "name": "Name",
+                        "last_seen": "Last Seen",
+                    }
+                ),
+                use_container_width=True,
+                hide_index=True,
+                height=min(250, 35 * len(local_inv) + 38),
+            )
+        else:
+            st.caption(
+                "No local inventory data. Sync the inventory or check the SQL registry."
+            )
+
+        st.markdown("---")
+
+        # --- Active Snapshot Model Catalog ---
+        st.markdown("**Active Snapshot Model Catalog**")
+        snap_info2 = get_active_snapshot_info()
+        if snap_info2:
+            try:
+                from agents.core.db import get_all_models, get_db
+
+                with get_db() as _conn:
+                    all_models = get_all_models(_conn)
+                    if all_models:
+                        catalog_rows = [
+                            {
+                                "Model": r["model_id"],
+                                "Family": r["family"] or "—",
+                                "Params (B)": r["param_b"] or "—",
+                                "Tier": r["tier"] or "—",
+                                "Score": round(r["raw_score"] or 0, 3),
+                                "Ctx": r["context_length"] or "—",
+                            }
+                            for r in all_models
+                        ]
+                        st.dataframe(
+                            pd.DataFrame(catalog_rows),
+                            use_container_width=True,
+                            hide_index=True,
+                            height=min(300, 35 * len(catalog_rows) + 38),
+                        )
+                    else:
+                        st.caption("Snapshot exists but contains no models.")
+            except Exception as _e:
+                st.caption(f"Could not load catalog: {_e}")
+        else:
+            st.info(
+                "No active snapshot. Run the ollama-matrix-sync pipeline to populate the registry.",
+                icon="ℹ️",
+            )
+
+        st.markdown("---")
+
+        # --- Feedback Log ---
+        st.markdown("**Model Feedback Log**")
+        feedback_model = st.selectbox(
+            "View feedback for model",
+            options=["(all models)"] + [m["name"] for m in (ollama_models or [])],
+            key="feedback_model_select",
+            help="Select a model to view its thumbs-up/down feedback history.",
+        )
+        if st.button("📋 Load Feedback", key="load_feedback_btn"):
+            try:
+                from agents.core.db import get_db, get_feedback
+
+                model_filter = None if feedback_model == "(all models)" else feedback_model
+                with get_db() as _conn:
+                    if model_filter:
+                        fb_rows = get_feedback(_conn, model_filter, limit=50)
+                    else:
+                        fb_rows = _conn.execute(
+                            "SELECT * FROM model_feedback ORDER BY ts DESC LIMIT 50"
+                        ).fetchall()
+                    if fb_rows:
+                        fb_data = [
+                            {
+                                "Model": r["model_id"],
+                                "Rating": "👍" if r["rating"] > 0 else "👎",
+                                "Context": (r["context"] or "")[:60],
+                                "Timestamp": r["ts"],
+                            }
+                            for r in fb_rows
+                        ]
+                        st.dataframe(
+                            pd.DataFrame(fb_data),
+                            use_container_width=True,
+                            hide_index=True,
+                        )
+                    else:
+                        st.caption("No feedback recorded yet.")
+            except Exception as _e:
+                st.caption(f"Could not load feedback: {_e}")
 
 
 # ============================================================================
