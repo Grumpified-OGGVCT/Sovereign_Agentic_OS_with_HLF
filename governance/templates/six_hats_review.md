@@ -1,36 +1,34 @@
-# De Bono Six Thinking Hats — Jules PR Review Protocol
+# De Bono Eleven Thinking Hats — PR Review Protocol
 
-> **Usage:** Every Jules PR must pass through all 6 hat perspectives before merge.
+> **Usage:** Every PR must pass through all 11 hat perspectives before merge.
 > This ensures changes are evaluated from every angle — not just functional correctness.
 > Maps directly to the `hat_engine` used in the Dream Cycle (`dream_state.py` Stage 4).
 
 ---
 
-## How Jules Uses the Hats
+## How the Hats Work
 
-Each Jules PR is evaluated through 6 sequential perspectives. Jules must document findings under each hat before the PR is considered ready for human review.
+Each PR is evaluated through 11 sequential perspectives. Findings are documented under each hat before the PR is considered ready for human review.
+
+### Core Hats (De Bono)
 
 ### 🟢 GREEN Hat — Creativity & Expansion
 **Question:** _"What new capabilities does this PR add? Does it expand the system's autonomous abilities?"_
 - Are there creative ways this change could be extended further?
 - Does it open doors for future autonomous improvements?
-- Could the approach be applied to other parts of the system?
 - **Required output:** At least 1 "next step" idea documented in PR description
 
 ### ⚪ WHITE Hat — Facts & Data
 **Question:** _"What exactly changed? What are the objective metrics?"_
-- Lines added vs removed (must be net-positive or zero for additive changes)
+- Lines added vs removed
 - Test count before vs after (must be >= baseline)
 - Files touched — list every modified file with change summary
-- Performance metrics: any benchmarks run?
 - **Required output:** Change statistics table in PR description
 
 ### 🔴 RED Hat — Intuition & Feeling
 **Question:** _"Does this feel right? Does it match the system's character?"_
 - Does the code style match the existing codebase?
 - Does the naming follow existing conventions?
-- Does the change feel like it belongs in the Sovereign OS?
-- Would a human reviewer find this change surprising or confusing?
 - **Required output:** Gut-check verdict (Aligned / Uncertain / Misaligned)
 
 ### ⬛ BLACK Hat — Caution & Risk (CRITICAL)
@@ -38,7 +36,6 @@ Each Jules PR is evaluated through 6 sequential perspectives. Jules must documen
 - Could this break existing functionality? (Run full test suite)
 - Does it introduce new external dependencies? (4GB RAM check)
 - Could it create a security vulnerability? (ALIGN enforcement check)
-- Is there any test deletion, simplification, or scope reduction?
 - Does it violate Layer 1 constraints?
 - **Required output:** Risk assessment with severity ratings
 
@@ -46,69 +43,104 @@ Each Jules PR is evaluated through 6 sequential perspectives. Jules must documen
 **Question:** _"What's the upside? Why is this change valuable?"_
 - Does it improve reliability, performance, or maintainability?
 - Does it expand test coverage or governance?
-- Does it make the system more autonomous?
-- Does it improve the user experience (GUI, API, CLI)?
 - **Required output:** Value proposition summary
 
-### 🔵 BLUE Hat — Process & Meta (FINAL)
-**Question:** _"Was the process correct? Is this PR ready?"_
-- Did all 5 other hats complete their analysis?
+### 🔵 BLUE Hat — Process & Meta (CHECKPOINT)
+**Question:** _"Was the process correct so far?"_
+- Did all 5 core hats complete their analysis?
 - Were any RED flags raised that weren't addressed?
 - Were any BLACK hat risks mitigated?
-- Is the commit message comprehensive and accurate?
-- Are all tests passing?
-- **Required output:** Final Go/No-Go decision with justification
+- **Required output:** Interim Go/Hold decision
+
+### Extended Hats (Sovereign OS)
+
+### 🟣 INDIGO Hat — Cross-Feature Architecture
+**Question:** _"Does this create redundancy? Could it consolidate existing components?"_
+- Does the change duplicate logic that exists elsewhere in the system?
+- Could MoMA routing and gateway functions be consolidated?
+- Are there DRY violations at the macro-architecture level?
+- **Required output:** Consolidation opportunities (or "None — no overlap detected")
+
+### 🩵 CYAN Hat — Innovation & Feasibility
+**Question:** _"Does this open paths to HLF extensions or new features?"_
+- Could this change enable new grammar rules or statement types?
+- Are there A2A integration opportunities?
+- Is any proposed feature grounded in production-ready tech?
+- **Required output:** Forward-looking opportunities with feasibility rating
+
+### 🟪 PURPLE Hat — AI Safety & Compliance
+**Question:** _"Does this create new attack surfaces or compliance gaps?"_
+- OWASP LLM Top 10 check against any new endpoints
+- Does it weaken ALIGN rule enforcement?
+- Could epistemic modifiers be abused through this change?
+- Does it leak PII through rolling context or fact store?
+- **Required output:** Safety assessment with OWASP references if applicable
+
+### 🟠 ORANGE Hat — DevOps & Automation
+**Question:** _"Is the CI/CD pipeline still correct? Does this deploy cleanly?"_
+- Does the GitHub Actions workflow cover this change?
+- Are Docker configs updated if needed?
+- Are dependencies properly pinned?
+- **Required output:** Deployment readiness verdict
+
+### 🪨 SILVER Hat — Context & Token Optimization
+**Question:** _"Does this change affect token costs or context efficiency?"_
+- Does it increase system prompt sizes?
+- Does it affect gas budget calculations?
+- Are there prompt compression opportunities?
+- **Required output:** Token impact assessment (Neutral / Increase / Decrease)
 
 ---
 
-## Integration with Jules Workflow
+## Integration with Workflow
 
-```
-Jules PR Created
+```text
+PR Created
     │
-    ├─→ 🟢 GREEN: Creativity scan → document expansion opportunities
+    ├─→ 🟢 GREEN: Creativity scan → expansion opportunities
     ├─→ ⚪ WHITE: Factual audit → change statistics
-    ├─→ 🔴 RED: Intuition check → style/convention alignment
+    ├─→ 🔴 RED: Intuition check → style alignment
     ├─→ ⬛ BLACK: Risk analysis → run tests, check invariants
     ├─→ 🟡 YELLOW: Value assessment → benefits summary
-    └─→ 🔵 BLUE: Process review → Go/No-Go
+    ├─→ 🔵 BLUE: Process checkpoint → interim Go/Hold
+    │     │
+    │     └─→ If HOLD → fix issues → re-run core hats
+    │
+    ├─→ 🟣 INDIGO: Architecture review → consolidation check
+    ├─→ 🩵 CYAN: Innovation scan → feasibility check
+    ├─→ 🟪 PURPLE: Safety audit → OWASP/ALIGN check
+    ├─→ 🟠 ORANGE: DevOps audit → CI/CD/Docker check
+    └─→ 🪨 SILVER: Token review → efficiency assessment
          │
-         ├─→ GO → Tag as "Hat-Reviewed" → Human review
-         └─→ NO-GO → Auto-request changes → Jules fixes → Re-run hats
+         ├─→ ALL CLEAR → Tag as "Hat-Reviewed" → Human review
+         └─→ ISSUES → Auto-request changes → Fix → Re-run
 ```
 
 ## Hat Review Template for PR Comments
 
 ```markdown
-## 🎩 Six Hats Review
+## 🎩 Eleven Hats Review
 
-### 🟢 GREEN (Creativity)
-- Expansion opportunities: [list]
-- Next step ideas: [list]
+### Core Hats
+| Hat | Verdict | Notes |
+|-----|---------|-------|
+| 🟢 GREEN | [Expand/Neutral] | [notes] |
+| ⚪ WHITE | +N/-M lines, X tests | [stats] |
+| 🔴 RED | [Aligned/Misaligned] | [notes] |
+| ⬛ BLACK | [Risk level] | [notes] |
+| 🟡 YELLOW | [Value summary] | [notes] |
+| 🔵 BLUE | [Go/Hold] | [notes] |
 
-### ⚪ WHITE (Facts)
-| Metric | Before | After |
-|--------|--------|-------|
-| Test count | X | Y |
-| Lines (net) | +N / -M |
-| Files touched | N |
+### Extended Hats
+| Hat | Verdict | Notes |
+|-----|---------|-------|
+| 🟣 INDIGO | [No overlap/Consolidate] | [notes] |
+| 🩵 CYAN | [Opportunities/None] | [notes] |
+| 🟪 PURPLE | [Safe/Risk] | [notes] |
+| 🟠 ORANGE | [Ready/Needs work] | [notes] |
+| 🪨 SILVER | [Neutral/Impact] | [notes] |
 
-### 🔴 RED (Intuition)
-- Style alignment: [Aligned/Uncertain/Misaligned]
-- Notes: [any concerns]
-
-### ⬛ BLACK (Risk)
-- Breaking changes: [None / List]
-- Security impact: [None / List]
-- Invariant violations: [None / List]
-
-### 🟡 YELLOW (Value)
-- Key benefits: [list]
-
-### 🔵 BLUE (Process)
-- All hats complete: [Yes/No]
-- Tests passing: [X/Y]
-- **VERDICT: [GO / NO-GO]**
+**VERDICT: [GO / NO-GO]**
 ```
 
 ## Connection to Existing Systems
@@ -121,3 +153,8 @@ Jules PR Created
 | ⬛ BLACK | `sentinel_gate.py` (ALIGN enforcement) | Risk detection & blocking |
 | 🟡 YELLOW | `scoring.py` (tier assessment) | Value quantification |
 | 🔵 BLUE | `local_autonomous.py` (orchestration) | Process coordination |
+| 🟣 INDIGO | Pipeline gate consolidation | Cross-feature DRY analysis |
+| 🩵 CYAN | HLF grammar extensions / A2A | Innovation scouting |
+| 🟪 PURPLE | ALIGN rules + OWASP LLM Top 10 | Safety & compliance enforcement |
+| 🟠 ORANGE | GitHub Actions / Docker / CI/CD | Operational infrastructure |
+| 🪨 SILVER | Gas metering / rolling context | Token efficiency |

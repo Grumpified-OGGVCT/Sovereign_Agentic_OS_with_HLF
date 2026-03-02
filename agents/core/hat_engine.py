@@ -1,17 +1,24 @@
 """
-Six Thinking Hats Engine — Automated system self-maintenance framework.
+Eleven Thinking Hats Engine — Automated system self-maintenance framework.
 
 Each hat is a specialized Ollama prompt that analyzes different aspects of
 the Sovereign OS.  Results are structured findings with severity, title,
 description, and actionable recommendations.
 
-Hats:
-  🔴 Red   — Fail-states, chaos engineering, cascading failures
-  ⚫ Black — Security exploits, ALIGN coverage, injection patterns
-  ⚪ White — Data efficiency, token budget, gas usage, wasted calls
+Core Hats (De Bono):
+  🔴 Red    — Fail-states, chaos engineering, cascading failures
+  ⚫ Black  — Security exploits, ALIGN coverage, injection patterns
+  ⚪ White  — Data efficiency, token budget, gas usage, wasted calls
   🟡 Yellow — Synergies, optimization opportunities
-  🟢 Green — Missing mechanisms, creative improvements
-  🔵 Blue  — Process audit, spec completeness, internal consistency
+  🟢 Green  — Missing mechanisms, creative improvements
+  🔵 Blue   — Process audit, spec completeness, internal consistency
+
+Extended Hats (Sovereign OS):
+  🟣 Indigo — Cross-feature architecture, pipeline consolidation, DRY
+  🩵 Cyan   — Innovation & forward-looking features, feasibility checks
+  🟪 Purple — AI safety, compliance, OWASP LLM Top 10, ALIGN coverage
+  🟠 Orange — DevOps, CI/CD, Docker, Git state, deployment automation
+  🪨 Silver — Context & token optimization, gas math, prompt compression
 """
 from __future__ import annotations
 
@@ -153,6 +160,96 @@ HAT_DEFINITIONS: dict[str, dict] = {
             "implemented, implemented features that aren't documented, and test coverage gaps. "
             "For each inconsistency, provide: severity (HIGH/MEDIUM/LOW), "
             "a concise title, description of the inconsistency, and how to resolve it. "
+            "Output valid JSON array of objects with keys: severity, title, description, recommendation."
+        ),
+    },
+    "indigo": {
+        "emoji": "🟣",
+        "name": "Indigo Hat — Cross-Feature Architecture",
+        "focus": "Pipeline consolidation, redundant components, macro-level DRY violations, gate fusion",
+        "system_prompt": (
+            "You are the INDIGO HAT analyst for a Sovereign Agentic OS. "
+            "Your role is CROSS-FEATURE SYNTHESIS — find redundancies and consolidation "
+            "opportunities across the system's components. Focus on: overlapping "
+            "functionality between the 6-gate pipeline stages, redundant data flows "
+            "between MoMA routing and the Gateway, opportunities to fuse Dream State "
+            "stages, reusable patterns in HLF compilation that could serve multiple "
+            "subsystems, and macro-architecture DRY violations where similar logic "
+            "exists in multiple agents or services. "
+            "For each opportunity, provide: severity (HIGH/MEDIUM/LOW as priority), "
+            "a concise title, description of the redundancy, and a consolidation plan. "
+            "Output valid JSON array of objects with keys: severity, title, description, recommendation."
+        ),
+    },
+    "cyan": {
+        "emoji": "🩵",
+        "name": "Cyan Hat — Innovation & Feasibility",
+        "focus": "Forward-looking features, HLF extensions, technology validation, feasibility checks",
+        "system_prompt": (
+            "You are the CYAN HAT analyst for a Sovereign Agentic OS. "
+            "Your role is INNOVATION SCOUTING — propose forward-looking features that "
+            "are strictly feasible with current technology. Focus on: HLF grammar "
+            "extensions (new statement types, string operations, pattern matching), "
+            "bytecode VM optimizations for the Phase 5.2 .hlb format, new gate types "
+            "for the security pipeline, A2A protocol integration opportunities, "
+            "and LoRA fine-tuning strategies for HLF syntax acquisition. "
+            "Every suggestion MUST be grounded in production-ready technology — "
+            "do NOT hallucinate capabilities that don't exist yet. "
+            "For each innovation, provide: severity (HIGH/MEDIUM/LOW as priority), "
+            "a concise title, description of the opportunity, and a feasibility assessment. "
+            "Output valid JSON array of objects with keys: severity, title, description, recommendation."
+        ),
+    },
+    "purple": {
+        "emoji": "🟪",
+        "name": "Purple Hat — AI Safety & Compliance",
+        "focus": "OWASP LLM Top 10, ALIGN rule coverage, epistemic modifier abuse, PII leakage",
+        "system_prompt": (
+            "You are the PURPLE HAT analyst for a Sovereign Agentic OS. "
+            "Your role is AI SAFETY & COMPLIANCE — find vulnerabilities specific to "
+            "LLM-powered autonomous systems. Focus on: OWASP LLM Top 10 against all "
+            "Ollama endpoints, ALIGN rule coverage gaps where agents could bypass "
+            "governance, epistemic modifier abuse vectors (agents using [BELIEVE] to "
+            "inflate confidence and reduce gas costs), PII leaking through rolling "
+            "context or fact store, prompt injection via HLF variable values, "
+            "and gas metering evasion through nested [DOUBT] blocks. "
+            "For each vulnerability, provide: severity (CRITICAL/HIGH/MEDIUM/LOW), "
+            "a concise title, description of the attack/compliance gap, and a specific mitigation. "
+            "Output valid JSON array of objects with keys: severity, title, description, recommendation."
+        ),
+    },
+    "orange": {
+        "emoji": "🟠",
+        "name": "Orange Hat — DevOps & Automation",
+        "focus": "CI/CD pipeline health, Docker configuration, Git hygiene, deployment gaps",
+        "system_prompt": (
+            "You are the ORANGE HAT analyst for a Sovereign Agentic OS. "
+            "Your role is DEVOPS AUDIT — verify the operational infrastructure is "
+            "correct, automated, and reproducible. Focus on: GitHub Actions workflow "
+            "correctness and completeness, Docker container health and resource limits, "
+            "Git branch hygiene and orphaned branches, dependency pinning and version "
+            "drift, deployment automation gaps, environment variable management, "
+            "and build reproducibility (does docker-compose up produce identical results?). "
+            "For each issue, provide: severity (CRITICAL/HIGH/MEDIUM/LOW), "
+            "a concise title, description of the operational gap, and how to fix it. "
+            "Output valid JSON array of objects with keys: severity, title, description, recommendation."
+        ),
+    },
+    "silver": {
+        "emoji": "🪨",
+        "name": "Silver Hat — Context & Token Optimization",
+        "focus": "Token budgets, gas formula efficiency, context window utilization, prompt compression",
+        "system_prompt": (
+            "You are the SILVER HAT analyst for a Sovereign Agentic OS. "
+            "Your role is TOKEN & CONTEXT OPTIMIZATION — ensure the system uses its "
+            "cognitive resources efficiently. Focus on: system prompt sizes across all "
+            "agents (are they bloated?), rolling context compression ratios, gas budget "
+            "allocation between deployment tiers, HLF vs JSON token savings in practice, "
+            "opportunities to cache or deduplicate Ollama calls, context window waste "
+            "from redundant system-level injections, and prompt engineering improvements "
+            "that reduce token count without losing capability. "
+            "For each optimization, provide: severity (HIGH/MEDIUM/LOW as priority), "
+            "a concise title, description of the waste, and a specific compression strategy. "
             "Output valid JSON array of objects with keys: severity, title, description, recommendation."
         ),
     },

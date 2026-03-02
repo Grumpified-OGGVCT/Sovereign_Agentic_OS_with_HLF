@@ -6,7 +6,7 @@
 
 ## Phase I-III: Design & Specification ✅ COMPLETE
 - [x] Layers 1-7 deep-dive analysis and specification
-- [x] 6-Hat De Bono adversarial audit cycle
+- [x] 11-Hat adversarial audit cycle (6 De Bono + 5 Sovereign OS extended)
 - [x] Master Build Plan synthesis (994 lines)
 - [x] Copilot scaffold prompt generation & execution
 
@@ -248,6 +248,11 @@ Every intent passes through a **6-gate security pipeline** that JSON/natural lan
 - [ ] Instantiate the Sentinel Agent (Red Hat / Security & PrivEsc checks)
 - [ ] Instantiate the Scribe Agent (White Hat / Memory & Token Bloat)
 - [ ] Instantiate the Arbiter Agent (Blue Hat / Exception Handling & Governance)
+- [ ] Instantiate the Synthesizer Agent (Indigo Hat / Cross-Feature Architecture)
+- [ ] Instantiate the Scout Agent (Cyan Hat / Innovation & Feasibility)
+- [ ] Instantiate the Guardian Agent (Purple Hat / AI Safety & Compliance)
+- [ ] Instantiate the Operator Agent (Orange Hat / DevOps & Automation)
+- [ ] Instantiate the Compressor Agent (Silver Hat / Context & Token Optimization)
 
 ### V.4: OpenClaw Strategy Integration (Appendix B)
 
@@ -259,7 +264,7 @@ Every intent passes through a **6-gate security pipeline** that JSON/natural lan
 - [x] Create `AGENTS.md` in repo root
 - [x] `config/jules_tasks.yaml` with nightly/weekly/monthly schedules
 - [x] `scripts/jules_dispatch.sh` — Issue → Session automation
-- [x] CoVE + Six Hats review templates
+- [x] CoVE + Eleven Hats review templates
 - [x] 10-step daily pipeline configuration
 
 ### V.6: Metrics & Benchmarking ✅ COMPLETE

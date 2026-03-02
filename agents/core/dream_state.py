@@ -9,7 +9,7 @@ Pipeline stages:
   1. Context compression — map-reduce rolling context via FractalSummarizer
   2. Trace archival — move old traces to cold storage
   3. HLF Practice Round — generate sample HLF intents, validate through parser
-  4. Hat Analysis — run Six Thinking Hats on current system state
+  4. Hat Analysis — run Eleven Thinking Hats on current system state
   5. Results persistence — store cycle results and hat findings in SQLite
 """
 from __future__ import annotations
@@ -249,7 +249,7 @@ def _practice_hlf(conn: sqlite3.Connection | None = None, count: int = 5) -> dic
 # ---------------------------------------------------------------------------
 
 def _run_hat_analysis(conn: sqlite3.Connection | None = None) -> dict:
-    """Run all 6 hats and return summary."""
+    """Run all hats and return summary."""
     try:
         from agents.core.hat_engine import run_all_hats
 
@@ -421,7 +421,7 @@ def run_dream_cycle(manual: bool = False) -> DreamCycleReport:
             logger.warning(f"  HLF practice failed: {e}")
 
         # Stage 4: Hat Analysis
-        logger.info("  Stage 4: Running 6-Hat analysis...")
+        logger.info("  Stage 4: Running Hat analysis...")
         try:
             hat_results = _run_hat_analysis(conn)
             report.hat_reports = hat_results.get("reports", [])
