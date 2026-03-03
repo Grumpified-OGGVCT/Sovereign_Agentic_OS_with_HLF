@@ -8,12 +8,12 @@ Responsibilities:
 4. Handle exceptions from other agents (dead-letter adjudication).
 5. Gas-accounted: each adjudication costs 2 units from the per-tier bucket.
 """
+
 from __future__ import annotations
 
 import json
 import os
 import threading
-import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -43,7 +43,7 @@ _BUDGET_QUARANTINE_PCT: float = float(os.environ.get("ARBITER_BUDGET_QUARANTINE_
 class ArbiterVerdict:
     """Result of an Arbiter adjudication."""
 
-    verdict: str           # ALLOW | ESCALATE | QUARANTINE
+    verdict: str  # ALLOW | ESCALATE | QUARANTINE
     rule_id: str = ""
     justification: str = ""
     event_type: str = ""
@@ -158,6 +158,7 @@ def adjudicate(event_type: str, payload: str | dict[str, Any]) -> ArbiterVerdict
 # --------------------------------------------------------------------------- #
 # Background consumer
 # --------------------------------------------------------------------------- #
+
 
 def _consume_loop(stop_event: threading.Event) -> None:
     """Redis XREADGROUP consumer for ``arbiter_events``."""

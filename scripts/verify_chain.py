@@ -3,8 +3,10 @@
 Verify Merkle chain integrity in observability/openllmetry/last_hash.txt.
 Reads ALS log entries from stdin (one JSON per line) and validates chain.
 """
+
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import sys
@@ -26,8 +28,7 @@ def verify_chain(entries: list[dict]) -> tuple[bool, list[str]]:
         actual_trace_id = entry.get("trace_id", "")
         if actual_trace_id != expected_trace_id:
             errors.append(
-                f"Entry {i}: trace_id mismatch. "
-                f"Expected {expected_trace_id[:16]}... got {actual_trace_id[:16]}..."
+                f"Entry {i}: trace_id mismatch. Expected {expected_trace_id[:16]}... got {actual_trace_id[:16]}..."
             )
         prev_hash = actual_trace_id if actual_trace_id else expected_trace_id
 
@@ -39,10 +40,8 @@ def main() -> None:
     for line in sys.stdin:
         line = line.strip()
         if line:
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 entries.append(json.loads(line))
-            except json.JSONDecodeError:
-                pass
 
     ok, errors = verify_chain(entries)
     if ok:

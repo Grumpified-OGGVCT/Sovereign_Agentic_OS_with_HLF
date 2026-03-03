@@ -8,6 +8,7 @@ Responsibilities:
 4. Consume ``sentinel_events`` stream for reactive scanning.
 5. Gas-accounted: each scan costs 1 unit from the per-tier bucket.
 """
+
 from __future__ import annotations
 
 import json
@@ -31,9 +32,7 @@ _PRIVESC_PATTERNS: list[tuple[str, str]] = [
     (r"(?i)(ptrace|SYS_ADMIN|CAP_SYS_PTRACE)", "PRIVESC-004"),
     (r"(?i)(token.*exfil|steal.*credential|dump.*secret)", "PRIVESC-005"),
 ]
-_COMPILED_PRIVESC: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(pat), rid) for pat, rid in _PRIVESC_PATTERNS
-]
+_COMPILED_PRIVESC: list[tuple[re.Pattern[str], str]] = [(re.compile(pat), rid) for pat, rid in _PRIVESC_PATTERNS]
 
 # Redis stream names
 SENTINEL_EVENTS_STREAM = "sentinel_events"
@@ -114,14 +113,16 @@ def _publish_alert(r: Any, verdict: SentinelVerdict, original_payload: str) -> N
         r.xadd(
             ARBITER_EVENTS_STREAM,
             {
-                "data": json.dumps({
-                    "event_type": "SECURITY_ALERT",
-                    "source_agent": "sentinel",
-                    "rule_id": verdict.rule_id,
-                    "severity": verdict.severity,
-                    "preview": original_payload[:120],
-                    "ts": time.time(),
-                }),
+                "data": json.dumps(
+                    {
+                        "event_type": "SECURITY_ALERT",
+                        "source_agent": "sentinel",
+                        "rule_id": verdict.rule_id,
+                        "severity": verdict.severity,
+                        "preview": original_payload[:120],
+                        "ts": time.time(),
+                    }
+                ),
             },
         )
     except Exception as exc:
@@ -131,6 +132,7 @@ def _publish_alert(r: Any, verdict: SentinelVerdict, original_payload: str) -> N
 # --------------------------------------------------------------------------- #
 # Background consumer
 # --------------------------------------------------------------------------- #
+
 
 def _consume_loop(stop_event: threading.Event) -> None:
     """Redis XREADGROUP consumer for ``sentinel_events``."""

@@ -1,4 +1,5 @@
 """Tests for SQLite memory layer."""
+
 from __future__ import annotations
 
 import json
@@ -88,10 +89,7 @@ def test_all_three_tables_created() -> None:
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as f:
         db_path = f.name
     conn = _create_test_db(db_path)
-    tables = {
-        row[0]
-        for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-    }
+    tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
     assert "identity_core" in tables
     assert "rolling_context" in tables
     assert "fact_store" in tables

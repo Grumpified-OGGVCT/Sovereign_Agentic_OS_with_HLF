@@ -18,19 +18,22 @@ References:
   - RFC 9008 § Agentic Log Standard
   - Sovereign OS Master Build Plan § Infra Phase 4
 """
+
 from __future__ import annotations
 
 import hashlib
 import json
 import os
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator
+from typing import Any
 
 import httpx
 
 try:
     from agents.core.logger import ALSLogger
+
     _logger = ALSLogger(agent_role="ollama-dispatcher", goal_id="inference")
 except ImportError:
     _logger = None
@@ -52,6 +55,7 @@ _STREAM_TIMEOUT = float(os.environ.get("OLLAMA_STREAM_TIMEOUT", "300"))
 @dataclass
 class InferenceRequest:
     """Unified inference request across all providers."""
+
     prompt: str
     model: str = ""
     system: str = ""
@@ -66,6 +70,7 @@ class InferenceRequest:
 @dataclass
 class InferenceResult:
     """Result of an inference call with full telemetry."""
+
     text: str
     model: str
     provider: str
@@ -101,6 +106,7 @@ class InferenceResult:
 @dataclass
 class StreamChunk:
     """Single chunk in a streaming inference response."""
+
     text: str
     done: bool = False
     model: str = ""
@@ -156,8 +162,7 @@ def complexity_score(intent_text: str, ast: dict | None = None) -> float:
         score += 0.05
 
     # Factor 3: Complex tags (concurrency, conditionals, host functions)
-    complex_tags = {"IF", "PARALLEL", "SPAWN", "WEB_SEARCH", "OPENCLAW_SUMMARIZE",
-                    "FUNCTION", "IMPORT"}
+    complex_tags = {"IF", "PARALLEL", "SPAWN", "WEB_SEARCH", "OPENCLAW_SUMMARIZE", "FUNCTION", "IMPORT"}
     found_complex = sum(1 for n in program if n.get("tag") in complex_tags)
     if found_complex >= 3:
         score += 0.25
@@ -165,10 +170,7 @@ def complexity_score(intent_text: str, ast: dict | None = None) -> float:
         score += 0.1
 
     # Factor 4: Epistemic modifiers (uncertainty requires reasoning)
-    epistemic_count = sum(
-        1 for n in program
-        if any(k.startswith("epistemic") or k == "confidence" for k in n.keys())
-    )
+    epistemic_count = sum(1 for n in program if any(k.startswith("epistemic") or k == "confidence" for k in n))
     if epistemic_count > 0:
         score += 0.1
 
@@ -248,9 +250,7 @@ class OllamaDispatcher:
                 result = await self._ollama_generate(req)
 
             result.latency_ms = (time.time() - t0) * 1000
-            result.complexity_score = complexity_score(
-                req.prompt, req.metadata.get("ast")
-            )
+            result.complexity_score = complexity_score(req.prompt, req.metadata.get("ast"))
             self._log_inference(req, result)
             return result
 
@@ -316,9 +316,7 @@ class OllamaDispatcher:
                 last_exc = exc
                 continue
 
-        raise RuntimeError(
-            f"All Ollama hosts failed for model '{req.model}': {last_exc}"
-        )
+        raise RuntimeError(f"All Ollama hosts failed for model '{req.model}': {last_exc}")
 
     async def _openrouter_generate(self, req: InferenceRequest) -> InferenceResult:
         """Call OpenRouter chat completions API."""
@@ -362,9 +360,7 @@ class OllamaDispatcher:
 
     # ── Streaming ─────────────────────────────────────────────────────
 
-    async def generate_stream(
-        self, req: InferenceRequest
-    ) -> AsyncIterator[StreamChunk]:
+    async def generate_stream(self, req: InferenceRequest) -> AsyncIterator[StreamChunk]:
         """
         Stream inference response as chunks (for SSE endpoints).
 
@@ -394,34 +390,34 @@ class OllamaDispatcher:
         if req.temperature != 0.7:
             payload["options"] = {"temperature": req.temperature}
 
-        async with httpx.AsyncClient(timeout=self.stream_timeout) as client:
-            async with client.stream(
+        async with (
+            httpx.AsyncClient(timeout=self.stream_timeout) as client,
+            client.stream(
                 "POST",
                 f"{self.ollama_host}/api/generate",
                 json=payload,
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    if not line.strip():
-                        continue
-                    try:
-                        data = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
+            ) as response,
+        ):
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                if not line.strip():
+                    continue
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-                    yield StreamChunk(
-                        text=data.get("response", ""),
-                        done=data.get("done", False),
-                        model=data.get("model", req.model),
-                        tokens_eval=data.get("eval_count", 0),
-                    )
+                yield StreamChunk(
+                    text=data.get("response", ""),
+                    done=data.get("done", False),
+                    model=data.get("model", req.model),
+                    tokens_eval=data.get("eval_count", 0),
+                )
 
-                    if data.get("done"):
-                        break
+                if data.get("done"):
+                    break
 
-    async def _openrouter_stream(
-        self, req: InferenceRequest
-    ) -> AsyncIterator[StreamChunk]:
+    async def _openrouter_stream(self, req: InferenceRequest) -> AsyncIterator[StreamChunk]:
         """Stream from OpenRouter using SSE format."""
         if not self.openrouter_key:
             raise RuntimeError("OpenRouter API key not configured")
@@ -445,32 +441,32 @@ class OllamaDispatcher:
             "X-Title": "Sovereign Agentic OS",
         }
 
-        async with httpx.AsyncClient(timeout=self.stream_timeout) as client:
-            async with client.stream(
-                "POST", _OPENROUTER_URL, json=payload, headers=headers
-            ) as response:
-                response.raise_for_status()
-                async for line in response.aiter_lines():
-                    line = line.strip()
-                    if not line or not line.startswith("data: "):
-                        continue
-                    data_str = line[6:]
-                    if data_str == "[DONE]":
-                        yield StreamChunk(text="", done=True, model=req.model)
-                        break
-                    try:
-                        data = json.loads(data_str)
-                    except json.JSONDecodeError:
-                        continue
+        async with (
+            httpx.AsyncClient(timeout=self.stream_timeout) as client,
+            client.stream("POST", _OPENROUTER_URL, json=payload, headers=headers) as response,
+        ):
+            response.raise_for_status()
+            async for line in response.aiter_lines():
+                line = line.strip()
+                if not line or not line.startswith("data: "):
+                    continue
+                data_str = line[6:]
+                if data_str == "[DONE]":
+                    yield StreamChunk(text="", done=True, model=req.model)
+                    break
+                try:
+                    data = json.loads(data_str)
+                except json.JSONDecodeError:
+                    continue
 
-                    delta = data.get("choices", [{}])[0].get("delta", {})
-                    content = delta.get("content", "")
-                    if content:
-                        yield StreamChunk(
-                            text=content,
-                            done=False,
-                            model=data.get("model", req.model),
-                        )
+                delta = data.get("choices", [{}])[0].get("delta", {})
+                content = delta.get("content", "")
+                if content:
+                    yield StreamChunk(
+                        text=content,
+                        done=False,
+                        model=data.get("model", req.model),
+                    )
 
     # ── Chat Interface ────────────────────────────────────────────────
 

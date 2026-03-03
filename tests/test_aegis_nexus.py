@@ -9,6 +9,7 @@ Covers:
   - Gas constants:  each agent exposes the expected gas-cost constant
   - Stream names:   each agent declares the expected Redis stream constants
 """
+
 from __future__ import annotations
 
 import json
@@ -19,10 +20,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 def _make_memory_db(path: Path) -> sqlite3.Connection:
     """Create a minimal memory.db with the rolling_context table."""
@@ -44,11 +45,13 @@ def _make_memory_db(path: Path) -> sqlite3.Connection:
 # Sentinel Agent Tests
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestSentinelAgentProfile:
     """Verify Sentinel AgentProfile spec."""
 
     def test_profile_has_required_keys(self) -> None:
         from agents.core.sentinel_agent import get_agent_profile
+
         profile = get_agent_profile()
         assert profile["name"] == "sentinel"
         assert "required_tier" in profile
@@ -58,13 +61,15 @@ class TestSentinelAgentProfile:
         assert "restrictions" in profile
 
     def test_profile_gas_cost(self) -> None:
-        from agents.core.sentinel_agent import get_agent_profile, SCAN_GAS_COST
+        from agents.core.sentinel_agent import SCAN_GAS_COST, get_agent_profile
+
         profile = get_agent_profile()
         assert profile["restrictions"]["gas_per_scan"] == SCAN_GAS_COST
         assert SCAN_GAS_COST > 0
 
     def test_stream_names_defined(self) -> None:
-        from agents.core.sentinel_agent import SENTINEL_EVENTS_STREAM, ARBITER_EVENTS_STREAM
+        from agents.core.sentinel_agent import ARBITER_EVENTS_STREAM, SENTINEL_EVENTS_STREAM
+
         assert SENTINEL_EVENTS_STREAM == "sentinel_events"
         assert ARBITER_EVENTS_STREAM == "arbiter_events"
 
@@ -74,6 +79,7 @@ class TestSentinelScanPayload:
 
     def test_clean_payload_not_blocked(self) -> None:
         from agents.core.sentinel_agent import scan_payload
+
         verdict = scan_payload("hello world, just a harmless message")
         assert verdict.blocked is False
         assert verdict.source == "clean"
@@ -81,12 +87,14 @@ class TestSentinelScanPayload:
 
     def test_clean_dict_not_blocked(self) -> None:
         from agents.core.sentinel_agent import scan_payload
+
         verdict = scan_payload({"intent": "analyze logs", "tier": "hearth"})
         assert verdict.blocked is False
 
     def test_align_rule_r001_blocked(self) -> None:
         """ALIGN R-001: shell injection via /bin/sh."""
         from agents.core.sentinel_agent import scan_payload
+
         verdict = scan_payload("run /bin/sh -c whoami")
         assert verdict.blocked is True
         assert verdict.source == "align"
@@ -96,6 +104,7 @@ class TestSentinelScanPayload:
     def test_align_rule_r006_blocked(self) -> None:
         """ALIGN R-006: chmod 777 privilege escalation."""
         from agents.core.sentinel_agent import scan_payload
+
         verdict = scan_payload("chmod 777 /app/config")
         assert verdict.blocked is True
         assert verdict.source == "align"
@@ -104,6 +113,7 @@ class TestSentinelScanPayload:
     def test_align_rule_r007_blocked(self) -> None:
         """ALIGN R-007: process injection via os.system."""
         from agents.core.sentinel_agent import scan_payload
+
         verdict = scan_payload("execute using os.system('ls')")
         assert verdict.blocked is True
         assert verdict.source == "align"
@@ -111,6 +121,7 @@ class TestSentinelScanPayload:
     def test_privesc_etc_shadow(self) -> None:
         """Extended pattern PRIVESC-002: /etc/shadow read attempt."""
         from agents.core.sentinel_agent import scan_payload
+
         verdict = scan_payload("cat /etc/shadow | grep root")
         assert verdict.blocked is True
         assert verdict.source == "privesc"
@@ -120,6 +131,7 @@ class TestSentinelScanPayload:
     def test_privesc_setuid(self) -> None:
         """Extended pattern PRIVESC-003: setuid abuse."""
         from agents.core.sentinel_agent import scan_payload
+
         verdict = scan_payload("compile with setuid bit enabled")
         assert verdict.blocked is True
         assert verdict.source == "privesc"
@@ -128,6 +140,7 @@ class TestSentinelScanPayload:
     def test_privesc_ptrace(self) -> None:
         """Extended pattern PRIVESC-004: ptrace debug attach."""
         from agents.core.sentinel_agent import scan_payload
+
         verdict = scan_payload("attach ptrace to process 1234")
         assert verdict.blocked is True
         assert verdict.source == "privesc"
@@ -136,6 +149,7 @@ class TestSentinelScanPayload:
     def test_align_takes_precedence_over_privesc(self) -> None:
         """If ALIGN fires, source should be 'align', not 'privesc'."""
         from agents.core.sentinel_agent import scan_payload
+
         # /bin/sh triggers R-001; also contains /etc/shadow-like content
         verdict = scan_payload("/bin/sh -c 'cat /etc/shadow'")
         assert verdict.blocked is True
@@ -144,6 +158,7 @@ class TestSentinelScanPayload:
     def test_dict_payload_serialised_for_scanning(self) -> None:
         """dict payload is JSON-serialised before pattern matching."""
         from agents.core.sentinel_agent import scan_payload
+
         verdict = scan_payload({"cmd": "/bin/sh", "args": ["-c", "id"]})
         assert verdict.blocked is True
         assert verdict.source == "align"
@@ -153,7 +168,7 @@ class TestSentinelPublishAlert:
     """Verify _publish_alert calls xadd with correct structure."""
 
     def test_publish_alert_calls_xadd(self) -> None:
-        from agents.core.sentinel_agent import _publish_alert, SentinelVerdict
+        from agents.core.sentinel_agent import SentinelVerdict, _publish_alert
 
         mock_r = MagicMock()
         verdict = SentinelVerdict(blocked=True, rule_id="R-001", severity="HIGH", source="align")
@@ -170,7 +185,7 @@ class TestSentinelPublishAlert:
         assert payload["severity"] == "HIGH"
 
     def test_publish_alert_handles_xadd_error(self) -> None:
-        from agents.core.sentinel_agent import _publish_alert, SentinelVerdict
+        from agents.core.sentinel_agent import SentinelVerdict, _publish_alert
 
         mock_r = MagicMock()
         mock_r.xadd.side_effect = ConnectionError("Redis unavailable")
@@ -199,11 +214,13 @@ class TestSentinelThreadLifecycle:
 # Scribe Agent Tests
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestScribeAgentProfile:
     """Verify Scribe AgentProfile spec."""
 
     def test_profile_has_required_keys(self) -> None:
         from agents.core.scribe_agent import get_agent_profile
+
         profile = get_agent_profile()
         assert profile["name"] == "scribe"
         assert "required_tier" in profile
@@ -213,17 +230,20 @@ class TestScribeAgentProfile:
         assert "budget_gate_pct" in profile["restrictions"]
 
     def test_profile_gas_cost(self) -> None:
-        from agents.core.scribe_agent import get_agent_profile, AUDIT_GAS_COST
+        from agents.core.scribe_agent import AUDIT_GAS_COST, get_agent_profile
+
         profile = get_agent_profile()
         assert profile["restrictions"]["gas_per_audit"] == AUDIT_GAS_COST
         assert AUDIT_GAS_COST > 0
 
     def test_budget_gate_pct_value(self) -> None:
         from agents.core.scribe_agent import BUDGET_GATE_PCT
-        assert BUDGET_GATE_PCT == pytest.approx(0.80)
+
+        assert pytest.approx(0.80) == BUDGET_GATE_PCT
 
     def test_stream_names_defined(self) -> None:
-        from agents.core.scribe_agent import SCRIBE_EVENTS_STREAM, ARBITER_EVENTS_STREAM
+        from agents.core.scribe_agent import ARBITER_EVENTS_STREAM, SCRIBE_EVENTS_STREAM
+
         assert SCRIBE_EVENTS_STREAM == "scribe_events"
         assert ARBITER_EVENTS_STREAM == "arbiter_events"
 
@@ -236,8 +256,7 @@ class TestScribeAuditBudget:
 
         conn = _make_memory_db(tmp_path / "mem.db")
         conn.execute(
-            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
-            "VALUES ('s1', ?, '', 3000)",
+            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) VALUES ('s1', ?, '', 3000)",
             (time.time(),),
         )
         conn.commit()
@@ -255,8 +274,7 @@ class TestScribeAuditBudget:
         conn = _make_memory_db(tmp_path / "mem.db")
         budget = 10000
         conn.execute(
-            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
-            "VALUES ('s1', ?, '', 8000)",
+            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) VALUES ('s1', ?, '', 8000)",
             (time.time(),),
         )
         conn.commit()
@@ -270,8 +288,7 @@ class TestScribeAuditBudget:
 
         conn = _make_memory_db(tmp_path / "mem.db")
         conn.execute(
-            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
-            "VALUES ('s1', ?, '', 9000)",
+            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) VALUES ('s1', ?, '', 9000)",
             (time.time(),),
         )
         conn.commit()
@@ -286,8 +303,7 @@ class TestScribeAuditBudget:
         conn = _make_memory_db(tmp_path / "mem.db")
         now = time.time()
         conn.executemany(
-            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
-            "VALUES (?, ?, '', ?)",
+            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) VALUES (?, ?, '', ?)",
             [("s1", now, 2000), ("s2", now, 2000), ("s3", now, 2000)],
         )
         conn.commit()
@@ -319,7 +335,7 @@ class TestScribePublishBudgetAlert:
     """Verify _publish_budget_alert calls xadd with correct structure."""
 
     def test_publish_budget_alert_calls_xadd(self) -> None:
-        from agents.core.scribe_agent import _publish_budget_alert, BudgetStatus
+        from agents.core.scribe_agent import BudgetStatus, _publish_budget_alert
 
         mock_r = MagicMock()
         status = BudgetStatus(tokens_used=8000, budget=10000, pct=0.80, gate_blocked=True)
@@ -335,7 +351,7 @@ class TestScribePublishBudgetAlert:
         assert payload["budget"] == 10000
 
     def test_publish_budget_alert_handles_error(self) -> None:
-        from agents.core.scribe_agent import _publish_budget_alert, BudgetStatus
+        from agents.core.scribe_agent import BudgetStatus, _publish_budget_alert
 
         mock_r = MagicMock()
         mock_r.xadd.side_effect = ConnectionError("Redis down")
@@ -363,11 +379,13 @@ class TestScribeThreadLifecycle:
 # Arbiter Agent Tests
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestArbiterAgentProfile:
     """Verify Arbiter AgentProfile spec."""
 
     def test_profile_has_required_keys(self) -> None:
         from agents.core.arbiter_agent import get_agent_profile
+
         profile = get_agent_profile()
         assert profile["name"] == "arbiter"
         assert "required_tier" in profile
@@ -376,17 +394,20 @@ class TestArbiterAgentProfile:
         assert "restrictions" in profile
 
     def test_profile_gas_cost(self) -> None:
-        from agents.core.arbiter_agent import get_agent_profile, ADJUDICATE_GAS_COST
+        from agents.core.arbiter_agent import ADJUDICATE_GAS_COST, get_agent_profile
+
         profile = get_agent_profile()
         assert profile["restrictions"]["gas_per_adjudication"] == ADJUDICATE_GAS_COST
         assert ADJUDICATE_GAS_COST >= 2  # Adjudication is more expensive
 
     def test_stream_name_defined(self) -> None:
         from agents.core.arbiter_agent import ARBITER_EVENTS_STREAM
+
         assert ARBITER_EVENTS_STREAM == "arbiter_events"
 
     def test_verdict_constants(self) -> None:
         from agents.core.arbiter_agent import VERDICT_ALLOW, VERDICT_ESCALATE, VERDICT_QUARANTINE
+
         assert VERDICT_ALLOW == "ALLOW"
         assert VERDICT_ESCALATE == "ESCALATE"
         assert VERDICT_QUARANTINE == "QUARANTINE"
@@ -398,7 +419,7 @@ class TestArbiterAdjudicate:
     # ── SECURITY_ALERT paths ────────────────────────────────────────────────
 
     def test_security_alert_critical_quarantine(self) -> None:
-        from agents.core.arbiter_agent import adjudicate, VERDICT_QUARANTINE
+        from agents.core.arbiter_agent import VERDICT_QUARANTINE, adjudicate
 
         payload = {"event_type": "SECURITY_ALERT", "severity": "CRITICAL", "rule_id": "PRIVESC-002"}
         verdict = adjudicate("SECURITY_ALERT", payload)
@@ -407,14 +428,14 @@ class TestArbiterAdjudicate:
         assert "PRIVESC-002" in verdict.justification
 
     def test_security_alert_high_escalate(self) -> None:
-        from agents.core.arbiter_agent import adjudicate, VERDICT_ESCALATE
+        from agents.core.arbiter_agent import VERDICT_ESCALATE, adjudicate
 
         payload = {"event_type": "SECURITY_ALERT", "severity": "HIGH", "rule_id": "R-001"}
         verdict = adjudicate("SECURITY_ALERT", payload)
         assert verdict.verdict == VERDICT_ESCALATE
 
     def test_security_alert_medium_escalate(self) -> None:
-        from agents.core.arbiter_agent import adjudicate, VERDICT_ESCALATE
+        from agents.core.arbiter_agent import VERDICT_ESCALATE, adjudicate
 
         payload = {"event_type": "SECURITY_ALERT", "severity": "MEDIUM", "rule_id": "R-005"}
         verdict = adjudicate("SECURITY_ALERT", payload)
@@ -423,35 +444,35 @@ class TestArbiterAdjudicate:
     # ── BUDGET_GATE paths ────────────────────────────────────────────────────
 
     def test_budget_gate_below_90_allow(self) -> None:
-        from agents.core.arbiter_agent import adjudicate, VERDICT_ALLOW
+        from agents.core.arbiter_agent import VERDICT_ALLOW, adjudicate
 
         payload = {"event_type": "BUDGET_GATE", "pct": 0.75}
         verdict = adjudicate("BUDGET_GATE", payload)
         assert verdict.verdict == VERDICT_ALLOW
 
     def test_budget_gate_at_90_escalate(self) -> None:
-        from agents.core.arbiter_agent import adjudicate, VERDICT_ESCALATE
+        from agents.core.arbiter_agent import VERDICT_ESCALATE, adjudicate
 
         payload = {"event_type": "BUDGET_GATE", "pct": 0.90}
         verdict = adjudicate("BUDGET_GATE", payload)
         assert verdict.verdict == VERDICT_ESCALATE
 
     def test_budget_gate_above_90_escalate(self) -> None:
-        from agents.core.arbiter_agent import adjudicate, VERDICT_ESCALATE
+        from agents.core.arbiter_agent import VERDICT_ESCALATE, adjudicate
 
         payload = {"event_type": "BUDGET_GATE", "pct": 0.95}
         verdict = adjudicate("BUDGET_GATE", payload)
         assert verdict.verdict == VERDICT_ESCALATE
 
     def test_budget_gate_at_98_quarantine(self) -> None:
-        from agents.core.arbiter_agent import adjudicate, VERDICT_QUARANTINE
+        from agents.core.arbiter_agent import VERDICT_QUARANTINE, adjudicate
 
         payload = {"event_type": "BUDGET_GATE", "pct": 0.98}
         verdict = adjudicate("BUDGET_GATE", payload)
         assert verdict.verdict == VERDICT_QUARANTINE
 
     def test_budget_gate_above_98_quarantine(self) -> None:
-        from agents.core.arbiter_agent import adjudicate, VERDICT_QUARANTINE
+        from agents.core.arbiter_agent import VERDICT_QUARANTINE, adjudicate
 
         payload = {"event_type": "BUDGET_GATE", "pct": 1.0}
         verdict = adjudicate("BUDGET_GATE", payload)
@@ -461,7 +482,7 @@ class TestArbiterAdjudicate:
 
     def test_align_blocked_payload_quarantine(self) -> None:
         """ALIGN Ledger is the authoritative override for any event type."""
-        from agents.core.arbiter_agent import adjudicate, VERDICT_QUARANTINE
+        from agents.core.arbiter_agent import VERDICT_QUARANTINE, adjudicate
 
         # ALIGN R-001 pattern embedded in a BUDGET_GATE payload
         payload = {"event_type": "BUDGET_GATE", "pct": 0.5, "note": "/bin/sh exploit"}
@@ -471,7 +492,7 @@ class TestArbiterAdjudicate:
 
     def test_align_blocked_security_alert_quarantine(self) -> None:
         """ALIGN fires even on SECURITY_ALERT events."""
-        from agents.core.arbiter_agent import adjudicate, VERDICT_QUARANTINE
+        from agents.core.arbiter_agent import VERDICT_QUARANTINE, adjudicate
 
         payload = {
             "event_type": "SECURITY_ALERT",
@@ -484,7 +505,7 @@ class TestArbiterAdjudicate:
     # ── Unknown event paths ──────────────────────────────────────────────────
 
     def test_unknown_event_escalate(self) -> None:
-        from agents.core.arbiter_agent import adjudicate, VERDICT_ESCALATE
+        from agents.core.arbiter_agent import VERDICT_ESCALATE, adjudicate
 
         verdict = adjudicate("TOTALLY_UNKNOWN", {"some": "data"})
         assert verdict.verdict == VERDICT_ESCALATE
@@ -492,7 +513,7 @@ class TestArbiterAdjudicate:
 
     def test_string_payload(self) -> None:
         """adjudicate() accepts raw string payloads."""
-        from agents.core.arbiter_agent import adjudicate, VERDICT_ESCALATE
+        from agents.core.arbiter_agent import VERDICT_ESCALATE, adjudicate
 
         verdict = adjudicate("UNKNOWN_TYPE", "just some string payload")
         assert verdict.verdict == VERDICT_ESCALATE
@@ -527,11 +548,12 @@ class TestArbiterThreadLifecycle:
 # DB Template Seeding
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestSeedAegisTemplates:
     """Verify seed_aegis_templates() registers all three agent templates."""
 
     def test_seeds_all_three_templates(self, tmp_path: Path) -> None:
-        from agents.core.db import init_db, get_db, seed_aegis_templates, get_agent_template
+        from agents.core.db import get_agent_template, get_db, init_db, seed_aegis_templates
 
         db_file = tmp_path / "registry.db"
         init_db(db_file)
@@ -548,7 +570,7 @@ class TestSeedAegisTemplates:
         assert arbiter_tmpl is not None, "arbiter template missing"
 
     def test_sentinel_template_fields(self, tmp_path: Path) -> None:
-        from agents.core.db import init_db, get_db, seed_aegis_templates, get_agent_template
+        from agents.core.db import get_agent_template, get_db, init_db, seed_aegis_templates
 
         db_file = tmp_path / "registry.db"
         init_db(db_file)
@@ -563,7 +585,7 @@ class TestSeedAegisTemplates:
         assert "gas_per_scan" in restrictions
 
     def test_scribe_template_fields(self, tmp_path: Path) -> None:
-        from agents.core.db import init_db, get_db, seed_aegis_templates, get_agent_template
+        from agents.core.db import get_agent_template, get_db, init_db, seed_aegis_templates
 
         db_file = tmp_path / "registry.db"
         init_db(db_file)
@@ -578,7 +600,7 @@ class TestSeedAegisTemplates:
         assert restrictions["budget_gate_pct"] == pytest.approx(0.80)
 
     def test_arbiter_template_fields(self, tmp_path: Path) -> None:
-        from agents.core.db import init_db, get_db, seed_aegis_templates, get_agent_template
+        from agents.core.db import get_agent_template, get_db, init_db, seed_aegis_templates
 
         db_file = tmp_path / "registry.db"
         init_db(db_file)
@@ -594,7 +616,7 @@ class TestSeedAegisTemplates:
 
     def test_seed_is_idempotent(self, tmp_path: Path) -> None:
         """Calling seed_aegis_templates twice should not raise or duplicate rows."""
-        from agents.core.db import init_db, get_db, seed_aegis_templates
+        from agents.core.db import get_db, init_db, seed_aegis_templates
 
         db_file = tmp_path / "registry.db"
         init_db(db_file)
@@ -614,28 +636,33 @@ class TestSeedAegisTemplates:
 # Gas Constants Consistency
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestGasConstants:
     """Verify gas constants are consistent across agents and profiles."""
 
     def test_sentinel_gas_constant_matches_profile(self) -> None:
         from agents.core.sentinel_agent import SCAN_GAS_COST, get_agent_profile
+
         profile = get_agent_profile()
         assert profile["restrictions"]["gas_per_scan"] == SCAN_GAS_COST
 
     def test_scribe_gas_constant_matches_profile(self) -> None:
         from agents.core.scribe_agent import AUDIT_GAS_COST, get_agent_profile
+
         profile = get_agent_profile()
         assert profile["restrictions"]["gas_per_audit"] == AUDIT_GAS_COST
 
     def test_arbiter_gas_constant_matches_profile(self) -> None:
         from agents.core.arbiter_agent import ADJUDICATE_GAS_COST, get_agent_profile
+
         profile = get_agent_profile()
         assert profile["restrictions"]["gas_per_adjudication"] == ADJUDICATE_GAS_COST
 
     def test_arbiter_gas_more_expensive_than_sentinel(self) -> None:
         """Adjudication is heavier than a simple scan."""
-        from agents.core.sentinel_agent import SCAN_GAS_COST
         from agents.core.arbiter_agent import ADJUDICATE_GAS_COST
+        from agents.core.sentinel_agent import SCAN_GAS_COST
+
         assert ADJUDICATE_GAS_COST > SCAN_GAS_COST
 
 
@@ -643,13 +670,14 @@ class TestGasConstants:
 # Integration: Sentinel → Arbiter pipeline
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 class TestSentinelToArbiterPipeline:
     """Simulate the Sentinel detecting a threat and Arbiter adjudicating it."""
 
     def test_privesc_flows_to_quarantine(self) -> None:
         """PrivEsc alert from Sentinel should result in QUARANTINE from Arbiter."""
+        from agents.core.arbiter_agent import VERDICT_QUARANTINE, adjudicate
         from agents.core.sentinel_agent import scan_payload
-        from agents.core.arbiter_agent import adjudicate, VERDICT_QUARANTINE
 
         # Sentinel scans a payload with a PrivEsc pattern
         verdict = scan_payload("cat /etc/shadow")
@@ -668,13 +696,12 @@ class TestSentinelToArbiterPipeline:
 
     def test_budget_breach_flows_to_escalate(self, tmp_path: Path) -> None:
         """Budget breach from Scribe should result in ESCALATE from Arbiter."""
+        from agents.core.arbiter_agent import VERDICT_ESCALATE, adjudicate
         from agents.core.scribe_agent import audit_budget
-        from agents.core.arbiter_agent import adjudicate, VERDICT_ESCALATE
 
         conn = _make_memory_db(tmp_path / "mem.db")
         conn.execute(
-            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
-            "VALUES ('s1', ?, '', 9200)",
+            "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) VALUES ('s1', ?, '', 9200)",
             (time.time(),),
         )
         conn.commit()

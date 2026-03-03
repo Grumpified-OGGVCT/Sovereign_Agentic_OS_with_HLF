@@ -4,9 +4,11 @@ Transfers vector clusters between cold SQLite (Fact Store) and hot Redis (Knowle
 """
 from __future__ import annotations
 
-import os
+import contextlib
 import json
+import os
 import sqlite3
+
 import redis
 
 # Redis connection
@@ -41,30 +43,28 @@ class ContextTierManager:
             embedding = resp.json().get("embedding")
             if not embedding:
                 return
-        except Exception as e:
+        except Exception:
             # Fallback to empty if embedding offline
             return
 
         import sqlite_vec
         conn = sqlite3.connect(_DB_PATH)
         conn.enable_load_extension(True)
-        try:
+        with contextlib.suppress(Exception):
             sqlite_vec.load(conn)
-        except Exception:
-            pass
         conn.enable_load_extension(False)
 
         # 2. KNN Search on vec0 virtual table
         vec_json = json.dumps(embedding)
         rows = conn.execute(
-            \"\"\"
+            """
             SELECT f.entity_id, f.semantic_relationship 
             FROM fact_store f
             JOIN vec_facts v ON v.rowid = f.rowid
             WHERE v.embedding MATCH ? AND k = 10
             ORDER BY distance
-            \"\"\",
-            (vec_json,)
+            """,
+            (vec_json,),
         ).fetchall()
         
         # 3. Stream clusters to Redis Hot Graph

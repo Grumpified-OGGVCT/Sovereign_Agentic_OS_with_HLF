@@ -1,6 +1,7 @@
 """
 Legacy bridge — decompress HLF payload to REST-style dict.
 """
+
 from __future__ import annotations
 
 import re

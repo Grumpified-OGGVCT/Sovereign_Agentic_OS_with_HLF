@@ -1,12 +1,11 @@
 """Tests for ACFS directory structure and manifest validation."""
+
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
-import pytest
 import yaml
-
 
 REPO_ROOT = Path(__file__).parent.parent
 

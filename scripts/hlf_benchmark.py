@@ -14,12 +14,12 @@ Usage:
     python scripts/hlf_benchmark.py
     python scripts/hlf_benchmark.py --output docs/benchmark.json
 """
+
 from __future__ import annotations
 
 import argparse
 import json
-import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -36,6 +36,7 @@ def _load_tokenizer():
     global _tokenizer, _tokenizer_name
     try:
         import tiktoken
+
         _tokenizer = tiktoken.get_encoding("cl100k_base")
         _tokenizer_name = "tiktoken_cl100k_base"
     except ImportError:
@@ -182,21 +183,23 @@ def run_benchmark() -> dict:
         total_nlp += nlp_tokens
         total_hlf += hlf_tokens
 
-        results.append({
-            "name": case["name"],
-            "domain": case["domain"],
-            "nlp_tokens": nlp_tokens,
-            "hlf_tokens": hlf_tokens,
-            "compression_pct": compression,
-            "tokens_saved": nlp_tokens - hlf_tokens,
-            "swarm_5_saved": (nlp_tokens - hlf_tokens) * 5,
-            "hlf_source": hlf_source,
-        })
+        results.append(
+            {
+                "name": case["name"],
+                "domain": case["domain"],
+                "nlp_tokens": nlp_tokens,
+                "hlf_tokens": hlf_tokens,
+                "compression_pct": compression,
+                "tokens_saved": nlp_tokens - hlf_tokens,
+                "swarm_5_saved": (nlp_tokens - hlf_tokens) * 5,
+                "hlf_source": hlf_source,
+            }
+        )
 
     overall_compression = round((1 - total_hlf / total_nlp) * 100, 1) if total_nlp > 0 else 0
 
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "tokenizer": _tokenizer_name,
         "case_count": len(results),
         "overall": {
@@ -255,9 +258,7 @@ def main() -> None:
 
     if args.output:
         Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-        Path(args.output).write_text(
-            json.dumps(benchmark, indent=2), encoding="utf-8"
-        )
+        Path(args.output).write_text(json.dumps(benchmark, indent=2), encoding="utf-8")
         print(f"✅ Benchmark written to {args.output}")
 
 

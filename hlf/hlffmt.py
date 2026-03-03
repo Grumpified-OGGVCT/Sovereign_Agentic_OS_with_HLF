@@ -3,6 +3,7 @@ HLF Formatter — canonical pretty-printer.
 Uppercase tags, single space after ], mandatory trailing Ω, no trailing spaces.
 CLI: hlffmt [--in-place] input.hlf
 """
+
 from __future__ import annotations
 
 import sys

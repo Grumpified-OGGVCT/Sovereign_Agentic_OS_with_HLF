@@ -2,6 +2,7 @@
 HLF Linter — static analyzer using tiktoken cl100k_base.
 Checks: unused SET variables, gas budget, recursion depth, per-intent token count.
 """
+
 from __future__ import annotations
 
 import os

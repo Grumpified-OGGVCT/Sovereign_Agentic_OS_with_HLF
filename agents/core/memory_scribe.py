@@ -2,6 +2,7 @@
 Memory Scribe — async SQLite writer with vector search support.
 Single-threaded Redis XREADGROUP consumer.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -16,6 +17,8 @@ try:
     import sqlite_vec
 except ImportError:
     sqlite_vec = None  # type: ignore[assignment]
+
+import contextlib
 
 import redis as _redis_module
 
@@ -115,12 +118,8 @@ def write_fact(
     )
     if vec_json is not None:
         row_id = cur.lastrowid
-        cur.execute(
-            "INSERT INTO vec_facts(rowid, embedding) VALUES (?, ?)",
-            (row_id, vec_json)
-        )
+        cur.execute("INSERT INTO vec_facts(rowid, embedding) VALUES (?, ?)", (row_id, vec_json))
     conn.commit()
-
 
 
 # Dynamic Context Pruning — 30-day forgetting curve (Phase 4.3)
@@ -203,10 +202,8 @@ def prune_old_facts(conn: sqlite3.Connection) -> int:
     rowids = [r[0] for r in rows]
     conn.execute(f"DELETE FROM fact_store WHERE rowid IN {_sql_in(rowids)}", rowids)
     # Remove orphaned vec_facts entries (best-effort; may not exist as virtual table)
-    try:
+    with contextlib.suppress(Exception):
         conn.execute(f"DELETE FROM vec_facts WHERE rowid IN {_sql_in(rowids)}", rowids)
-    except Exception:
-        pass
     conn.commit()
     return len(rows)
 
@@ -219,10 +216,8 @@ def run() -> None:
 
     group = "memory-group"
     stream = "intents"
-    try:
+    with contextlib.suppress(Exception):
         r.xgroup_create(stream, group, id="0", mkstream=True)
-    except Exception:
-        pass
 
     while True:
         messages = r.xreadgroup(group, "memory-1", {stream: ">"}, count=1, block=5000)

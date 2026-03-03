@@ -22,14 +22,15 @@ Config (add to ~/.gemini/antigravity/mcp_config.json):
     }
   }
 """
+
 from __future__ import annotations
 
 import json
 import os
 import sqlite3
 import time
-import urllib.request
 import urllib.error
+import urllib.request
 from dataclasses import asdict
 from pathlib import Path
 
@@ -43,13 +44,10 @@ mcp = FastMCP(
     "sovereign-os",
     version="0.1.0",
     description="Sovereign Agentic OS — MCP bridge for health, intent dispatch, "
-                "Dream Mode, Hat analysis, ALIGN governance, and memory queries.",
+    "Dream Mode, Hat analysis, ALIGN governance, and memory queries.",
 )
 
-_BASE_DIR = Path(os.environ.get(
-    "BASE_DIR",
-    str(Path(__file__).resolve().parent.parent)
-))
+_BASE_DIR = Path(os.environ.get("BASE_DIR", str(Path(__file__).resolve().parent.parent)))
 _GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://localhost:40404")
 _OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 if _OLLAMA_HOST and not _OLLAMA_HOST.startswith("http"):
@@ -84,7 +82,8 @@ def _http_post(url: str, payload: dict, timeout: float = 10.0) -> dict | None:
     try:
         data = json.dumps(payload).encode()
         req = urllib.request.Request(
-            url, data=data,
+            url,
+            data=data,
             headers={"Content-Type": "application/json"},
             method="POST",
         )
@@ -97,6 +96,7 @@ def _http_post(url: str, payload: dict, timeout: float = 10.0) -> dict | None:
 # ===========================================================================
 # MCP Tools
 # ===========================================================================
+
 
 @mcp.tool()
 def check_health() -> dict:
@@ -129,6 +129,7 @@ def check_health() -> dict:
     # Redis
     try:
         import redis
+
         pw = os.environ.get("REDIS_PASSWORD", "")
         r = redis.Redis(host="localhost", port=6379, password=pw or None, decode_responses=True)
         t0 = time.time()
@@ -190,8 +191,10 @@ def run_dream_cycle() -> dict:
     Returns the full DreamCycleReport with hat findings, HLF scores, and compression stats.
     """
     import sys
+
     sys.path.insert(0, str(_BASE_DIR))
     from agents.core.dream_state import run_dream_cycle as _run
+
     report = _run(manual=True)
     return asdict(report)
 
@@ -210,8 +213,10 @@ def get_hat_findings(limit: int = 20) -> list[dict]:
         return [{"error": "Database not found"}]
     try:
         import sys
+
         sys.path.insert(0, str(_BASE_DIR))
         from agents.core.hat_engine import get_recent_findings
+
         return get_recent_findings(conn, limit=limit)
     except Exception as e:
         return [{"error": str(e)}]
@@ -230,6 +235,7 @@ def list_align_rules() -> list[dict]:
         return [{"error": f"ALIGN ledger not found at {align_path}"}]
     try:
         import yaml
+
         rules = yaml.safe_load(align_path.read_text())
         if isinstance(rules, dict):
             return rules.get("rules", [rules])
@@ -265,6 +271,7 @@ def get_system_state() -> dict:
     # Agent counts from Redis
     try:
         import redis
+
         pw = os.environ.get("REDIS_PASSWORD", "")
         r = redis.Redis(host="localhost", port=6379, password=pw or None, decode_responses=True)
         state["agents"] = {
@@ -375,6 +382,7 @@ def get_dream_history(limit: int = 5) -> list[dict]:
 # ===========================================================================
 # MCP Resources
 # ===========================================================================
+
 
 @mcp.resource("sovereign://settings")
 def get_settings() -> str:

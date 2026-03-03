@@ -2,6 +2,7 @@
 Vault decrypt — retrieves secrets from HashiCorp Vault via AppRole auth.
 Uses pydantic.BaseSettings — never hardcodes secrets.
 """
+
 from __future__ import annotations
 
 from typing import Any

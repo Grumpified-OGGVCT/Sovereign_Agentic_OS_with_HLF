@@ -7,6 +7,7 @@ Covers:
 - Immutable variable reassignment rejection
 - Module/Import round-trip through formatter
 """
+
 from __future__ import annotations
 
 import pytest
@@ -18,40 +19,33 @@ class TestModuleImportGrammar:
     """[MODULE] and [IMPORT] tag parsing (Phase 5 v0.3 grammar extension)."""
 
     def test_module_tag_parsed(self) -> None:
-        src = "[HLF-v2]\n[MODULE] my_lib\n[INTENT] test \"hello\"\nΩ\n"
+        src = '[HLF-v2]\n[MODULE] my_lib\n[INTENT] test "hello"\nΩ\n'
         ast = compile(src)
         tags = [n["tag"] for n in ast["program"]]
         assert "MODULE" in tags
 
     def test_import_tag_parsed(self) -> None:
-        src = "[HLF-v2]\n[IMPORT] stdlib\n[INTENT] test \"hello\"\nΩ\n"
+        src = '[HLF-v2]\n[IMPORT] stdlib\n[INTENT] test "hello"\nΩ\n'
         ast = compile(src)
         tags = [n["tag"] for n in ast["program"]]
         assert "IMPORT" in tags
 
     def test_module_node_has_name(self) -> None:
-        src = "[HLF-v2]\n[MODULE] my_module\n[INTENT] do \"something\"\nΩ\n"
+        src = '[HLF-v2]\n[MODULE] my_module\n[INTENT] do "something"\nΩ\n'
         ast = compile(src)
         module_nodes = [n for n in ast["program"] if n["tag"] == "MODULE"]
         assert len(module_nodes) == 1
         assert module_nodes[0]["name"] == "my_module"
 
     def test_import_node_has_name(self) -> None:
-        src = "[HLF-v2]\n[IMPORT] utils\n[INTENT] do \"something\"\nΩ\n"
+        src = '[HLF-v2]\n[IMPORT] utils\n[INTENT] do "something"\nΩ\n'
         ast = compile(src)
         import_nodes = [n for n in ast["program"] if n["tag"] == "IMPORT"]
         assert len(import_nodes) == 1
         assert import_nodes[0]["name"] == "utils"
 
     def test_module_and_import_together(self) -> None:
-        src = (
-            "[HLF-v2]\n"
-            "[MODULE] my_module\n"
-            "[IMPORT] stdlib\n"
-            "[IMPORT] net_utils\n"
-            "[INTENT] process \"data\"\n"
-            "Ω\n"
-        )
+        src = '[HLF-v2]\n[MODULE] my_module\n[IMPORT] stdlib\n[IMPORT] net_utils\n[INTENT] process "data"\nΩ\n'
         ast = compile(src)
         tags = [n["tag"] for n in ast["program"]]
         assert tags.count("MODULE") == 1
@@ -61,7 +55,7 @@ class TestModuleImportGrammar:
         """MODULE/IMPORT survive format → re-parse round-trip."""
         from hlf.hlffmt import format_hlf
 
-        src = "[HLF-v2]\n[MODULE] lib_a\n[IMPORT] lib_b\n[INTENT] do \"it\"\nΩ\n"
+        src = '[HLF-v2]\n[MODULE] lib_a\n[IMPORT] lib_b\n[INTENT] do "it"\nΩ\n'
         formatted = format_hlf(src)
         re_ast = compile(formatted)
         tags = [n["tag"] for n in re_ast["program"]]
@@ -73,12 +67,7 @@ class TestTwoPassCompiler:
     """Two-pass parser: Pass 1 (SET collection) + Pass 2 (${VAR} expansion)."""
 
     def test_set_binding_expanded_in_intent(self) -> None:
-        src = (
-            "[HLF-v2]\n"
-            '[SET] target="/data/file.txt"\n'
-            "[INTENT] read ${target}\n"
-            "Ω\n"
-        )
+        src = '[HLF-v2]\n[SET] target="/data/file.txt"\n[INTENT] read ${target}\nΩ\n'
         ast = compile(src)
         # After Pass 2, ${target} in INTENT args must be expanded to "/data/file.txt"
         intent_nodes = [n for n in ast["program"] if n.get("tag") == "INTENT"]
@@ -87,12 +76,7 @@ class TestTwoPassCompiler:
         assert "/data/file.txt" in args_flat
 
     def test_set_binding_is_collected(self) -> None:
-        src = (
-            "[HLF-v2]\n"
-            '[SET] filename="report.pdf"\n'
-            "[INTENT] open \"report\"\n"
-            "Ω\n"
-        )
+        src = '[HLF-v2]\n[SET] filename="report.pdf"\n[INTENT] open "report"\nΩ\n'
         ast = compile(src)
         set_nodes = [n for n in ast["program"] if n.get("tag") == "SET"]
         assert len(set_nodes) == 1
@@ -100,23 +84,13 @@ class TestTwoPassCompiler:
         assert set_nodes[0]["value"] == "report.pdf"
 
     def test_immutable_reassignment_raises(self) -> None:
-        src = (
-            "[HLF-v2]\n"
-            '[SET] x="first"\n'
-            '[SET] x="second"\n'
-            "[INTENT] do \"something\"\n"
-            "Ω\n"
-        )
+        src = '[HLF-v2]\n[SET] x="first"\n[SET] x="second"\n[INTENT] do "something"\nΩ\n'
         with pytest.raises(HlfSyntaxError, match="Immutable"):
             compile(src)
 
     def test_unexpanded_var_passes_gracefully(self) -> None:
         """${UNDEFINED} variables — grammar parses VAR_REF token, no error."""
-        src = (
-            "[HLF-v2]\n"
-            "[INTENT] greet ${name}\n"
-            "Ω\n"
-        )
+        src = "[HLF-v2]\n[INTENT] greet ${name}\nΩ\n"
         ast = compile(src)
         assert ast["program"]  # parsed without exception
         # ${name} remains as-is (no SET binding defined)
@@ -126,11 +100,7 @@ class TestTwoPassCompiler:
 
     def test_pass2_preserves_non_string_args(self) -> None:
         """Numeric/bool args must not be corrupted by Pass 2 expansion."""
-        src = (
-            "[HLF-v2]\n"
-            "[RESULT] code=0 message=\"ok\"\n"
-            "Ω\n"
-        )
+        src = '[HLF-v2]\n[RESULT] code=0 message="ok"\nΩ\n'
         ast = compile(src)
         result_nodes = [n for n in ast["program"] if n.get("tag") == "RESULT"]
         assert len(result_nodes) == 1

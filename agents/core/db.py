@@ -491,8 +491,8 @@ def seed_aegis_templates(conn: sqlite3.Connection) -> None:
             "and integrity of the Sovereign OS. You scan all incoming intents "
             "for ALIGN policy violations and privilege escalation attempts."
         ),
-        tools=["READ", "WEB_SEARCH"],
-        restrictions={"max_gas": 50, "allow_network": True, "gas_per_scan": 1},
+        tools=["READ"],
+        restrictions={"max_gas": 50, "allow_network": False, "gas_per_scan": 1},
     )
 
     # Scribe: Medium-tier, logging and audit-focused
@@ -519,6 +519,7 @@ def seed_aegis_templates(conn: sqlite3.Connection) -> None:
             "breaches reported by the Sentinel and Scribe. Your verdict is final. "
             "You can quarantine malicious agents and authorize emergency overrides."
         ),
-        tools=["READ", "WRITE", "SPAWN"],
+        tools=["READ", "WRITE"],
+        # SPAWN removed to prevent privilege escalation from hearth tier
         restrictions={"max_gas": 100, "allow_network": True, "gas_per_adjudication": 2},
     )

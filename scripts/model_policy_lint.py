@@ -11,7 +11,6 @@ Exit code 0 = pass, 1 = violations found.
 from __future__ import annotations
 
 import io
-import os
 import re
 import sys
 from pathlib import Path
@@ -27,27 +26,27 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # as if this project USES it. Comparison/documentation references are OK
 # when they appear in clearly comparative context.
 BANNED_MODEL_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("GPT-4o/GPT-4/GPT-3.5", re.compile(r'(?i)\bGPT[-‑]?[34][o]?\b')),
-    ("Claude/Anthropic model", re.compile(r'(?i)\bclaude[-‑]?\d?\b')),
-    ("DeepSeek model", re.compile(r'(?i)\bdeepseek[-‑]v?\d?\b')),
-    ("Llama model", re.compile(r'(?i)\bllama[-‑]?\d\b')),
-    ("Mistral model", re.compile(r'(?i)\bmistral[-‑]?\d?\b')),
+    ("GPT-4o/GPT-4/GPT-3.5", re.compile(r"(?i)\bGPT[-‑]?[34][o]?\b")),
+    ("Claude/Anthropic model", re.compile(r"(?i)\bclaude[-‑]?\d?\b")),
+    ("DeepSeek model", re.compile(r"(?i)\bdeepseek[-‑]v?\d?\b")),
+    ("Llama model", re.compile(r"(?i)\bllama[-‑]?\d\b")),
+    ("Mistral model", re.compile(r"(?i)\bmistral[-‑]?\d?\b")),
 ]
 
 # Files/dirs to SKIP (legitimate references — these files need to name all models)
 SKIP_PATHS: set[str] = {
-    ".github/copilot-instructions.md",          # Policy definitions themselves
-    "CONTRIBUTING.md",                           # Policy documentation
-    "scripts/model_policy_lint.py",              # This file
-    "docs/Automated_Runner_Setup_Guide.md",      # Existing cloud provider docs
-    "Sovereign_OS_Master_Build_Plan.md",         # Legacy plan (read-only reference)
-    "TODO.md",                                   # Task tracking (references completed work)
+    ".github/copilot-instructions.md",  # Policy definitions themselves
+    "CONTRIBUTING.md",  # Policy documentation
+    "scripts/model_policy_lint.py",  # This file
+    "docs/Automated_Runner_Setup_Guide.md",  # Existing cloud provider docs
+    "Sovereign_OS_Master_Build_Plan.md",  # Legacy plan (read-only reference)
+    "TODO.md",  # Task tracking (references completed work)
 }
 
 # Directories where ALL model names are legitimate (benchmarking, testing, registry)
 SKIP_DIR_PREFIXES: list[str] = [
-    "tests/",                                    # Test fixtures use real model names
-    "agents/gateway/matrix_sync/",               # Model registry — its JOB is to track all models
+    "tests/",  # Test fixtures use real model names
+    "agents/gateway/matrix_sync/",  # Model registry — its JOB is to track all models
 ]
 
 # File extensions to scan
@@ -55,16 +54,16 @@ SCAN_EXTENSIONS: set[str] = {".py", ".md", ".yml", ".yaml", ".json", ".toml", ".
 
 # Context patterns that make a match OK (comparative/negative/listing references)
 SAFE_CONTEXT_PATTERNS: list[re.Pattern[str]] = [
-    re.compile(r'(?i)(unlike|compared to|instead of|rather than|vs\.?)'),
-    re.compile(r'(?i)(banned|do not|never|❌|BAD|rejects?:?)'),
-    re.compile(r'(?i)(staged|future|integrating|routing logic)'),
-    re.compile(r'(?i)(copilot|cursor|aider|jules|antigravity)'),  # Lists of agents/tools
-    re.compile(r'^\s*#'),                                          # Python comments
-    re.compile(r'"""'),                                             # Docstrings
-    re.compile(r"'''"),                                             # Docstrings
-    re.compile(r'\[x\]'),                                          # Completed TODO items
-    re.compile(r'--\s*(e\.g\.|example|like)'),                     # SQL DDL comments with examples
-    re.compile(r'(?i)\be\.g\.\s'),                                  # "e.g." anywhere
+    re.compile(r"(?i)(unlike|compared to|instead of|rather than|vs\.?)"),
+    re.compile(r"(?i)(banned|do not|never|❌|BAD|rejects?:?)"),
+    re.compile(r"(?i)(staged|future|integrating|routing logic)"),
+    re.compile(r"(?i)(copilot|cursor|aider|jules|antigravity)"),  # Lists of agents/tools
+    re.compile(r"^\s*#"),  # Python comments
+    re.compile(r'"""'),  # Docstrings
+    re.compile(r"'''"),  # Docstrings
+    re.compile(r"\[x\]"),  # Completed TODO items
+    re.compile(r"--\s*(e\.g\.|example|like)"),  # SQL DDL comments with examples
+    re.compile(r"(?i)\be\.g\.\s"),  # "e.g." anywhere
 ]
 
 
@@ -100,14 +99,13 @@ def scan_model_policy() -> list[str]:
         for line_num, line in enumerate(content.splitlines(), 1):
             for name, pattern in BANNED_MODEL_PATTERNS:
                 if pattern.search(line) and not is_safe_context(line):
-                    violations.append(
-                        f"  {rel}:{line_num} — {name} reference: {line.strip()[:120]}"
-                    )
+                    violations.append(f"  {rel}:{line_num} — {name} reference: {line.strip()[:120]}")
 
     return violations
 
 
 # ─── Anti-Devolution Guard ───────────────────────────────────────────────
+
 
 def scan_anti_devolution() -> list[str]:
     """Check for common code quality regressions."""
@@ -115,7 +113,11 @@ def scan_anti_devolution() -> list[str]:
 
     # Check: No os.system / subprocess.call / eval / exec in agent code
     # Note: r.eval() (Redis), self.eval(), model.eval() are NOT banned — only bare eval()
-    BANNED_IMPORTS = re.compile(r'(?<!#)(?<!\.)\b(os\.system|subprocess\.call)\b|(?<!\.)(?<!\w)\beval\s*\(|(?<!\.)(?<!\w)\bexec\s*\(')
+    BANNED_IMPORTS = re.compile(
+        r"(?<!#)(?<!\.)\b(os\.system|subprocess\.call)\b|"
+        r"(?<!\.)(?<!\w)\beval\s*\(|"
+        r"(?<!\.)(?<!\w)\bexec\s*\("
+    )
     agent_dirs = [REPO_ROOT / "agents", REPO_ROOT / "hlf", REPO_ROOT / "mcp"]
 
     for agent_dir in agent_dirs:
@@ -141,12 +143,10 @@ def scan_anti_devolution() -> list[str]:
                 if in_docstring:
                     continue
                 # Skip comments — they document what's banned, not use it
-                if stripped.startswith('#'):
+                if stripped.startswith("#"):
                     continue
                 if BANNED_IMPORTS.search(line):
-                    violations.append(
-                        f"  {rel}:{line_num} — Banned import/call: {line.strip()[:120]}"
-                    )
+                    violations.append(f"  {rel}:{line_num} — Banned import/call: {line.strip()[:120]}")
 
     # Check: ALIGN_LEDGER.yaml must exist and not be empty
     align_path = REPO_ROOT / "governance" / "ALIGN_LEDGER.yaml"

@@ -1,4 +1,5 @@
 """Tests for OPENCLAW_SUMMARIZE entry in host_functions.json."""
+
 from __future__ import annotations
 
 import json
@@ -41,9 +42,7 @@ def test_openclaw_binary_sha256_field_exists(host_functions) -> None:
 def test_openclaw_tier_forge_or_sovereign(host_functions) -> None:
     fn = next(f for f in host_functions if f["name"] == "OPENCLAW_SUMMARIZE")
     tiers = fn.get("tier", [])
-    assert "forge" in tiers or "sovereign" in tiers, (
-        "OPENCLAW_SUMMARIZE must be available on forge or sovereign tier"
-    )
+    assert "forge" in tiers or "sovereign" in tiers, "OPENCLAW_SUMMARIZE must be available on forge or sovereign tier"
 
 
 def test_host_functions_schema(host_functions) -> None:

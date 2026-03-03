@@ -1,4 +1,5 @@
 """Tests for HLF grammar round-trip: parse → format → re-parse → assert structural equality."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -31,19 +32,19 @@ def test_roundtrip_preserves_intent_args() -> None:
 
 
 def test_formatted_output_ends_with_terminator() -> None:
-    source = "[HLF-v2]\n[INTENT] greet \"world\"\nΩ\n"
+    source = '[HLF-v2]\n[INTENT] greet "world"\nΩ\n'
     formatted = format_hlf(source)
     assert formatted.strip().endswith("Ω"), f"Formatted output must end with Ω:\n{formatted}"
 
 
 def test_formatted_output_starts_with_version_header() -> None:
-    source = "[HLF-v2]\n[INTENT] greet \"world\"\nΩ\n"
+    source = '[HLF-v2]\n[INTENT] greet "world"\nΩ\n'
     formatted = format_hlf(source)
     assert formatted.startswith("[HLF-v2]"), "Formatted output must start with [HLF-v2]"
 
 
 def test_roundtrip_with_result_tag() -> None:
-    source = "[HLF-v2]\n[INTENT] greet \"world\"\n[EXPECT] \"Hello, world!\"\n[RESULT] code=0 message=\"ok\"\nΩ\n"
+    source = '[HLF-v2]\n[INTENT] greet "world"\n[EXPECT] "Hello, world!"\n[RESULT] code=0 message="ok"\nΩ\n'
     ast1 = hlfc_compile(source)
     formatted = format_hlf(source)
     ast2 = hlfc_compile(formatted)

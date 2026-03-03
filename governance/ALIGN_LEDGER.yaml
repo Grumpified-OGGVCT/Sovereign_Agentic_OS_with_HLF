@@ -7,4 +7,4 @@ rules:
   - { id: "R-005", name: "Outbound Network Block", regex_block: '(curl|wget|nc |ncat)', action: "DROP" }
   - { id: "R-006", name: "Privilege Escalation Block", regex_block: '(sudo|su -|chmod 777)', action: "DROP_AND_QUARANTINE" }
   - { id: "R-007", name: "Process Injection Block", regex_block: '(os\.system|subprocess\.call|eval\(|exec\()', action: "DROP_AND_QUARANTINE" }
-  - { id: "R-008", name: "Block raw OpenClaw keys", regex_block: 'openclaw:', action: "DROP" }
+  - { id: "R-008", name: "Block raw OpenClaw keys", regex_block: 'openclaw(?::|")', action: "DROP" }

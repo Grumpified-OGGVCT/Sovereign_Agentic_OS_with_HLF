@@ -20,6 +20,7 @@ Extended Hats (Sovereign OS):
   🟠 Orange — DevOps, CI/CD, Docker, Git state, deployment automation
   🪨 Silver — Context & token optimization, gas math, prompt compression
 """
+
 from __future__ import annotations
 
 import json
@@ -27,10 +28,9 @@ import logging
 import os
 import sqlite3
 import time
-import urllib.request
 import urllib.error
-from dataclasses import dataclass, field, asdict
-from typing import Optional
+import urllib.request
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +49,11 @@ if "0.0.0.0" in _OLLAMA_HOST:
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class HatFinding:
     hat: str
-    severity: str        # CRITICAL | HIGH | MEDIUM | LOW | INFO
+    severity: str  # CRITICAL | HIGH | MEDIUM | LOW | INFO
     title: str
     description: str
     recommendation: str
@@ -66,7 +67,7 @@ class HatReport:
     focus: str
     findings: list[HatFinding] = field(default_factory=list)
     raw_response: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -298,9 +299,7 @@ def _build_system_context(conn: sqlite3.Connection | None = None) -> str:
             row_count = conn.execute("SELECT COUNT(*) FROM rolling_context").fetchone()[0]
             fact_count = conn.execute("SELECT COUNT(*) FROM fact_store").fetchone()[0]
             context_parts.append(
-                f"=== DB STATS ===\n"
-                f"Rolling context rows: {row_count}\n"
-                f"Fact store entries: {fact_count}"
+                f"=== DB STATS ===\nRolling context rows: {row_count}\nFact store entries: {fact_count}"
             )
         except Exception:
             pass
@@ -316,7 +315,7 @@ def _build_system_context(conn: sqlite3.Connection | None = None) -> str:
                 lines = []
                 for r in recent:
                     lines.append(f"  [{r[1]}] practiced={r[2]} passed={r[3]}: {r[4] or 'N/A'}")
-                context_parts.append(f"=== RECENT DREAM CYCLES ===\n" + "\n".join(lines))
+                context_parts.append("=== RECENT DREAM CYCLES ===\n" + "\n".join(lines))
         except Exception:
             pass
 
@@ -341,9 +340,8 @@ def _load_agent_registry() -> dict:
         return _agent_registry_cache
 
     from pathlib import Path
-    registry_path = (
-        Path(os.environ.get("BASE_DIR", ".")) / "config" / "agent_registry.json"
-    )
+
+    registry_path = Path(os.environ.get("BASE_DIR", ".")) / "config" / "agent_registry.json"
     if not registry_path.exists():
         logger.warning("agent_registry.json not found — agents will use defaults")
         _agent_registry_cache = {}
@@ -352,9 +350,7 @@ def _load_agent_registry() -> dict:
     try:
         data = json.loads(registry_path.read_text())
         _agent_registry_cache = data.get("hat_agents", {})
-        logger.info(
-            f"Loaded {len(_agent_registry_cache)} agent profiles from registry"
-        )
+        logger.info(f"Loaded {len(_agent_registry_cache)} agent profiles from registry")
         return _agent_registry_cache
     except Exception as exc:
         logger.error(f"Failed to load agent_registry.json: {exc}")
@@ -377,6 +373,7 @@ def _call_ollama(
         # Read from settings if available
         try:
             from pathlib import Path
+
             settings_path = Path(os.environ.get("BASE_DIR", ".")) / "config" / "settings.json"
             if settings_path.exists():
                 settings = json.loads(settings_path.read_text())
@@ -415,6 +412,7 @@ def _call_ollama(
             sec_hdrs["Authorization"] = f"Bearer {_OLLAMA_SECONDARY_KEY}"
         if _OLLAMA_STRATEGY == "round_robin":
             import random
+
             if random.random() > 0.5:
                 endpoints = [(_OLLAMA_HOST_SECONDARY, sec_hdrs), (_OLLAMA_HOST, {})]
             else:
@@ -459,30 +457,34 @@ def _parse_findings(hat_name: str, raw_response: str) -> list[HatFinding]:
     start = text.find("[")
     end = text.rfind("]")
     if start >= 0 and end > start:
-        text = text[start:end + 1]
+        text = text[start : end + 1]
 
     try:
         items = json.loads(text)
         if isinstance(items, list):
             for item in items:
                 if isinstance(item, dict):
-                    findings.append(HatFinding(
-                        hat=hat_name,
-                        severity=item.get("severity", "MEDIUM"),
-                        title=item.get("title", "Untitled"),
-                        description=item.get("description", ""),
-                        recommendation=item.get("recommendation", ""),
-                    ))
+                    findings.append(
+                        HatFinding(
+                            hat=hat_name,
+                            severity=item.get("severity", "MEDIUM"),
+                            title=item.get("title", "Untitled"),
+                            description=item.get("description", ""),
+                            recommendation=item.get("recommendation", ""),
+                        )
+                    )
     except json.JSONDecodeError:
         # If JSON parsing fails, create a single finding with the raw text
         logger.warning(f"Could not parse JSON from {hat_name} hat response")
-        findings.append(HatFinding(
-            hat=hat_name,
-            severity="INFO",
-            title=f"{hat_name.title()} Hat Analysis",
-            description=raw_response[:500],
-            recommendation="Review raw analysis output manually.",
-        ))
+        findings.append(
+            HatFinding(
+                hat=hat_name,
+                severity="INFO",
+                title=f"{hat_name.title()} Hat Analysis",
+                description=raw_response[:500],
+                recommendation="Review raw analysis output manually.",
+            )
+        )
 
     return findings
 
@@ -501,7 +503,9 @@ def run_hat(
     hat_def = HAT_DEFINITIONS.get(hat_name)
     if hat_def is None:
         return HatReport(
-            hat=hat_name, emoji="❓", focus="unknown",
+            hat=hat_name,
+            emoji="❓",
+            focus="unknown",
             error=f"Unknown hat: {hat_name}",
         )
 
@@ -562,10 +566,7 @@ def run_all_hats(
         logger.info(f"Running {hat_name} hat analysis...")
         report = run_hat(hat_name, conn=conn, model=model)
         reports.append(report)
-        logger.info(
-            f"  {report.emoji} {hat_name}: "
-            f"{len(report.findings)} findings"
-        )
+        logger.info(f"  {report.emoji} {hat_name}: {len(report.findings)} findings")
 
     return reports
 

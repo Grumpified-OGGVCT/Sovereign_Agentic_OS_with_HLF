@@ -8,6 +8,7 @@ Covers:
   - OllamaDispatcher routing and downshift
   - Provider selection logic
 """
+
 from __future__ import annotations
 
 import json
@@ -79,9 +80,12 @@ class TestComplexityScore:
         long_text = " ".join(["word"] * 500)
         ast = {
             "program": [
-                {"tag": "PARALLEL", "args": [f"p{i}"],
-                 "epistemic_confidence": 0.5,
-                 "body": [{"tag": "SPAWN", "args": ["inner"]}]}
+                {
+                    "tag": "PARALLEL",
+                    "args": [f"p{i}"],
+                    "epistemic_confidence": 0.5,
+                    "body": [{"tag": "SPAWN", "args": ["inner"]}],
+                }
                 for i in range(20)
             ]
         }
@@ -233,10 +237,13 @@ class TestOllamaDispatcher:
             )
 
         with patch.object(
-            OllamaDispatcher, "_ollama_generate",
-            side_effect=lambda req: (_ for _ in ()).throw(RuntimeError("VRAM"))
-            if req.model == "big-model:70b"
-            else InferenceResult(text="ok", model=req.model, provider="ollama", latency_ms=50),
+            OllamaDispatcher,
+            "_ollama_generate",
+            side_effect=lambda req: (
+                (_ for _ in ()).throw(RuntimeError("VRAM"))
+                if req.model == "big-model:70b"
+                else InferenceResult(text="ok", model=req.model, provider="ollama", latency_ms=50)
+            ),
         ):
             # The generate method's downshift should catch the error and retry
             # with fallback_model

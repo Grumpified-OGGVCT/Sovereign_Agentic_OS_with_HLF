@@ -1,4 +1,5 @@
 """Tests for bootstrap stack healthchecks (mocked)."""
+
 from __future__ import annotations
 
 from pathlib import Path

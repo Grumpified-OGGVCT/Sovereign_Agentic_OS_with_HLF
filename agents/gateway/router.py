@@ -2,6 +2,7 @@
 MoMA Router — routes intents to the appropriate model based on complexity,
 VRAM availability, gas budget, and dynamic model downshifting.
 """
+
 from __future__ import annotations
 
 import json
@@ -179,20 +180,19 @@ def mediate_web_search(payload: dict[str, Any]) -> dict[str, Any]:
 # ─────────────────────────────────────────────────────────────────────────
 # Phase 3 — Registry-Aware Routing Engine
 # ─────────────────────────────────────────────────────────────────────────
-import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 
 # ALS audit logging
 try:
     from agents.core.logger import ALSLogger
+
     _routing_logger = ALSLogger(agent_role="moma-router", goal_id="routing")
 except ImportError:
     _routing_logger = None
 
 
 def _log_routing_decision(
-    profile: "AgentProfile",
+    profile: AgentProfile,
     intent_text: str,
     phase: str,
 ) -> None:
@@ -220,15 +220,16 @@ def _log_routing_decision(
 @dataclass
 class AgentProfile:
     """Rich routing result — replaces the bare model-name string."""
-    model: str                          # Selected model ID
-    provider: str = "ollama"            # "ollama" | "openrouter" | "cloud"
-    tier: str = "D"                     # Tier of selected model
-    system_prompt: str = ""             # From agent_templates or default
+
+    model: str  # Selected model ID
+    provider: str = "ollama"  # "ollama" | "openrouter" | "cloud"
+    tier: str = "D"  # Tier of selected model
+    system_prompt: str = ""  # From agent_templates or default
     tools: list[str] = field(default_factory=list)
     restrictions: dict[str, Any] = field(default_factory=dict)
     routing_trace: list[dict[str, Any]] = field(default_factory=list)
-    gas_remaining: int = -1             # Post-consumption gas balance
-    confidence: float = 0.5             # Router confidence in selection
+    gas_remaining: int = -1  # Post-consumption gas balance
+    confidence: float = 0.5  # Router confidence in selection
 
 
 # Tier walk order — Cloud-First isolation invariant
@@ -246,10 +247,15 @@ def _try_import_db():
     """Lazy-import db module from agents.core to avoid circular imports."""
     try:
         from agents.core.db import (
-            get_db, db_path, init_db,
-            get_models_by_tier, get_local_inventory,
-            get_agent_template, get_equivalents,
+            db_path,
+            get_agent_template,
+            get_db,
+            get_equivalents,
+            get_local_inventory,
+            get_models_by_tier,
+            init_db,
         )
+
         return get_db, db_path, init_db, get_models_by_tier, get_local_inventory, get_agent_template, get_equivalents
     except ImportError:
         return None
@@ -266,7 +272,6 @@ def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None =
     Falls back to legacy route_intent() if the registry is unavailable.
     """
     trace: list[dict[str, Any]] = []
-    meta = metadata or {}
     text_lower = intent_text.lower()
 
     # ── Specialization Pre-Routing Hooks ──────────────────────────────
@@ -314,11 +319,13 @@ def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None =
 
             for tier in _TIER_WALK_ORDER:
                 candidates = get_models_by_tier(conn, tier)
-                trace.append({
-                    "step": "tier_walk",
-                    "tier": tier,
-                    "candidates": len(candidates),
-                })
+                trace.append(
+                    {
+                        "step": "tier_walk",
+                        "tier": tier,
+                        "candidates": len(candidates),
+                    }
+                )
 
                 for candidate in candidates:
                     model_id = candidate["model_id"]
@@ -363,8 +370,7 @@ def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None =
             if specialization == "coding":
                 # Prefer devstral-small-2 or reasoning_model for coding
                 coding_candidates = [
-                    m["model_id"] for m in get_local_inventory(conn)
-                    if "devstral" in m["model_id"].lower()
+                    m["model_id"] for m in get_local_inventory(conn) if "devstral" in m["model_id"].lower()
                 ]
                 if coding_candidates:
                     selected_model = coding_candidates[0]

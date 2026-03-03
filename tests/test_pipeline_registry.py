@@ -1,4 +1,5 @@
 """Tests for the pipeline → registry.db bridge."""
+
 from __future__ import annotations
 
 import sqlite3
@@ -11,6 +12,7 @@ import pytest
 from agents.gateway.matrix_sync.pipeline import _persist_to_registry
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def registry_db(tmp_path: Path) -> Path:
@@ -65,6 +67,7 @@ def _make_dup_rows() -> list[dict[str, Any]]:
 
 
 # ── Tests ───────────────────────────────────────────────────────────────────
+
 
 def test_persist_creates_snapshot_and_models(registry_db: Path) -> None:
     """Pipeline results are persisted to registry.db with correct tiers."""

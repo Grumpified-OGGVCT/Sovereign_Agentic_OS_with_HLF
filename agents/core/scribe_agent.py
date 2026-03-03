@@ -8,6 +8,7 @@ Responsibilities:
 4. Publish to ``arbiter_events`` on budget breach.
 5. Gas-accounted: each audit costs 1 unit from the per-tier bucket.
 """
+
 from __future__ import annotations
 
 import json
@@ -87,9 +88,7 @@ def audit_budget(
 
     def _run(c: sqlite3.Connection) -> BudgetStatus:
         try:
-            row = c.execute(
-                "SELECT COALESCE(SUM(token_count), 0) FROM rolling_context"
-            ).fetchone()
+            row = c.execute("SELECT COALESCE(SUM(token_count), 0) FROM rolling_context").fetchone()
             used = int(row[0]) if row else 0
         except Exception:
             used = 0
@@ -120,14 +119,16 @@ def _publish_budget_alert(r: Any, status: BudgetStatus) -> None:
         r.xadd(
             ARBITER_EVENTS_STREAM,
             {
-                "data": json.dumps({
-                    "event_type": "BUDGET_GATE",
-                    "source_agent": "scribe",
-                    "tokens_used": status.tokens_used,
-                    "budget": status.budget,
-                    "pct": round(status.pct, 4),
-                    "ts": time.time(),
-                }),
+                "data": json.dumps(
+                    {
+                        "event_type": "BUDGET_GATE",
+                        "source_agent": "scribe",
+                        "tokens_used": status.tokens_used,
+                        "budget": status.budget,
+                        "pct": round(status.pct, 4),
+                        "ts": time.time(),
+                    }
+                ),
             },
         )
     except Exception as exc:
@@ -137,6 +138,7 @@ def _publish_budget_alert(r: Any, status: BudgetStatus) -> None:
 # --------------------------------------------------------------------------- #
 # Background consumer
 # --------------------------------------------------------------------------- #
+
 
 def _consume_loop(stop_event: threading.Event) -> None:
     """Redis XREADGROUP consumer for ``scribe_events``."""
@@ -169,7 +171,7 @@ def _consume_loop(stop_event: threading.Event) -> None:
                 continue
 
             for _stream, entries in messages:
-                for entry_id, data in entries:
+                for entry_id, _data in entries:
                     try:
                         if not consume_gas(tier, AUDIT_GAS_COST, r):
                             _logger.log("SCRIBE_GAS_EXHAUSTED", {}, anomaly_score=0.3)

@@ -1,4 +1,5 @@
 """Tests for the APScheduler pipeline scheduler module."""
+
 from __future__ import annotations
 
 import json
@@ -19,6 +20,7 @@ from agents.gateway.matrix_sync.scheduler import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _reset_scheduler_state() -> None:
     """Reset module-level scheduler state between tests."""
     _sched._scheduler = None
@@ -31,6 +33,7 @@ def _reset_scheduler_state() -> None:
 # ---------------------------------------------------------------------------
 # _load_scheduler_settings
 # ---------------------------------------------------------------------------
+
 
 class TestLoadSchedulerSettings:
     def test_defaults_when_no_file(self, tmp_path: Path) -> None:
@@ -61,13 +64,14 @@ class TestLoadSchedulerSettings:
         with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
             cfg = _load_scheduler_settings()
         assert cfg["interval_hours"] == 3
-        assert cfg["enabled"] is True   # default
-        assert cfg["promote"] is True   # default
+        assert cfg["enabled"] is True  # default
+        assert cfg["promote"] is True  # default
 
 
 # ---------------------------------------------------------------------------
 # get_scheduler_status
 # ---------------------------------------------------------------------------
+
 
 class TestGetSchedulerStatus:
     def setup_method(self) -> None:
@@ -82,14 +86,23 @@ class TestGetSchedulerStatus:
 
     def test_status_has_all_required_keys(self) -> None:
         status = get_scheduler_status()
-        required_keys = {"enabled", "running", "interval_hours", "promote",
-                         "last_run_time", "last_run_status", "last_run_error", "next_run_time"}
+        required_keys = {
+            "enabled",
+            "running",
+            "interval_hours",
+            "promote",
+            "last_run_time",
+            "last_run_status",
+            "last_run_error",
+            "next_run_time",
+        }
         assert required_keys.issubset(status.keys())
 
 
 # ---------------------------------------------------------------------------
 # start_scheduler / stop_scheduler
 # ---------------------------------------------------------------------------
+
 
 class TestStartStopScheduler:
     def setup_method(self) -> None:
@@ -151,14 +164,17 @@ class TestStartStopScheduler:
 # _run_job
 # ---------------------------------------------------------------------------
 
+
 class TestRunJob:
     def setup_method(self) -> None:
         _reset_scheduler_state()
 
     def test_run_job_on_success_sets_ok_status(self) -> None:
         with (
-            patch("agents.gateway.matrix_sync.scheduler._load_scheduler_settings",
-                  return_value={"enabled": True, "interval_hours": 6, "promote": True}),
+            patch(
+                "agents.gateway.matrix_sync.scheduler._load_scheduler_settings",
+                return_value={"enabled": True, "interval_hours": 6, "promote": True},
+            ),
             patch("agents.gateway.matrix_sync.pipeline.run_pipeline_scheduled") as mock_run,
         ):
             _run_job()
@@ -169,10 +185,13 @@ class TestRunJob:
 
     def test_run_job_on_error_sets_error_status(self) -> None:
         with (
-            patch("agents.gateway.matrix_sync.scheduler._load_scheduler_settings",
-                  return_value={"enabled": True, "interval_hours": 6, "promote": True}),
-            patch("agents.gateway.matrix_sync.pipeline.run_pipeline_scheduled",
-                  side_effect=RuntimeError("network down")),
+            patch(
+                "agents.gateway.matrix_sync.scheduler._load_scheduler_settings",
+                return_value={"enabled": True, "interval_hours": 6, "promote": True},
+            ),
+            patch(
+                "agents.gateway.matrix_sync.pipeline.run_pipeline_scheduled", side_effect=RuntimeError("network down")
+            ),
         ):
             _run_job()
         assert _sched._last_run_status == "error"
@@ -180,8 +199,10 @@ class TestRunJob:
 
     def test_run_job_passes_promote_false(self) -> None:
         with (
-            patch("agents.gateway.matrix_sync.scheduler._load_scheduler_settings",
-                  return_value={"enabled": True, "interval_hours": 6, "promote": False}),
+            patch(
+                "agents.gateway.matrix_sync.scheduler._load_scheduler_settings",
+                return_value={"enabled": True, "interval_hours": 6, "promote": False},
+            ),
             patch("agents.gateway.matrix_sync.pipeline.run_pipeline_scheduled") as mock_run,
         ):
             _run_job()
@@ -191,6 +212,7 @@ class TestRunJob:
 # ---------------------------------------------------------------------------
 # pipeline.run_pipeline_scheduled
 # ---------------------------------------------------------------------------
+
 
 class TestRunPipelineScheduled:
     def test_accepts_promote_true(self) -> None:
@@ -214,6 +236,7 @@ class TestRunPipelineScheduled:
 # settings.json pipeline_scheduler block
 # ---------------------------------------------------------------------------
 
+
 class TestSettingsJsonSchema:
     def test_settings_json_has_pipeline_scheduler(self, repo_root: Path) -> None:
         path = repo_root / "config" / "settings.json"
@@ -224,4 +247,3 @@ class TestSettingsJsonSchema:
         assert "enabled" in cfg
         assert "promote" in cfg
         assert cfg["interval_hours"] == 6
-
