@@ -154,13 +154,14 @@ def get_host_function_count() -> int:
 
 def check_local_node_status() -> tuple[str, str]:
     """Check if the Local Autonomous Node is running by inspecting its heartbeat log."""
+    import time
     log_path = _PROJECT_ROOT / "logs" / "local_node.log"
     try:
         if log_path.exists():
             # Check if updated in the last 2 minutes
             mtime = os.path.getmtime(log_path)
             if (time.time() - mtime) < 120:
-                with open(log_path, 'r') as f:
+                with open(log_path) as f:
                     lines = f.readlines()
                     if lines:
                         last_line = lines[-1].strip()
@@ -1466,7 +1467,7 @@ with right_pane:
     # Try to load registry data from db.py
     _registry_loaded = False
     try:
-        from agents.core.db import get_db, get_active_snapshot, get_all_models, get_local_inventory
+        from agents.core.db import get_active_snapshot, get_all_models, get_db, get_local_inventory
         _db_path = _PROJECT_ROOT / "data" / "registry.db"
         if _db_path.exists():
             with get_db(_db_path) as _conn:
@@ -1569,7 +1570,7 @@ with right_pane:
         with _fb_cols[0]:
             if st.button("👍", key="fb_up", help="Rate this response positively"):
                 try:
-                    from agents.core.db import get_db, add_feedback
+                    from agents.core.db import add_feedback, get_db
                     _db_path = _PROJECT_ROOT / "data" / "registry.db"
                     with get_db(_db_path) as _conn:
                         add_feedback(_conn, _last_model, 5, "thumbs_up")
@@ -1579,7 +1580,7 @@ with right_pane:
         with _fb_cols[1]:
             if st.button("👎", key="fb_down", help="Rate this response negatively"):
                 try:
-                    from agents.core.db import get_db, add_feedback
+                    from agents.core.db import add_feedback, get_db
                     _db_path = _PROJECT_ROOT / "data" / "registry.db"
                     with get_db(_db_path) as _conn:
                         add_feedback(_conn, _last_model, 1, "thumbs_down")
