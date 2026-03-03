@@ -79,10 +79,10 @@ def compute_sync_actions(cloud: list[ModelTag], local: list[ModelTag], pull_targ
     actions: list[SyncAction] = []
     for c in cloud:
         nid = normalize_model_id(c.name)
-        l = local_map.get(nid)
+        loc = local_map.get(nid)
         pull_target = pull_target_fn(c.name)
 
-        if l is None:
+        if loc is None:
             actions.append(
                 SyncAction(
                     normalized_id=nid,
@@ -99,8 +99,8 @@ def compute_sync_actions(cloud: list[ModelTag], local: list[ModelTag], pull_targ
             )
             continue
 
-        cdt, ldt = parse_iso(c.modified_at), parse_iso(l.modified_at)
-        if c.digest and l.digest and c.digest != l.digest:
+        cdt, ldt = parse_iso(c.modified_at), parse_iso(loc.modified_at)
+        if c.digest and loc.digest and c.digest != loc.digest:
             action, reason = "REPULL", "digest changed"
         elif cdt and ldt and cdt > ldt:
             action, reason = "REPULL", "cloud newer modified_at"
@@ -111,14 +111,14 @@ def compute_sync_actions(cloud: list[ModelTag], local: list[ModelTag], pull_targ
             SyncAction(
                 normalized_id=nid,
                 cloud_name=c.name,
-                local_name=l.name,
+                local_name=loc.name,
                 action=action,
                 reason=reason,
                 pull_target=pull_target,
                 cloud_digest=c.digest,
-                local_digest=l.digest,
+                local_digest=loc.digest,
                 cloud_modified_at=c.modified_at,
-                local_modified_at=l.modified_at,
+                local_modified_at=loc.modified_at,
             )
         )
     return actions

@@ -615,30 +615,3 @@ Professional README: title "Sovereign Agentic OS with HLF". Mermaid architecture
 7. **Phase 5 (language evolution) and GUI (Phase 5.4)** are post-Genesis — not scaffolded beyond placeholders.
 8. **Dapr mTLS** enforced on Tier 2/3.
 9. Focus on **Phases 1-4** for initial build.
-
-## CODE REVIEW: 11-Hat Aegis-Nexus Framework
-
-When reviewing PRs or code, organize your findings using the 11-Hat methodology. **Auto-select** which hats apply based on the files changed:
-
-| Hat | Focus | Apply When |
-|-----|-------|------------|
-| 🔴 Red | Fail-states, crashes, race conditions | Error handling, DB ops, shared state |
-| ⚫ Black | Security exploits, injection, escalation | **Always** — auth, input, file I/O, agents |
-| ⚪ White | Token waste, gas budgets, memory | LLM calls, loops, data processing |
-| 🟡 Yellow | Synergies, 10x improvements | New features, cross-component changes |
-| 🟢 Green | Evolution gaps, missing wiring | New capabilities, architecture changes |
-| 🔵 Blue | Process, spec completeness, docs | **Always** — consistency, test coverage |
-| 🟣 Indigo | Cross-feature DRY, gate fusion | Multi-file changes, refactors |
-| 🩵 Cyan | Innovation feasibility | New patterns, experimental features |
-| 🟪 Purple | AI safety, OWASP LLM Top 10 | **Always** — agent behavior, prompts, PII |
-| 🟠 Orange | DevOps, CI/CD, Docker, Git | Pipelines, configs, deployment |
-| 🪨 Silver | Context/token optimization | Prompt construction, context building |
-
-### Severity Levels
-- 🔴 **CRITICAL** — Must fix before merge
-- 🟠 **HIGH** — Should fix before merge
-- 🟡 **MEDIUM** — Fix soon
-- 🟢 **LOW** — Nice to have
-
-### Anti-Reductionist Mandate
-Never produce empty "all clean" reviews. Every review must identify at least one area for improvement or explicitly justify with evidence why nothing was found. Empty reviews are forbidden.

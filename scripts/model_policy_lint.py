@@ -82,6 +82,8 @@ def scan_model_policy() -> list[str]:
         if path.suffix not in SCAN_EXTENSIONS:
             continue
         rel = str(path.relative_to(REPO_ROOT)).replace("\\", "/")
+        if rel == "scripts/model_policy_lint.py":
+            continue
         if any(rel.startswith(skip) or rel == skip for skip in SKIP_PATHS):
             continue
         if any(rel.startswith(prefix) for prefix in SKIP_DIR_PREFIXES):

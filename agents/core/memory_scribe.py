@@ -35,6 +35,7 @@ def _get_connection() -> sqlite3.Connection:
     _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(_DB_PATH), check_same_thread=False)
     conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=5000")
     try:
         conn.enable_load_extension(True)
         if sqlite_vec is not None:
@@ -105,7 +106,7 @@ def _sha256_cache_key(text: str) -> str:
 def write_fact(
     conn: sqlite3.Connection,
     entity_id: str,
-    vector_embedding: Optional[list[float]],
+    vector_embedding: list[float] | None,
     semantic_relationship: str,
     confidence_score: float,
 ) -> None:

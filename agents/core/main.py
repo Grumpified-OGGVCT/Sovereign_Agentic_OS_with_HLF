@@ -12,6 +12,7 @@ For each received intent the executor:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import signal
@@ -107,9 +108,8 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
     ollama_api_key = os.environ.get("OLLAMA_API_KEY")
     is_cloud = effective_model.endswith(":cloud") or openrouter_api or ollama_api_key
 
-    if is_cloud:
+    if is_cloud and openrouter_api:
         # Use OpenRouter as primary cloud bridge if available
-        if openrouter_api:
             _logger.log("CLOUD_INFERENCE_START", {"provider": "openrouter", "model": effective_model})
             try:
                 resp = httpx.post(
@@ -154,11 +154,12 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
     last_exc = None
     for host, headers in _get_ollama_endpoints():
         try:
+            # Enforce strict 12s timeout for Ollama endpoint calls
             resp = httpx.post(
                 f"{host}/api/generate",
                 json=payload,
                 headers={"Content-Type": "application/json", **headers},
-                timeout=60.0,
+                timeout=12.0,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -240,11 +241,12 @@ def _ollama_generate_v2(text: str, profile: Any) -> str:
     last_exc = None
     for host, headers in _get_ollama_endpoints():
         try:
+            # Enforce strict 12s timeout for Ollama V2 endpoint calls
             resp = httpx.post(
                 f"{host}/api/generate",
                 json=payload,
                 headers={"Content-Type": "application/json", **headers},
-                timeout=60.0,
+                timeout=12.0,
             )
             resp.raise_for_status()
             _logger.log("OLLAMA_V2_ENDPOINT_USED", {"host": host, "model": model})
@@ -367,10 +369,8 @@ def run() -> None:
         )
         group = "executor-group"
         stream = "intents"
-        try:
+        with contextlib.suppress(Exception):
             r.xgroup_create(stream, group, id="0", mkstream=True)
-        except Exception:
-            pass  # consumer group already exists
 
         _logger.log("CONSUMER_GROUP_READY", {"stream": stream, "group": group})
 

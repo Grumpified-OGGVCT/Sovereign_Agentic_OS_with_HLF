@@ -8,6 +8,7 @@ real-time metrics. Falls back gracefully when services are unavailable.
 
 import json
 import os
+import time
 import urllib.request
 from pathlib import Path
 

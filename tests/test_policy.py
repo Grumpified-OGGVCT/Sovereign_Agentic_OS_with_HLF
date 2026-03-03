@@ -17,6 +17,7 @@ def _make_mock_redis(**overrides):
     mock.incr = AsyncMock(return_value=overrides.get("incr", 1))
     mock.expire = AsyncMock(return_value=True)
     mock.set = AsyncMock(return_value=overrides.get("set", True))
+    mock.exists = AsyncMock(return_value=overrides.get("exists", False))
     mock.xadd = AsyncMock(return_value="1-0")
     # Global Per-Tier Gas Bucket: eval returns remaining gas (positive = OK, -1 = exhausted)
     mock.eval = AsyncMock(return_value=overrides.get("gas_eval", 999))

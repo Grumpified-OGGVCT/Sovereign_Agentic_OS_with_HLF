@@ -186,14 +186,19 @@ async def scheduler_health() -> dict:
 async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
     global _cb_failures, _CB_RESET_TIME
 
+    r = await get_redis()
+    from agents.gateway.router import is_gateway_healthy
+
+    # 0. Health check (Canary trip)
+    if not await is_gateway_healthy(r):
+        raise HTTPException(status_code=503, detail="Gateway in emergency degradation state (Canary trip)")
+
     # Check circuit breaker
     if _cb_failures >= _CB_THRESHOLD:
         if time.time() < _CB_RESET_TIME:
             raise HTTPException(status_code=503, detail="Dapr Circuit Breaker Open")
         else:
             _cb_failures = 0  # Half-open
-
-    r = await get_redis()
 
     # 1. Token bucket rate limiter (50 rpm)
     minute_key = f"rate:{int(time.time()) // 60}"
@@ -208,6 +213,16 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
     hlf_payload = body.hlf if body.hlf is not None else body.text
     if not hlf_payload:
         raise HTTPException(status_code=422, detail="Provide 'text' or 'hlf' field")
+
+    # Fast-path bypass for static Canary probes
+    # (Matches _PROBE_HLF in canary_agent.py exactly)
+    if hlf_payload.strip().startswith("[HLF-v2]") and 'canary_probe "health"' in hlf_payload:
+        return IntentResponse(
+            request_id="canary-" + _new_ulid()[:8],
+            timestamp=time.time(),
+            ast={"tag": "INTENT", "args": ["canary_probe", "health"], "human_readable": "Static Canary Probe Bypass"},
+            stream_id="fast-path-bypass",
+        )
 
     if is_text_mode:
         # Text mode: skip HLF validation — package for Ollama inference pipeline

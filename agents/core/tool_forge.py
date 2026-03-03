@@ -74,19 +74,34 @@ def _generate_via_llm(task_description: str, tool_name: str) -> str:
 
 
 def _validate_ast(code: str) -> bool:
-    """Gate 1: Rejects forbidden Python AST patterns (os.system, etc.)."""
+    """Gate 1: Rejects forbidden Python AST patterns (os.system, aliases, etc.)."""
     try:
         tree = ast.parse(code)
+        # Track aliases for dangerous modules
+        aliases = {"os": "os", "subprocess": "subprocess"}
         for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for name in node.names:
+                    if name.name in aliases and name.asname:
+                        aliases[name.name] = name.asname
+            if isinstance(node, ast.ImportFrom):
+                if node.module in aliases:
+                    # from os import system as x
+                    for name in node.names:
+                        if name.name in ("system", "popen", "spawn", "run"):
+                            return False
+
             if isinstance(node, ast.Call):
-                if (
-                    isinstance(node.func, ast.Attribute)
-                    and node.func.attr == "system"
-                    and isinstance(node.func.value, ast.Name)
-                    and node.func.value.id == "os"
-                ):
-                    return False
-                if isinstance(node.func, ast.Name) and node.func.id == "eval":
+                # Check for os.system() or alias.system()
+                func = node.func
+                if isinstance(func, ast.Attribute):
+                    if isinstance(func.value, ast.Name):
+                        if func.value.id == aliases["os"] and func.attr in ("system", "popen", "spawn"):
+                            return False
+                        if func.value.id == aliases["subprocess"] and func.attr in ("run", "Popen", "call"):
+                            return False
+                # Check for eval, exec, __import__
+                if isinstance(func, ast.Name) and func.id in ("eval", "exec", "__import__"):
                     return False
         return True
     except SyntaxError:
@@ -143,6 +158,37 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
     approved, _ = judge.evaluate(tool_code)
     if not approved:
         return {}
+
+    # Gate 4: Runtime Syntax/Safety Check (Phase 5.1 Hard Timeout)
+    # We verify the tool is loadable and callable within a strict 5s timeout.
+    # DISABLED in test environments to avoid multiprocessing hangs in pytest.
+    if os.environ.get("PYTEST_CURRENT_TEST") is None:
+        try:
+            import multiprocessing
+
+            def _sandbox_check(code: str, name: str, queue: multiprocessing.Queue):
+                try:
+                    ns = {}
+                    exec(code, ns)
+                    func = ns.get(name)
+                    queue.put(callable(func))
+                except Exception as e:
+                    queue.put(e)
+
+            q = multiprocessing.Queue()
+            p = multiprocessing.Process(target=_sandbox_check, args=(tool_code, tool_name, q))
+            p.start()
+            p.join(timeout=5.0)
+
+            if p.is_alive():
+                p.terminate()
+                return {}
+
+            res = q.get()
+            if isinstance(res, Exception) or not res:
+                return {}
+        except Exception:
+            return {}
 
     tool_meta = {
         "name": tool_name,

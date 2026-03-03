@@ -8,10 +8,19 @@ from __future__ import annotations
 import json
 import os
 import time
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
 from pydantic_settings import BaseSettings
+
+# ALS audit logging
+try:
+    from agents.core.logger import ALSLogger
+
+    _routing_logger = ALSLogger(agent_role="moma-router", goal_id="routing")
+except ImportError:
+    _routing_logger = None
 
 
 class Settings(BaseSettings):
@@ -120,6 +129,20 @@ def _is_cloud(model: str) -> bool:
     return model.endswith(":cloud")
 
 
+import inspect
+
+
+async def is_gateway_healthy(r: Any) -> bool:
+    """Return False if the Canary agent has tripped the health signal."""
+    try:
+        res = r.exists("health:gateway:failed")
+        if inspect.isawaitable(res):
+            return not await res
+        return not res
+    except Exception:
+        return True  # Fail-open
+
+
 def route_intent(intent_text: str, ast: dict) -> str:
     """Return the model name appropriate for this intent."""
     text_lower = intent_text.lower()
@@ -150,7 +173,8 @@ def check_vram_threshold(model: str, client: httpx.Client | None = None) -> bool
         hosts.append(settings.ollama_host_secondary)
     for host in hosts:
         try:
-            c = client or httpx.Client(timeout=5)
+            # Enforce strict 12s timeout for Ollama checks
+            c = client or httpx.Client(timeout=12.0)
             resp = c.get(f"{host}/api/ps")
             if resp.status_code != 200:
                 continue
@@ -180,15 +204,6 @@ def mediate_web_search(payload: dict[str, Any]) -> dict[str, Any]:
 # ─────────────────────────────────────────────────────────────────────────
 # Phase 3 — Registry-Aware Routing Engine
 # ─────────────────────────────────────────────────────────────────────────
-from dataclasses import dataclass, field
-
-# ALS audit logging
-try:
-    from agents.core.logger import ALSLogger
-
-    _routing_logger = ALSLogger(agent_role="moma-router", goal_id="routing")
-except ImportError:
-    _routing_logger = None
 
 
 def _log_routing_decision(

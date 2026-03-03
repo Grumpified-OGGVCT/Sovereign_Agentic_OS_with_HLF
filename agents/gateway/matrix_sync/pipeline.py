@@ -336,17 +336,17 @@ def run_pipeline(args: argparse.Namespace | None = None) -> None:
     raw_rows: list[dict] = []
     dup_rows: list[dict] = []
 
-    for l in local_scope:
+    for loc in local_scope:
         dup_rows.append(
             {
-                "local_model": l.name,
-                "normalized_id": normalize_model_id(l.name),
-                "family_guess": model_root(l.name),
-                "is_community_fork": str("/" in l.name).lower(),
-                "canonical_official_family_guess": model_root(l.name),
-                "digest": l.digest,
-                "modified_at": l.modified_at,
-                "size_bytes": l.size or "",
+                "local_model": loc.name,
+                "normalized_id": normalize_model_id(loc.name),
+                "family_guess": model_root(loc.name),
+                "is_community_fork": str("/" in loc.name).lower(),
+                "canonical_official_family_guess": model_root(loc.name),
+                "digest": loc.digest,
+                "modified_at": loc.modified_at,
+                "size_bytes": loc.size or "",
             }
         )
 

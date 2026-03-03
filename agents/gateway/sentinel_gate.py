@@ -5,6 +5,7 @@ Loads ALIGN_LEDGER.yaml at startup and compiles all regex_block patterns.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -32,9 +33,6 @@ def _load_ledger() -> None:
 
 
 _load_ledger()
-
-
-import json
 
 
 def enforce_align(payload: str | dict) -> tuple[bool, str]:

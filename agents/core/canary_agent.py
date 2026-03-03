@@ -10,7 +10,6 @@ Responsibilities:
    canary queries the Fact_Store for low-confidence vector clusters and logs them for
    autonomous follow-up research during the Dreaming State.
 """
-
 from __future__ import annotations
 
 import os
@@ -26,7 +25,13 @@ from agents.core.logger import ALSLogger
 _logger = ALSLogger(agent_role="canary-agent", goal_id="synthetic-probe")
 
 # Synthetic probe payload — a minimal valid HLF intent that the gateway can parse
-_PROBE_HLF = '[HLF-v2]\n[INTENT] canary_probe "health"\n[EXPECT] "ok"\n[RESULT] code=0 message="canary"\nΩ\n'
+_PROBE_HLF = (
+    "[HLF-v2]\n"
+    "[INTENT] canary_probe \"health\"\n"
+    "[EXPECT] \"ok\"\n"
+    "[RESULT] code=0 message=\"canary\"\n"
+    "Ω\n"
+)
 
 _PROBE_INTERVAL_SEC: int = int(os.environ.get("CANARY_PROBE_INTERVAL", "900"))  # 15 min
 _IDLE_THRESHOLD_SEC: int = int(os.environ.get("CANARY_IDLE_THRESHOLD", "3600"))  # 60 min
@@ -38,9 +43,12 @@ _DB_PATH = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "sqlite" / "memor
 # Probe logic
 # --------------------------------------------------------------------------- #
 
+_probe_failure_count = 0
+
 
 def _fire_probe() -> bool:
     """Send a synthetic probe intent to the gateway. Returns True on success."""
+    global _probe_failure_count
     try:
         resp = httpx.post(
             f"{_GATEWAY_URL}/api/v1/intent",
@@ -54,18 +62,32 @@ def _fire_probe() -> bool:
                 confidence_score=1.0,
                 anomaly_score=0.0,
             )
+            _probe_failure_count = 0
             return True
+
+        _probe_failure_count += 1
         _logger.log(
             "CANARY_PROBE_FAIL",
-            {"status": resp.status_code, "detail": resp.text[:200]},
+            {"status": resp.status_code, "detail": resp.text[:200], "consecutive_failures": _probe_failure_count},
             confidence_score=0.0,
             anomaly_score=1.0,  # fires Semantic Outlier Trap
         )
+        if _probe_failure_count >= 3:
+            _logger.log("CANARY_CRITICAL_THRESHOLD", {"failures": _probe_failure_count}, anomaly_score=1.0)
+            # Trip a system-wide health signal (e.g., set a Redis key that the router checks)
+            try:
+                import redis
+
+                r = redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+                r.setex("health:gateway:failed", 600, "true")  # 10 min TTL
+            except Exception:
+                pass
         return False
     except Exception as exc:
+        _probe_failure_count += 1
         _logger.log(
             "CANARY_PROBE_ERROR",
-            {"error": str(exc)},
+            {"error": str(exc), "consecutive_failures": _probe_failure_count},
             confidence_score=0.0,
             anomaly_score=1.0,
         )
@@ -75,7 +97,6 @@ def _fire_probe() -> bool:
 # --------------------------------------------------------------------------- #
 # Idle Curiosity Protocol
 # --------------------------------------------------------------------------- #
-
 
 def _idle_curiosity_scan(db_path: Path | None = None) -> list[dict[str, Any]]:
     """
@@ -120,7 +141,6 @@ def _idle_curiosity_scan(db_path: Path | None = None) -> list[dict[str, Any]]:
 # Background loop
 # --------------------------------------------------------------------------- #
 
-
 def _canary_loop(stop_event: threading.Event) -> None:
     """
     Main canary loop.  Runs in a daemon thread.
@@ -128,29 +148,41 @@ def _canary_loop(stop_event: threading.Event) -> None:
     - Fires a synthetic probe every CANARY_PROBE_INTERVAL seconds.
     - Checks for idle system every tick; triggers curiosity scan if idle.
     """
-    from agents.gateway.router import get_last_intent_timestamp, is_system_idle
+    from agents.gateway.router import is_system_idle, get_last_intent_timestamp
 
     last_probe = 0.0
     while not stop_event.is_set():
-        now = time.time()
+        try:
+            now = time.time()
 
-        # 15-min probe
-        if now - last_probe >= _PROBE_INTERVAL_SEC:
-            _fire_probe()
-            last_probe = now
+            # 15-min probe
+            if now - last_probe >= _PROBE_INTERVAL_SEC:
+                _fire_probe()
+                last_probe = now
 
-        # Idle Curiosity Protocol (60-min zero-intent threshold)
-        if is_system_idle(_IDLE_THRESHOLD_SEC):
-            gaps = _idle_curiosity_scan()
-            if gaps:
-                _logger.log(
-                    "IDLE_CURIOSITY_TRIGGERED",
-                    {
-                        # Use the same last-intent timestamp that is_system_idle() checks
-                        "idle_sec": int(now - get_last_intent_timestamp()),
-                        "gaps": gaps[:5],  # include top-5 in trace
-                    },
-                )
+            # Idle Curiosity Protocol (60-min zero-intent threshold)
+            if is_system_idle(_IDLE_THRESHOLD_SEC):
+                gaps = _idle_curiosity_scan()
+                if gaps:
+                    _logger.log(
+                        "IDLE_CURIOSITY_TRIGGERED",
+                        {
+                            # Use the same last-intent timestamp that is_system_idle() checks
+                            "idle_sec": int(now - get_last_intent_timestamp()),
+                            "gaps": gaps[:5],  # include top-5 in trace
+                        },
+                    )
+                # Feed gaps to Dream State queue in Redis
+                try:
+                    import redis
+
+                    r = redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
+                    for gap in gaps[:5]:
+                        r.xadd("dream_state_queue", {"entity_id": gap["entity_id"], "confidence": str(gap["confidence"])})
+                except Exception:
+                    pass
+        except Exception as exc:
+            _logger.log("CANARY_LOOP_ERROR", {"error": str(exc)}, anomaly_score=0.5)
 
         stop_event.wait(timeout=60)  # check every 60 s
 
