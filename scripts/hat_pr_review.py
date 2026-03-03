@@ -242,7 +242,8 @@ def _build_pr_user_prompt(
 # ---------------------------------------------------------------------------
 
 _GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-_GEMINI_MODEL = "gemini-2.0-flash"  # fast, cheap, good for structured analysis
+_GEMINI_MODEL = "gemini-3.1-pro"  # primary: best reasoning for security analysis
+_GEMINI_FALLBACK_MODEL = "gemini-3.1-flash"  # fallback: used only on quota limits
 _GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
 _GITHUB_MODELS_DEFAULT = "openai/gpt-4o-mini"  # fast + included in Copilot quota
 _CIRCUIT_BREAKER_STATE = {
@@ -253,6 +254,7 @@ _CIRCUIT_BREAKER_STATE = {
     "total_input_chars": 0,
     "failed_hats": [],
     "skipped_hats": [],
+    "using_fallback_model": False,
 }
 
 
@@ -266,8 +268,11 @@ def _call_gemini(
 ) -> str:
     """Call Google Gemini API with circuit breaker protections.
 
+    Uses gemini-3.1-pro by default. On 429 quota errors, automatically
+    retries with gemini-3.1-flash before tripping the circuit breaker.
+
     Returns the text response, or empty string on failure.
-    Raises CircuitBreakerTripped if rate limited or budget exhausted.
+    Raises CircuitBreakerTripped if rate limited on both models or budget exhausted.
     """
     cb = _CIRCUIT_BREAKER_STATE
     model = model or _GEMINI_MODEL
@@ -317,8 +322,19 @@ def _call_gemini(
         except urllib.error.HTTPError as e:
             error_body = e.read().decode() if e.fp else ""
             if e.code == 429:
+                # If we're on Pro, try falling back to Flash before tripping breaker
+                if model == _GEMINI_MODEL and model != _GEMINI_FALLBACK_MODEL:
+                    logger.warning(
+                        f"  Gemini Pro quota hit (429). Falling back to {_GEMINI_FALLBACK_MODEL}..."
+                    )
+                    cb["using_fallback_model"] = True
+                    return _call_gemini(
+                        system_prompt, user_prompt, api_key,
+                        model=_GEMINI_FALLBACK_MODEL,
+                        max_retries=max_retries, timeout=timeout,
+                    )
                 cb["rate_limited"] = True
-                logger.warning("CIRCUIT BREAKER: Rate limited by Gemini API")
+                logger.warning("CIRCUIT BREAKER: Rate limited by Gemini API (both Pro and Flash)")
                 raise _CircuitBreakerTripped("rate_limited", f"HTTP 429: {error_body[:200]}")
             logger.warning(
                 f"  Gemini API error {e.code} (attempt {attempt}/{max_retries}): {error_body[:200]}"
@@ -366,8 +382,15 @@ def _format_manual_review_request(
     ]
 
     if cb_state.get("rate_limited"):
-        lines.append("🔴 **Rate Limited** — The Gemini API returned HTTP 429 (too many requests).")
+        lines.append("🔴 **Rate Limited** — The cloud API returned HTTP 429 (too many requests).")
         lines.append("This typically happens when multiple PRs trigger reviews simultaneously.")
+        lines.append("")
+    if cb_state.get("auth_failed"):
+        lines.append("🔴 **Authentication Failed** — The cloud API returned HTTP 403 Forbidden.")
+        lines.append("The `GITHUB_TOKEN` built into Actions does **not** have `models:read` scope.")
+        lines.append("")
+        lines.append("**Fix**: Add a `GEMINI_API_KEY` repo secret ([get one free](https://aistudio.google.com/apikey)), ")
+        lines.append("or create a PAT with `models:read` scope and set it as `GH_MODELS_TOKEN` secret.")
         lines.append("")
     if cb_state.get("budget_exhausted"):
         lines.append(f"🔴 **Budget Guard** — Estimated API cost exceeded the configured budget.")
@@ -461,6 +484,18 @@ def _call_github_models(
                 cb["rate_limited"] = True
                 logger.warning("CIRCUIT BREAKER: Rate limited by GitHub Models API")
                 raise _CircuitBreakerTripped("rate_limited", f"HTTP 429: {error_body[:200]}")
+            if e.code == 403:
+                logger.warning(
+                    "CIRCUIT BREAKER: GitHub Models API returned 403 Forbidden. "
+                    "The GITHUB_TOKEN likely lacks 'models:read' scope. "
+                    "Set GH_MODELS_TOKEN secret to a PAT with models scope, "
+                    "or switch to --cloud-backend gemini."
+                )
+                raise _CircuitBreakerTripped(
+                    "auth_failed",
+                    "HTTP 403: Token lacks models:read scope. Use a PAT with models scope "
+                    "(GH_MODELS_TOKEN secret) or switch to --cloud-backend gemini."
+                )
             logger.warning(
                 f"  GitHub Models API error {e.code} (attempt {attempt}/{max_retries}): {error_body[:200]}"
             )
@@ -614,7 +649,7 @@ def run_all_hats_pr(
             logger.warning(f"  CIRCUIT BREAKER tripped on {hat_name}: {e}")
             cb["failed_hats"].append(hat_name)
             # Don't continue if rate limited or budget blown
-            if e.breaker_type in ("rate_limited", "budget_exhausted"):
+            if e.breaker_type in ("rate_limited", "budget_exhausted", "auth_failed"):
                 remaining = [h for h in hats[i:] if h != hat_name]
                 cb["skipped_hats"].extend(remaining)
                 break
