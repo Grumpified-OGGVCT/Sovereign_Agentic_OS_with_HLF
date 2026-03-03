@@ -43,8 +43,7 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP(
     "sovereign-os",
     version="0.1.0",
-    description="Sovereign Agentic OS — MCP bridge for health, intent dispatch, "
-    "Dream Mode, Hat analysis, ALIGN governance, and memory queries.",
+    description="Sovereign Agentic OS — MCP bridge for health, intent dispatch, Dream Mode, Hat analysis, ALIGN governance, and memory queries.",
 )
 
 _BASE_DIR = Path(os.environ.get("BASE_DIR", str(Path(__file__).resolve().parent.parent)))
@@ -378,6 +377,104 @@ def get_dream_history(limit: int = 5) -> list[dict]:
     finally:
         conn.close()
 
+
+
+# ===========================================================================
+# Project Janus (Stolen History) Integration
+# ===========================================================================
+
+_janus_embedder = None
+_janus_chroma_client = None
+_janus_collection = None
+
+def _init_janus():
+    """Lazy load the heavy ML models and ChromaDB client."""
+    global _janus_embedder, _janus_chroma_client, _janus_collection
+    if _janus_embedder is None:
+        try:
+            import chromadb
+            from sentence_transformers import SentenceTransformer
+
+            _janus_embedder = SentenceTransformer('all-MiniLM-L6-v2')
+
+            chroma_path = _BASE_DIR.parent / "project_janus" / "data" / "chroma_db"
+            _janus_chroma_client = chromadb.PersistentClient(path=str(chroma_path))
+            _janus_collection = _janus_chroma_client.get_or_create_collection(name="stolen_history")
+        except Exception as e:
+            print(f"Error initializing Janus ML models: {e}")
+
+def _get_janus_db():
+    import sqlite3
+    db_path = _BASE_DIR.parent / "project_janus" / "data" / "vault.db"
+    return sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)
+
+@mcp.tool()
+def search_archives(query: str) -> list[dict]:
+    """
+    Search the local historical archives for a concept using semantic similarity.
+    Returns matching archival text with author and source metadata.
+
+    Args:
+        query: The concept or text to search for.
+    """
+    _init_janus()
+    if _janus_collection is None:
+        return [{"error": "Janus search engine not initialized or dependencies missing"}]
+
+    try:
+        vector = _janus_embedder.encode(query).tolist()
+        results = _janus_collection.query(query_embeddings=[vector], n_results=5)
+
+        output = "--- RAW ARCHIVAL DATA ---\n"
+        for doc, meta in zip(results['documents'][0], results['metadatas'][0], strict=False):
+            output += (
+                f"[Author: {meta.get('author', 'N/A')} "
+                f"| Source: {meta.get('source', 'N/A')}]\n"
+            )
+            output += f"{doc}\n-------------------------\n"
+
+        return [{"result": output}]
+    except Exception as e:
+        return [{"error": str(e)}]
+
+@mcp.tool()
+def view_thread_history(url: str) -> list[dict]:
+    """
+    Reconstruct a thread to show how it changed over time across all stored snapshots
+    (live and Wayback). Posts flagged as deleted are marked [DELETED] in the output.
+
+    Args:
+        url: The original thread URL.
+    """
+    try:
+        conn = _get_janus_db()
+        cur = conn.cursor()
+
+        rows = cur.execute(
+            """
+            SELECT p.author, p.content_clean, p.source_type, p.snapshot_date,
+                   p.is_deleted
+            FROM posts p
+            JOIN threads t ON p.thread_id = t.id
+            WHERE t.url = ?
+            ORDER BY p.post_external_id, p.snapshot_date
+            """,
+            (url,)
+        ).fetchall()
+        conn.close()
+
+        if not rows:
+            return [{"result": f"No history found for thread: {url}"}]
+
+        output = f"--- THREAD RECONSTRUCTION: {url} ---\n"
+        for row in rows:
+            author, content, source, date, is_deleted = row
+            deleted_marker = " [DELETED]" if is_deleted else ""
+            output += f"[{source.upper()} | {date}]{deleted_marker} {author}: {content}\n"
+
+        return [{"result": output}]
+    except Exception as e:
+        return [{"error": str(e)}]
 
 # ===========================================================================
 # MCP Resources

@@ -1,0 +1,3 @@
+[submodule "project_janus"]
+	path = project_janus
+	url = https://github.com/Grumpified-OGGVCT/Project_Janus.git
