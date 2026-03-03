@@ -242,8 +242,8 @@ def _build_pr_user_prompt(
 # ---------------------------------------------------------------------------
 
 _GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models"
-_GEMINI_MODEL = "gemini-3.1-pro"  # primary: best reasoning for security analysis
-_GEMINI_FALLBACK_MODEL = "gemini-3.1-flash"  # fallback: used only on quota limits
+_GEMINI_MODEL = "gemini-3.1-pro-preview"  # primary: best reasoning for security analysis
+_GEMINI_FALLBACK_MODEL = "gemini-2.5-flash"  # fallback: stable + cheap, used only on quota limits
 _GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
 _GITHUB_MODELS_DEFAULT = "openai/gpt-4o-mini"  # fast + included in Copilot quota
 _CIRCUIT_BREAKER_STATE = {
@@ -336,6 +336,15 @@ def _call_gemini(
                 cb["rate_limited"] = True
                 logger.warning("CIRCUIT BREAKER: Rate limited by Gemini API (both Pro and Flash)")
                 raise _CircuitBreakerTripped("rate_limited", f"HTTP 429: {error_body[:200]}")
+            if e.code == 404:
+                logger.warning(
+                    f"CIRCUIT BREAKER: Model '{model}' not found (404). "
+                    f"Verify model name in Gemini API docs."
+                )
+                raise _CircuitBreakerTripped(
+                    "model_not_found",
+                    f"HTTP 404: Model '{model}' does not exist. Check available models."
+                )
             logger.warning(
                 f"  Gemini API error {e.code} (attempt {attempt}/{max_retries}): {error_body[:200]}"
             )
@@ -649,7 +658,7 @@ def run_all_hats_pr(
             logger.warning(f"  CIRCUIT BREAKER tripped on {hat_name}: {e}")
             cb["failed_hats"].append(hat_name)
             # Don't continue if rate limited or budget blown
-            if e.breaker_type in ("rate_limited", "budget_exhausted", "auth_failed"):
+            if e.breaker_type in ("rate_limited", "budget_exhausted", "auth_failed", "model_not_found"):
                 remaining = [h for h in hats[i:] if h != hat_name]
                 cb["skipped_hats"].extend(remaining)
                 break
