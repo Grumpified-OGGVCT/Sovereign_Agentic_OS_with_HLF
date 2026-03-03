@@ -1054,15 +1054,14 @@ with center_canvas:
                         st.session_state["chat_messages"].append({"role": "assistant", "content": err_msg})
 
         # Clear chat button
-        if st.session_state.get("chat_messages") and st.button(
-            "🗑️ Clear Conversation",
-            key="clear_chat",
-            help="Clears the current conversation history. This action cannot be undone.",
-        ):
-            st.session_state["chat_messages"] = []
-            st.session_state.pop("openclaw_active", None)
-            st.session_state.pop("chat_model", None)
-            st.rerun()
+        if st.session_state.get("chat_messages"):
+            with st.popover("🗑️ Clear Conversation", help="Clears the current conversation history."):
+                st.markdown("⚠️ Are you sure? This action cannot be undone.")
+                if st.button("Yes, Clear Chat", type="primary", key="confirm_clear_chat"):
+                    st.session_state["chat_messages"] = []
+                    st.session_state.pop("openclaw_active", None)
+                    st.session_state.pop("chat_model", None)
+                    st.rerun()
 
     # ================================================================
     # TAB 2: INTENT DISPATCH (existing code)
@@ -1206,6 +1205,8 @@ with center_canvas:
                 submit = st.form_submit_button("Inject & Resume")
                 if submit and ticket_id:
                     st.success(f"Injected `{ticket_id}` into HLF stream. Agent will resume.")
+                elif submit and not ticket_id:
+                    st.warning("⚠️ Please provide a Data Payload to inject.")
 
         # Tri-Diff placeholder
         with st.expander("🔬 Tri-Diff Merge Conflict (State Arbitration)", expanded=False):
