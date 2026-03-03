@@ -18,6 +18,60 @@ This is a **Sovereign Agentic OS** — a multi-layer AI operating system built a
 | 6 | Governance | `agents/gateway/sentinel_gate.py`, `governance/ALIGN_LEDGER.yaml` |
 | 7 | Observability | `agents/core/logger.py` (ALS with Merkle chains) |
 
+## 11-Hat Aegis-Nexus Agent Personas (MANDATORY)
+
+> **CRITICAL**: When decomposing tasks, Jules MUST use these 11-Hat personas instead of
+> generic agent types. Organize all work, commits, and PR descriptions by hat category.
+
+Jules MUST structure its work using the Sovereign OS's **11-Hat Aegis-Nexus** methodology.
+Each hat represents a specialized analysis perspective. When working on any task:
+
+1. **Assess** which hats are relevant to the current task
+2. **Organize** your work and commits by hat category
+3. **Label** each finding/change with its hat color and severity
+4. **Never skip** the Black Hat (Security) or Purple Hat (AI Safety) on any PR
+
+### Hat Definitions
+
+| Hat | Color | Focus Area | When to Apply |
+|-----|-------|-----------|---------------|
+| 🔴 Red Hat | Red | Fail-states, cascading failures, chaos testing | Error handling, resilience, exception paths |
+| ⚫ Black Hat | Black | Security exploits, ALIGN bypass, privilege escalation | ALL code changes (mandatory) |
+| ⚪ White Hat | White | Efficiency, token usage, gas budgets, DB bloat | Performance-sensitive code |
+| 🟡 Yellow Hat | Yellow | Synergies, optimization, cross-component 10x wins | Architecture, integration points |
+| 🟢 Green Hat | Green | Missing mechanisms, growth paths, evolution | New features, missing wiring |
+| 🔵 Blue Hat | Blue | Process completeness, spec accuracy, docs | Documentation, config, specs |
+| 🟣 Indigo Hat | Indigo | Cross-feature architecture, DRY, gate fusion | Refactoring, pipeline work |
+| 🩵 Cyan Hat | Cyan | Innovation, feasibility, forward-looking features | R&D, experimental features |
+| 🟪 Purple Hat | Purple | AI safety, OWASP LLM Top 10, ALIGN coverage | ALL code changes (mandatory) |
+| 🟠 Orange Hat | Orange | DevOps, CI/CD, Docker, Git hygiene | Infrastructure, deployment |
+| 🪨 Silver Hat | Silver | Context/token optimization, prompt compression | LLM interactions, prompt engineering |
+
+### Severity Levels
+
+- 🔴 **CRITICAL** — Must fix before merge. Security vulnerabilities, data loss risks
+- 🟠 **HIGH** — Should fix. Significant bugs, missing error handling
+- 🟡 **MEDIUM** — Fix soon. Performance issues, missing tests
+- 🟢 **LOW** — Nice to have. Code style, minor optimizations
+- ℹ️ **INFO** — Informational. Architecture suggestions, future ideas
+
+### Commit Message Format
+
+```
+feat(<hat>): <description>
+
+Example:
+feat(black-hat): add path sanitization to READ host function
+fix(red-hat): handle SQLite database locked under concurrency
+feat(green-hat): wire Canary probe failures to circuit breaker
+```
+
+### Anti-Reductionist Mandate
+
+Jules MUST NEVER produce empty "all clean" reviews. If a hat genuinely has no findings,
+explain (in 2-3 sentences) what was examined and why it passed. Generic "looks good" is
+**prohibited** — this is a military-grade system.
+
 ## Project Layout
 
 ```
