@@ -5,6 +5,7 @@ VRAM availability, gas budget, and dynamic model downshifting.
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import time
@@ -127,9 +128,6 @@ def replenish_gas(tier: str, r: Any) -> None:
 
 def _is_cloud(model: str) -> bool:
     return model.endswith(":cloud")
-
-
-import inspect
 
 
 async def is_gateway_healthy(r: Any) -> bool:

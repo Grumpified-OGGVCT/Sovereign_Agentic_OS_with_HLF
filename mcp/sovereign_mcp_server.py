@@ -43,7 +43,8 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP(
     "sovereign-os",
     version="0.1.0",
-    description="Sovereign Agentic OS — MCP bridge for health, intent dispatch, Dream Mode, Hat analysis, ALIGN governance, and memory queries.",
+    description="Sovereign Agentic OS — MCP bridge for health, intent dispatch, \
+Dream Mode, Hat analysis, ALIGN governance, and memory queries.",
 )
 
 _BASE_DIR = Path(os.environ.get("BASE_DIR", str(Path(__file__).resolve().parent.parent)))
@@ -378,7 +379,6 @@ def get_dream_history(limit: int = 5) -> list[dict]:
         conn.close()
 
 
-
 # ===========================================================================
 # Project Janus (Stolen History) Integration
 # ===========================================================================
@@ -386,6 +386,7 @@ def get_dream_history(limit: int = 5) -> list[dict]:
 _janus_embedder = None
 _janus_chroma_client = None
 _janus_collection = None
+
 
 def _init_janus():
     """Lazy load the heavy ML models and ChromaDB client."""
@@ -395,7 +396,7 @@ def _init_janus():
             import chromadb
             from sentence_transformers import SentenceTransformer
 
-            _janus_embedder = SentenceTransformer('all-MiniLM-L6-v2')
+            _janus_embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
             chroma_path = _BASE_DIR.parent / "project_janus" / "data" / "chroma_db"
             _janus_chroma_client = chromadb.PersistentClient(path=str(chroma_path))
@@ -403,10 +404,13 @@ def _init_janus():
         except Exception as e:
             print(f"Error initializing Janus ML models: {e}")
 
+
 def _get_janus_db():
     import sqlite3
+
     db_path = _BASE_DIR.parent / "project_janus" / "data" / "vault.db"
-    return sqlite3.connect(f'file:{db_path}?mode=ro', uri=True)
+    return sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+
 
 @mcp.tool()
 def search_archives(query: str) -> list[dict]:
@@ -426,16 +430,14 @@ def search_archives(query: str) -> list[dict]:
         results = _janus_collection.query(query_embeddings=[vector], n_results=5)
 
         output = "--- RAW ARCHIVAL DATA ---\n"
-        for doc, meta in zip(results['documents'][0], results['metadatas'][0], strict=False):
-            output += (
-                f"[Author: {meta.get('author', 'N/A')} "
-                f"| Source: {meta.get('source', 'N/A')}]\n"
-            )
+        for doc, meta in zip(results["documents"][0], results["metadatas"][0], strict=False):
+            output += f"[Author: {meta.get('author', 'N/A')} | Source: {meta.get('source', 'N/A')}]\n"
             output += f"{doc}\n-------------------------\n"
 
         return [{"result": output}]
     except Exception as e:
         return [{"error": str(e)}]
+
 
 @mcp.tool()
 def view_thread_history(url: str) -> list[dict]:
@@ -459,7 +461,7 @@ def view_thread_history(url: str) -> list[dict]:
             WHERE t.url = ?
             ORDER BY p.post_external_id, p.snapshot_date
             """,
-            (url,)
+            (url,),
         ).fetchall()
         conn.close()
 
@@ -475,6 +477,7 @@ def view_thread_history(url: str) -> list[dict]:
         return [{"result": output}]
     except Exception as e:
         return [{"error": str(e)}]
+
 
 # ===========================================================================
 # MCP Resources

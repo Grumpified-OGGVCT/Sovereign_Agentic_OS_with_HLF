@@ -52,9 +52,7 @@ class FractalSummarizer:
         if len(raw_context) <= max_chars:
             return raw_context
 
-        logger.info(
-            f"Fractal reduce triggered. Context size {len(raw_context)} chars > Max {max_chars} chars"
-        )
+        logger.info(f"Fractal reduce triggered. Context size {len(raw_context)} chars > Max {max_chars} chars")
 
         # Split into manageable map-chunks designed to fit into OOM-safe context buffers
         chunk_size = 4000

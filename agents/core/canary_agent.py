@@ -10,6 +10,7 @@ Responsibilities:
    canary queries the Fact_Store for low-confidence vector clusters and logs them for
    autonomous follow-up research during the Dreaming State.
 """
+
 from __future__ import annotations
 
 import os
@@ -25,13 +26,7 @@ from agents.core.logger import ALSLogger
 _logger = ALSLogger(agent_role="canary-agent", goal_id="synthetic-probe")
 
 # Synthetic probe payload — a minimal valid HLF intent that the gateway can parse
-_PROBE_HLF = (
-    "[HLF-v2]\n"
-    "[INTENT] canary_probe \"health\"\n"
-    "[EXPECT] \"ok\"\n"
-    "[RESULT] code=0 message=\"canary\"\n"
-    "Ω\n"
-)
+_PROBE_HLF = '[HLF-v2]\n[INTENT] canary_probe "health"\n[EXPECT] "ok"\n[RESULT] code=0 message="canary"\nΩ\n'
 
 _PROBE_INTERVAL_SEC: int = int(os.environ.get("CANARY_PROBE_INTERVAL", "900"))  # 15 min
 _IDLE_THRESHOLD_SEC: int = int(os.environ.get("CANARY_IDLE_THRESHOLD", "3600"))  # 60 min
@@ -98,6 +93,7 @@ def _fire_probe() -> bool:
 # Idle Curiosity Protocol
 # --------------------------------------------------------------------------- #
 
+
 def _idle_curiosity_scan(db_path: Path | None = None) -> list[dict[str, Any]]:
     """
     Query the Fact_Store for low-confidence vector clusters (confidence < 0.5).
@@ -141,6 +137,7 @@ def _idle_curiosity_scan(db_path: Path | None = None) -> list[dict[str, Any]]:
 # Background loop
 # --------------------------------------------------------------------------- #
 
+
 def _canary_loop(stop_event: threading.Event) -> None:
     """
     Main canary loop.  Runs in a daemon thread.
@@ -148,7 +145,7 @@ def _canary_loop(stop_event: threading.Event) -> None:
     - Fires a synthetic probe every CANARY_PROBE_INTERVAL seconds.
     - Checks for idle system every tick; triggers curiosity scan if idle.
     """
-    from agents.gateway.router import is_system_idle, get_last_intent_timestamp
+    from agents.gateway.router import get_last_intent_timestamp, is_system_idle
 
     last_probe = 0.0
     while not stop_event.is_set():
@@ -178,7 +175,9 @@ def _canary_loop(stop_event: threading.Event) -> None:
 
                     r = redis.from_url(os.environ.get("REDIS_URL", "redis://localhost:6379/0"))
                     for gap in gaps[:5]:
-                        r.xadd("dream_state_queue", {"entity_id": gap["entity_id"], "confidence": str(gap["confidence"])})
+                        r.xadd(
+                            "dream_state_queue", {"entity_id": gap["entity_id"], "confidence": str(gap["confidence"])}
+                        )  # noqa: E501
                 except Exception:
                     pass
         except Exception as exc:

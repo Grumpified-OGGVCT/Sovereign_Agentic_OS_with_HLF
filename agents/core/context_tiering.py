@@ -2,6 +2,7 @@
 Active Context Tiering subsystem.
 Transfers vector clusters between cold SQLite (Fact Store) and hot Redis (Knowledge Sub-Graph).
 """
+
 from __future__ import annotations
 
 import contextlib
@@ -33,12 +34,17 @@ class ContextTierManager:
 
         # 1. Generate text embedding for topic via Ollama
         import requests
+
         try:
             ollama_host = os.environ.get("OLLAMA_HOST", "http://ollama-matrix:11434")
-            resp = requests.post(f"{ollama_host}/api/embeddings", json={
-                "model": "nomic-embed-text",  # Adjust model as deployed
-                "prompt": topic_id
-            }, timeout=10)
+            resp = requests.post(
+                f"{ollama_host}/api/embeddings",
+                json={
+                    "model": "nomic-embed-text",  # Adjust model as deployed
+                    "prompt": topic_id,
+                },
+                timeout=10,
+            )
             resp.raise_for_status()
             embedding = resp.json().get("embedding")
             if not embedding:
@@ -74,9 +80,7 @@ class ContextTierManager:
             # 3. Stream clusters to Redis Hot Graph
             pipeline = self.r.pipeline()
             for entity_id, semantic_relationship in rows:
-                pipeline.hset(
-                    f"hot_graph:{topic_id}:{entity_id}", mapping={"relations": semantic_relationship or ""}
-                )
+                pipeline.hset(f"hot_graph:{topic_id}:{entity_id}", mapping={"relations": semantic_relationship or ""})
             pipeline.execute()
             conn.close()
         except Exception as exc:
