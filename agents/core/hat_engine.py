@@ -27,10 +27,9 @@ import logging
 import os
 import sqlite3
 import time
-import urllib.request
 import urllib.error
-from dataclasses import dataclass, field, asdict
-from typing import Optional
+import urllib.request
+from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +65,7 @@ class HatReport:
     focus: str
     findings: list[HatFinding] = field(default_factory=list)
     raw_response: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -316,7 +315,7 @@ def _build_system_context(conn: sqlite3.Connection | None = None) -> str:
                 lines = []
                 for r in recent:
                     lines.append(f"  [{r[1]}] practiced={r[2]} passed={r[3]}: {r[4] or 'N/A'}")
-                context_parts.append(f"=== RECENT DREAM CYCLES ===\n" + "\n".join(lines))
+                context_parts.append("=== RECENT DREAM CYCLES ===\n" + "\n".join(lines))
         except Exception:
             pass
 
@@ -576,26 +575,30 @@ def persist_findings(
     reports: list[HatReport],
 ) -> int:
     """Save hat findings to the hat_findings table. Returns count saved."""
-    count = 0
-    for report in reports:
-        for finding in report.findings:
-            conn.execute(
-                "INSERT INTO hat_findings "
-                "(dream_cycle_id, hat, severity, title, description, recommendation, timestamp) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (
-                    dream_cycle_id,
-                    finding.hat,
-                    finding.severity,
-                    finding.title,
-                    finding.description,
-                    finding.recommendation,
-                    finding.timestamp,
-                ),
-            )
-            count += 1
-    conn.commit()
-    return count
+    rows_to_insert = [
+        (
+            dream_cycle_id,
+            finding.hat,
+            finding.severity,
+            finding.title,
+            finding.description,
+            finding.recommendation,
+            finding.timestamp,
+        )
+        for report in reports
+        for finding in report.findings
+    ]
+
+    if rows_to_insert:
+        conn.executemany(
+            "INSERT INTO hat_findings "
+            "(dream_cycle_id, hat, severity, title, description, recommendation, timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            rows_to_insert,
+        )
+        conn.commit()
+
+    return len(rows_to_insert)
 
 
 def get_recent_findings(
