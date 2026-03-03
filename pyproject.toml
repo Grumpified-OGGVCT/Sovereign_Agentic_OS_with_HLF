@@ -32,6 +32,9 @@ dependencies = [
     "gspread>=6.1.0",
     "mcp[cli]>=1.0.0",
     "apscheduler>=3.10.0",
+    "chromadb>=1.5.2",
+    "sentence-transformers>=5.2.3",
+    "markdownify>=1.2.2",
 ]
 
 [project.optional-dependencies]

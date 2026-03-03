@@ -27,6 +27,7 @@ The script:
 Designed for iterative use: Jules submits PR → hats review → Jules reads
 findings → Jules corrects → re-submit → hats review again → until clean.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,7 +39,6 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from dataclasses import asdict
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -52,7 +52,6 @@ os.environ.setdefault("BASE_DIR", str(_PROJECT_ROOT))
 
 from agents.core.hat_engine import (  # noqa: E402
     HAT_DEFINITIONS,
-    HatFinding,
     HatReport,
     _build_system_context,
     _call_ollama,
@@ -86,16 +85,16 @@ def _get_github_token() -> str:
     try:
         result = subprocess.run(
             ["gh", "auth", "token"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
     except (FileNotFoundError, subprocess.TimeoutExpired):
         pass
 
-    logger.error(
-        "No GitHub token found. Set GITHUB_TOKEN env var or install/auth gh CLI."
-    )
+    logger.error("No GitHub token found. Set GITHUB_TOKEN env var or install/auth gh CLI.")
     sys.exit(1)
 
 
@@ -131,9 +130,7 @@ def _github_request(
 
 def fetch_pr_info(pr_number: int, token: str) -> dict:
     """Fetch PR metadata (title, body, state, author, etc)."""
-    return _github_request(
-        f"/repos/{REPO_OWNER}/{REPO_NAME}/pulls/{pr_number}", token
-    )
+    return _github_request(f"/repos/{REPO_OWNER}/{REPO_NAME}/pulls/{pr_number}", token)
 
 
 def fetch_pr_diff(pr_number: int, token: str) -> str:
@@ -171,12 +168,8 @@ def fetch_pr_status(pr_number: int, token: str) -> dict:
         return {"state": "unknown", "checks": []}
 
     try:
-        status = _github_request(
-            f"/repos/{REPO_OWNER}/{REPO_NAME}/commits/{head_sha}/status", token
-        )
-        checks = _github_request(
-            f"/repos/{REPO_OWNER}/{REPO_NAME}/commits/{head_sha}/check-runs", token
-        )
+        status = _github_request(f"/repos/{REPO_OWNER}/{REPO_NAME}/commits/{head_sha}/status", token)
+        checks = _github_request(f"/repos/{REPO_OWNER}/{REPO_NAME}/commits/{head_sha}/check-runs", token)
         return {
             "state": status.get("state", "unknown"),
             "statuses": status.get("statuses", []),
@@ -190,6 +183,7 @@ def fetch_pr_status(pr_number: int, token: str) -> dict:
 # ---------------------------------------------------------------------------
 # Hat-specific PR prompt builder
 # ---------------------------------------------------------------------------
+
 
 def _build_pr_user_prompt(
     hat_def: dict,
@@ -238,6 +232,7 @@ def _build_pr_user_prompt(
 # Run all hats against a PR
 # ---------------------------------------------------------------------------
 
+
 def run_hat_pr_review(
     hat_name: str,
     hat_def: dict,
@@ -259,13 +254,10 @@ def run_hat_pr_review(
 
     if agent_profile:
         logger.info(
-            f"  Agent '{agent_name}': model={agent_profile.get('model')}, "
-            f"provider={agent_profile.get('provider')}"
+            f"  Agent '{agent_name}': model={agent_profile.get('model')}, provider={agent_profile.get('provider')}"
         )
 
-    user_prompt = _build_pr_user_prompt(
-        hat_def, pr_info, diff_text, file_summary, system_context, ci_status
-    )
+    user_prompt = _build_pr_user_prompt(hat_def, pr_info, diff_text, file_summary, system_context, ci_status)
 
     logger.info(f"  Sending {len(user_prompt)} chars to Ollama...")
     raw = _call_ollama(
@@ -311,15 +303,18 @@ def run_all_hats_pr(
         start = time.time()
 
         report = run_hat_pr_review(
-            hat_name, hat_def, pr_info, diff_text, file_summary,
-            system_context, ci_status, model,
+            hat_name,
+            hat_def,
+            pr_info,
+            diff_text,
+            file_summary,
+            system_context,
+            ci_status,
+            model,
         )
 
         elapsed = time.time() - start
-        logger.info(
-            f"  {report.emoji} {hat_name}: "
-            f"{len(report.findings)} findings ({elapsed:.1f}s)"
-        )
+        logger.info(f"  {report.emoji} {hat_name}: {len(report.findings)} findings ({elapsed:.1f}s)")
         reports.append(report)
 
     return reports
@@ -400,24 +395,21 @@ def format_review_markdown(
             if f.severity == "CRITICAL":
                 critical_count += 1
 
-        sev_str = ", ".join(
-            f"{SEVERITY_ICONS.get(s, '?')} {s}: {c}"
-            for s, c in sorted(sev_counts.items())
-        )
+        sev_str = ", ".join(f"{SEVERITY_ICONS.get(s, '?')} {s}: {c}" for s, c in sorted(sev_counts.items()))
         lines.append(f"**Findings**: {len(report.findings)} ({sev_str})")
         lines.append("")
 
         # Finding details
-        for j, finding in enumerate(report.findings, 1):
+        for _j, finding in enumerate(report.findings, 1):
             icon = SEVERITY_ICONS.get(finding.severity, "?")
-            lines.append(f"<details>")
+            lines.append("<details>")
             lines.append(f"<summary>{icon} <b>[{finding.severity}]</b> {finding.title}</summary>")
             lines.append("")
             lines.append(f"**Description**: {finding.description}")
             lines.append("")
             lines.append(f"**Recommendation**: {finding.recommendation}")
             lines.append("")
-            lines.append(f"</details>")
+            lines.append("</details>")
             lines.append("")
 
         # Hat verdict
@@ -456,8 +448,9 @@ def format_review_markdown(
 
     lines.append("")
     lines.append("---")
-    lines.append(f"*Generated by `hat_pr_review.py` at {time.strftime('%Y-%m-%d %H:%M:%S')} "
-                 f"using Sovereign OS Hat Engine*")
+    lines.append(
+        f"*Generated by `hat_pr_review.py` at {time.strftime('%Y-%m-%d %H:%M:%S')} using Sovereign OS Hat Engine*"
+    )
 
     return "\n".join(lines)
 
@@ -465,6 +458,7 @@ def format_review_markdown(
 # ---------------------------------------------------------------------------
 # Post review to GitHub
 # ---------------------------------------------------------------------------
+
 
 def post_pr_review(
     pr_number: int,
@@ -501,6 +495,7 @@ def post_pr_review(
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="11-Hat Aegis-Nexus PR Review — analyze any PR with the full hat engine",
@@ -514,36 +509,50 @@ def main():
         ),
     )
     parser.add_argument(
-        "--pr", type=int, required=True,
+        "--pr",
+        type=int,
+        required=True,
         help="Pull request number to review",
     )
     parser.add_argument(
-        "--hats", nargs="+", default=None,
+        "--hats",
+        nargs="+",
+        default=None,
         choices=list(HAT_DEFINITIONS.keys()),
         help="Run only specific hats (default: all 11)",
     )
     parser.add_argument(
-        "--model", type=str, default=None,
+        "--model",
+        type=str,
+        default=None,
         help="Override Ollama model for all hats (default: per-agent registry)",
     )
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Print review to stdout without posting to GitHub",
     )
     parser.add_argument(
-        "--post-as-comment", action="store_true",
+        "--post-as-comment",
+        action="store_true",
         help="Post as issue comment instead of PR review",
     )
     parser.add_argument(
-        "--output", type=str, default=None,
+        "--output",
+        type=str,
+        default=None,
         help="Save review to a local file in addition to posting",
     )
     parser.add_argument(
-        "--diff-file", type=str, default=None,
+        "--diff-file",
+        type=str,
+        default=None,
         help="Read diff from a local file instead of GitHub API (for offline use)",
     )
     parser.add_argument(
-        "--gh-token", type=str, default=None,
+        "--gh-token",
+        type=str,
+        default=None,
         help="Explicit GitHub token (overrides env/gh CLI)",
     )
 
@@ -579,9 +588,7 @@ def main():
             "state": "open",
             "mergeable_state": "unknown",
         }
-        file_summary = f"Files changed: {len(changed_files)}\n" + "\n".join(
-            f"  {f}" for f in sorted(changed_files)
-        )
+        file_summary = f"Files changed: {len(changed_files)}\n" + "\n".join(f"  {f}" for f in sorted(changed_files))
         ci_status = None
     else:
         logger.info(f"Fetching PR #{args.pr} from {REPO_OWNER}/{REPO_NAME}...")
@@ -604,12 +611,9 @@ def main():
             dels = f.get("deletions", 0)
             total_additions += adds
             total_deletions += dels
-            file_summary_lines.append(
-                f"  {f['filename']} (+{adds}/-{dels}) [{f.get('status', '?')}]"
-            )
-        file_summary = (
-            f"Files changed: {len(files)} | +{total_additions}/-{total_deletions}\n"
-            + "\n".join(file_summary_lines)
+            file_summary_lines.append(f"  {f['filename']} (+{adds}/-{dels}) [{f.get('status', '?')}]")
+        file_summary = f"Files changed: {len(files)} | +{total_additions}/-{total_deletions}\n" + "\n".join(
+            file_summary_lines
         )
         logger.info(f"  {len(files)} files changed (+{total_additions}/-{total_deletions})")
 
@@ -642,10 +646,7 @@ def main():
     elapsed = time.time() - start_time
     total_findings = sum(len(r.findings) for r in reports)
     logger.info("=" * 60)
-    logger.info(
-        f"REVIEW COMPLETE: {total_findings} findings in {elapsed:.1f}s "
-        f"({len(reports)} hats)"
-    )
+    logger.info(f"REVIEW COMPLETE: {total_findings} findings in {elapsed:.1f}s ({len(reports)} hats)")
     logger.info("=" * 60)
 
     # 5) Format review
@@ -664,7 +665,9 @@ def main():
     else:
         logger.info("Posting review to GitHub...")
         url = post_pr_review(
-            args.pr, review_body, token,
+            args.pr,
+            review_body,
+            token,
             as_comment=args.post_as_comment,
         )
         logger.info(f"✅ Review posted: {url}")
@@ -685,9 +688,7 @@ def main():
     print(f"{'=' * 40}")
 
     # Exit code: non-zero if critical findings
-    critical_count = sum(
-        1 for r in reports for f in r.findings if f.severity == "CRITICAL"
-    )
+    critical_count = sum(1 for r in reports for f in r.findings if f.severity == "CRITICAL")
     if critical_count > 0:
         logger.warning(f"Exiting with code 1 ({critical_count} critical findings)")
         sys.exit(1)

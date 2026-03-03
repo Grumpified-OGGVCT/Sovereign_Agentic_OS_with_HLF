@@ -110,34 +110,32 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
 
     if is_cloud and openrouter_api:
         # Use OpenRouter as primary cloud bridge if available
-            _logger.log("CLOUD_INFERENCE_START", {"provider": "openrouter", "model": effective_model})
-            try:
-                resp = httpx.post(
-                    "https://openrouter.ai/api/v1/chat/completions",
-                    headers={
-                        "Authorization": f"Bearer {openrouter_api}",
-                        "X-Title": "Sovereign OS Autonomous Runner",
-                    },
-                    json={
-                        "model": effective_model.replace(":cloud", ""),
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": _SYSTEM_PROMPT_PATH.read_text().strip()
-                                if _SYSTEM_PROMPT_PATH.exists()
-                                else "",
-                            },
-                            {"role": "user", "content": text},
-                        ],
-                        "temperature": 0.0,
-                    },
-                    timeout=60.0,
-                )
-                resp.raise_for_status()
-                return resp.json()["choices"][0]["message"]["content"].strip()
-            except Exception as e:
-                _logger.log("CLOUD_INFERENCE_ERROR", {"error": str(e)}, anomaly_score=0.5)
-                # Fall through to local if cloud fails? No, if we are in cloud mode, we likely don't have local.
+        _logger.log("CLOUD_INFERENCE_START", {"provider": "openrouter", "model": effective_model})
+        try:
+            resp = httpx.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {openrouter_api}",
+                    "X-Title": "Sovereign OS Autonomous Runner",
+                },
+                json={
+                    "model": effective_model.replace(":cloud", ""),
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": _SYSTEM_PROMPT_PATH.read_text().strip() if _SYSTEM_PROMPT_PATH.exists() else "",
+                        },
+                        {"role": "user", "content": text},
+                    ],
+                    "temperature": 0.0,
+                },
+                timeout=60.0,
+            )
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"].strip()
+        except Exception as e:
+            _logger.log("CLOUD_INFERENCE_ERROR", {"error": str(e)}, anomaly_score=0.5)
+            # Fall through to local if cloud fails? No, if we are in cloud mode, we likely don't have local.
 
     # 2. Local / Docker Ollama Path (dual-endpoint failover)
     system_prompt = ""

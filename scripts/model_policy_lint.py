@@ -47,6 +47,7 @@ SKIP_PATHS: set[str] = {
 SKIP_DIR_PREFIXES: list[str] = [
     "tests/",  # Test fixtures use real model names
     "agents/gateway/matrix_sync/",  # Model registry — its JOB is to track all models
+    "project_janus/",  # Submodules contain their own docs
 ]
 
 # File extensions to scan
