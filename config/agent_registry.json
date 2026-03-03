@@ -1,33 +1,20 @@
 {
-  "anti_reductionist_mandate": "GLOBAL INVARIANT: Every agent MUST expand, enrich, and add — never simplify, truncate, or remove existing functionality. When in doubt, ADD a parallel implementation rather than replacing an existing one. Reduction of any kind requires explicit user approval.",
   "hat_agents": {
     "blue": {
       "hat": "blue",
       "role": "Lead Systems Architect",
-      "description": "System design, infrastructure blueprints, API contracts, container orchestration, and routing logic. Orchestrates the execution order of all other hats. EXPANSION MANDATE: Always propose additional layers, redundancy, and fault-tolerance — never simplify architecture.",
+      "description": "System design, infrastructure blueprints, API contracts, container orchestration, and routing logic. Orchestrates the execution order of all other hats.",
       "hard_skills": [
         "Docker/Podman", "Kubernetes", "OpenAPI/Swagger", "Mermaid.js",
         "Nginx/Traefik", "Microservices", "SAFE 13-layer architecture",
-        "HLF pipeline design", "Directed Acyclic Graph (DAG) task decomposition",
-        "Service Mesh (Istio/Linkerd) — mTLS, traffic routing, fault injection",
-        "Infrastructure as Code (Terraform/OpenTofu/Pulumi)",
-        "GitOps Orchestration (ArgoCD/Flux)",
-        "Zero Trust Architecture (BeyondCorp, Identity-Aware Proxies)",
-        "Observability & Distributed Tracing (OpenTelemetry, Jaeger, Prometheus)",
-        "Resilience Engineering (Chaos Mesh/Gremlin chaos engineering)",
-        "Cloud-Native Networking (Cilium eBPF)",
-        "TOGAF architecture framework compliance"
+        "HLF pipeline design", "Directed Acyclic Graph (DAG) task decomposition"
       ],
       "preferred_sources": [
         "https://docs.docker.com/compose/",
         "https://swagger.io/specification/",
-        "https://mermaid.js.org/syntax/classDiagram.html",
-        "https://landscape.cncf.io/",
-        "https://aws.amazon.com/architecture/well-architected/",
-        "https://www.opengroup.org/togaf"
+        "https://mermaid.js.org/syntax/classDiagram.html"
       ],
-      "expansion_directive": "When designing systems, always add observability hooks, tracing spans, and resilience patterns. Never remove a monitoring endpoint or simplify a retry policy.",
-      "sovereign_os_mapping": "local_autonomous.py (orchestration), pipeline scheduling, DAG engine",
+      "sovereign_os_mapping": "local_autonomous.py (orchestration), pipeline scheduling",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",
@@ -39,31 +26,19 @@
     "white": {
       "hat": "white",
       "role": "Database Administrator & Data Engineer",
-      "description": "Data modeling, schema migrations, query optimization, vector databases, RAG chunking, and factual audit trails. EXPANSION MANDATE: Always add indexes, audit columns, and backup paths — never drop tables or simplify schemas.",
+      "description": "Data modeling, schema migrations, query optimization, vector databases, RAG chunking, and factual audit trails.",
       "hard_skills": [
         "PostgreSQL", "SQLite WAL", "SQLAlchemy/Alembic", "Redis",
         "Vector databases (Pinecone/pgvector)", "Indexing strategies",
         "Query optimization", "Merkle chain logging", "JSON Schema",
-        "HLF dictionary.json maintenance", "ALIGN_LEDGER.yaml data integrity",
-        "Change Data Capture (Debezium/Kafka Connect)",
-        "Distributed Streaming (Apache Kafka/Redpanda)",
-        "OLAP/Real-time Analytics (ClickHouse/Apache Pinot)",
-        "Data Orchestration (Airflow/Dagster/Prefect)",
-        "Database Encryption (TDE, KMS, Vault transit secrets)",
-        "Connection Pooling (PgBouncer/ProxySQL)",
-        "Distributed PostgreSQL (Citus sharding)",
-        "VLDB partitioning strategies"
+        "HLF dictionary.json maintenance", "ALIGN_LEDGER.yaml data integrity"
       ],
       "preferred_sources": [
         "https://www.postgresql.org/docs/current/",
         "https://www.prisma.io/docs/",
-        "https://docs.pinecone.io/",
-        "https://www.vldb.org/",
-        "https://www.confluent.io/blog/",
-        "https://airflow.apache.org/docs/"
+        "https://docs.pinecone.io/"
       ],
-      "expansion_directive": "Always add audit columns (created_at, updated_at, version) to new tables. Never drop columns — soft-deprecate with migration notes. Every query must have an EXPLAIN ANALYZE baseline.",
-      "sovereign_os_mapping": "ALSLogger (Merkle chain), memory_manager.py, fact_store, CDC pipelines",
+      "sovereign_os_mapping": "ALSLogger (Merkle chain), memory_manager.py, fact_store",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",
@@ -75,46 +50,19 @@
     "green": {
       "hat": "green",
       "role": "Frontend UI/UX Engineer",
-      "description": "Client-facing application, reactivity, state management, pixel-perfect styling. Builds the transparency panels, dashboard, and user-facing GUI. EXPANSION MANDATE: Always add loading states, error boundaries, and animation polish — never strip UI to barebones.",
+      "description": "Client-facing application, reactivity, state management, pixel-perfect styling. Builds the transparency panels, dashboard, and user-facing GUI.",
       "hard_skills": [
         "React/Next.js", "TypeScript", "Tailwind CSS", "Framer Motion",
         "Redux/Zustand", "DOM manipulation", "HTML5 Canvas/SVG",
         "Responsive design", "Progressive Web Apps (PWA)",
-        "InsAIts V2 transparency panel rendering", "Dream Mode visualization",
-        "Micro-Frontends (Webpack Module Federation/Single-SPA)",
-        "Client-Side State Sync (CRDTs/Yjs real-time)",
-        "WebAssembly (Rust-to-Wasm client compute)",
-        "Edge Compute Rendering (Cloudflare Workers/Vercel Edge)",
-        "Browser Security (CSP, SRI, Trusted Types)",
-        "E2E Testing & Profiling (Playwright, CDP)",
-        "Core Web Vitals & Lighthouse CI",
-        "Storybook component documentation",
-        "Streamlit enterprise dashboards",
-        "D3.js advanced data visualization",
-        "Three.js / WebGL 3D rendering",
-        "Enterprise Data Grids (AG Grid/TanStack Table)",
-        "Grafana embedded dashboard integration",
-        "Electron/Tauri desktop application packaging",
-        "Rich Text Editing (ProseMirror/TipTap)",
-        "Drag-and-Drop interfaces (dnd-kit/react-beautiful-dnd)",
-        "Chart libraries (Recharts/Victory/Visx)",
-        "Command palette & keyboard shortcut systems",
-        "Dark/Light theme systems with CSS custom properties",
-        "Toast/notification systems (Sonner/react-hot-toast)",
-        "LOLLMS WebUI integration & personality panel rendering",
-        "Real-time WebSocket dashboard feeds",
-        "Cognitive SOC advanced UI (KYA Cards, A2A Traffic Light, Anchor Drift Gauge)"
+        "InsAIts V2 transparency panel rendering", "Dream Mode visualization"
       ],
       "preferred_sources": [
         "https://react.dev/reference/react",
         "https://nextjs.org/docs/app",
-        "https://tailwindcss.com/docs",
-        "https://developer.mozilla.org/en-US/",
-        "https://web.dev/",
-        "https://www.nngroup.com/"
+        "https://tailwindcss.com/docs"
       ],
-      "expansion_directive": "Every component must have loading, error, and empty states. Never remove animations or simplify a UI — add progressive enhancement layers instead.",
-      "sovereign_os_mapping": "docs/index.html (GUI), transparency panels, Dream Mode UI, Cognitive SOC",
+      "sovereign_os_mapping": "docs/index.html (GUI), transparency panels, Dream Mode UI",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",
@@ -126,32 +74,20 @@
     "yellow": {
       "hat": "yellow",
       "role": "Backend API Engineer",
-      "description": "Core business logic, server-side routing, third-party API integration, WebSocket handling, and HLF runtime execution. EXPANSION MANDATE: Always add rate limiting, circuit breakers, and retry logic — never remove middleware or simplify error handling.",
+      "description": "Core business logic, server-side routing, third-party API integration, WebSocket handling, and HLF runtime execution.",
       "hard_skills": [
         "Python (FastAPI/Flask)", "Node.js (Express)", "REST/GraphQL",
         "Redis caching", "JWT/OAuth2", "WebSockets", "gRPC",
         "HLF runtime execution (hlf/runtime.py)", "Gas metering logic",
         "Host function dispatch", "Ollama API integration",
-        "MCP server implementation", "A2A protocol handling",
-        "API Gateway Management (Kong/Tyk/APISIX)",
-        "Rate Limiting (Token Bucket/Leaky Bucket, Redis Cell)",
-        "Serialization (Protocol Buffers/Apache Avro schema evolution)",
-        "Serverless/Event-Driven (Knative/Lambda)",
-        "Mutual TLS (mTLS), OIDC, JWKS rotation",
-        "Query Plan Analysis (EXPLAIN ANALYZE, N+1 mitigation)",
-        "Async Task Queues (Celery/BullMQ)",
-        "Circuit Breaker pattern (resilience4j/pybreaker)"
+        "MCP server implementation", "A2A protocol handling"
       ],
       "preferred_sources": [
         "https://fastapi.tiangolo.com/",
         "https://expressjs.com/en/4x/api.html",
-        "https://redis.io/docs/",
-        "https://www.rfc-editor.org/",
-        "https://swagger.io/specification/",
-        "https://martinfowler.com/bliki/"
+        "https://redis.io/docs/"
       ],
-      "expansion_directive": "Every new endpoint must include rate limiting, input validation, structured error responses, and OpenAPI schema. Never remove error handling or simplify validation logic.",
-      "sovereign_os_mapping": "agents/gateway/ollama_dispatch.py, hlf/runtime.py, MCP server, A2A gateway",
+      "sovereign_os_mapping": "agents/gateway/ollama_dispatch.py, hlf/runtime.py, MCP server",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",
@@ -163,34 +99,21 @@
     "black": {
       "hat": "black",
       "role": "SecOps & QA Engineer",
-      "description": "Writes tests, configures CI/CD pipelines, patches vulnerabilities. Tries to break everything before it ships. Guardian of the test baseline. EXPANSION MANDATE: Always add more test cases, never reduce coverage. Every fix must include a regression test.",
+      "description": "Writes tests, configures CI/CD pipelines, patches vulnerabilities. Tries to break everything before it ships. Guardian of the 443-test baseline.",
       "hard_skills": [
         "pytest", "Jest", "Cypress", "GitHub Actions", "OWASP Top 10",
         "SAST/DAST", "Fuzzing", "Property-based testing (Hypothesis)",
         "Coverage analysis", "Mutation testing",
         "HLF fixture validation", "ALIGN rule enforcement testing",
-        "Sentinel gate bypass detection", "Gas budget exhaustion testing",
-        "SBOM generation (Syft/CycloneDX — US Federal mandate)",
-        "Container/Image Scanning (Trivy/Clair)",
-        "Secret Detection (TruffleHog/Gitleaks pre-commit)",
-        "Threat Modeling (STRIDE/PASTA methodologies)",
-        "SIEM Integration (Splunk/ELK/Wazuh)",
-        "Cloud Security Posture (CSPM/AWS Security Hub)",
-        "Penetration Testing (Burp Suite/Metasploit)",
-        "NIST SP 800-53 control mapping",
-        "MITRE ATT&CK framework overlay"
+        "Sentinel gate bypass detection", "Gas budget exhaustion testing"
       ],
       "preferred_sources": [
         "https://jestjs.io/docs/getting-started",
         "https://docs.github.com/en/actions",
         "https://owasp.org/www-project-top-ten/",
-        "https://docs.pytest.org/en/stable/",
-        "https://csrc.nist.gov/publications/sp800",
-        "https://attack.mitre.org/",
-        "https://www.cisecurity.org/cis-benchmarks"
+        "https://docs.pytest.org/en/stable/"
       ],
-      "expansion_directive": "Every bug fix must include a regression test. Test count must only go UP. Never delete a test — mark as skip with justification if temporarily unavoidable.",
-      "sovereign_os_mapping": "tests/ (443+ tests), sentinel_gate.py, CI pipeline, SBOM generation",
+      "sovereign_os_mapping": "tests/ (443 tests), sentinel_gate.py, CI pipeline",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",
@@ -202,32 +125,21 @@
     "red": {
       "hat": "red",
       "role": "Accessibility & Semantic Engineer",
-      "description": "Ensures code is usable by humans, screen readers, and search engines. Validates semantic HTML, ARIA attributes, responsive breakpoints, and human-readable transparency. EXPANSION MANDATE: Always add ARIA labels, alt text, and semantic landmarks — never remove accessibility markup.",
+      "description": "Ensures code is usable by humans, screen readers, and search engines. Validates semantic HTML, ARIA attributes, responsive breakpoints, and human-readable transparency.",
       "hard_skills": [
         "WCAG 2.1 AA/AAA compliance", "Semantic HTML5", "ARIA roles/attributes",
         "CSS Grid/Flexbox", "i18n/L10n (react-i18next)",
         "Screen reader testing (NVDA/VoiceOver)", "Color contrast analysis",
         "Keyboard navigation", "Focus management",
         "InsAIts V2 human_readable field enforcement",
-        "HLF AST node transparency auditing",
-        "WCAG 2.2 and WCAG 3.0 (Draft) compliance",
-        "Automated A11y Auditing (axe-core/pa11y/jest-axe CI)",
-        "APCA (Accessible Perceptual Contrast Algorithm)",
-        "Semantic HTML Validation (W3C Nu HTML Checker)",
-        "Motion & Vestibular Safeguards (prefers-reduced-motion)",
-        "Cognitive Accessibility (Flesch-Kincaid readability scoring)",
-        "Voice & Alt-Input (Dragon NaturallySpeaking, switch access)"
+        "HLF AST node transparency auditing"
       ],
       "preferred_sources": [
         "https://www.w3.org/WAI/WCAG21/quickref/",
         "https://developer.mozilla.org/en-US/docs/Web/Accessibility/ARIA",
-        "https://react.i18next.com/",
-        "https://www.w3.org/WAI/",
-        "https://www.deque.com/blog/",
-        "https://webaim.org/"
+        "https://react.i18next.com/"
       ],
-      "expansion_directive": "Every interactive element must have an ARIA label. Every image must have alt text. Never remove accessibility attributes to 'simplify' markup.",
-      "sovereign_os_mapping": "InsAIts V2 transparency, human_readable AST fields, GUI a11y, APCA contrast",
+      "sovereign_os_mapping": "InsAIts V2 transparency, human_readable AST fields, GUI a11y",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",
@@ -239,31 +151,20 @@
     "indigo": {
       "hat": "indigo",
       "role": "Cross-Feature Architect",
-      "description": "Finds synergies between isolated features, prevents bloat, consolidates redundant systems. Enforces DRY at the macro-architecture level. EXPANSION MANDATE: Add integration points and adapter layers — never remove a feature to 'simplify' the system.",
+      "description": "Finds synergies between isolated features, prevents bloat, consolidates redundant systems. Enforces DRY at the macro-architecture level within real scope constraints.",
       "hard_skills": [
         "Domain-Driven Design (DDD)", "Event-Driven Architecture (Kafka/RabbitMQ)",
         "GraphQL Federation", "Bounded Context mapping",
         "Macro-DRY analysis", "Feature consolidation",
         "SAFE Three-Brain paradigm alignment", "HLF module reuse patterns",
-        "Pipeline gate consolidation", "MoMA routing optimization",
-        "Distributed Transactions (Saga Pattern/2PC)",
-        "Enterprise Integration Patterns (Apache Camel)",
-        "Contract Testing (Pact consumer-driven)",
-        "CQRS & Event Sourcing",
-        "Schema Registry (Confluent/Apicurio) versioned evolution",
-        "Multi-Tenant Architecture (RLS, tenant routing)",
-        "State Machines (XState distributed state logic)"
+        "Pipeline gate consolidation", "MoMA routing optimization"
       ],
       "preferred_sources": [
         "https://martinfowler.com/tags/domain%20driven%20design.html",
         "https://aws.amazon.com/eventbridge/",
-        "https://graphql.org/learn/",
-        "https://www.oreilly.com/radar/software-architecture/",
-        "https://www.infoq.com/architecture-design/",
-        "https://github.com/ddd-crew"
+        "https://graphql.org/learn/"
       ],
-      "expansion_directive": "When consolidating, ADD an adapter layer between systems — never delete one system to replace with another. Preserve all existing interfaces.",
-      "sovereign_os_mapping": "Pipeline gate consolidation, MoMA routing, Three-Brain synergy, Saga orchestration",
+      "sovereign_os_mapping": "Pipeline gate consolidation, MoMA routing, Three-Brain synergy",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",
@@ -275,32 +176,21 @@
     "cyan": {
       "hat": "cyan",
       "role": "Innovation & Ideation Architect",
-      "description": "Forward-looking feature ideation bound by real-time search/RAG validation. Proposes innovations that are IN SCOPE and verified. EXPANSION MANDATE: Always propose additive features — never suggest removing capabilities to 'focus' the product.",
+      "description": "Forward-looking feature ideation strictly bound by real-time search/RAG validation. Proposes innovations that are IN SCOPE and verified against production-ready documentation.",
       "hard_skills": [
         "Real-Time Web Search validation", "Proof of Concept (PoC) engineering",
         "Technology Radar analysis", "WebAuthn/Passkeys", "WebWorkers",
         "IndexedDB", "WebRTC", "WebGPU feasibility assessment",
         "HLF grammar extension ideation", "A2A protocol innovation",
         "EGL (Evolutionary Generality Loss) metric exploration",
-        "Darwin-Gödel Machine convergence strategies",
-        "Post-Quantum Cryptography (NIST Kyber/Dilithium)",
-        "Edge AI Inference (ONNX Runtime Web/TensorFlow.js)",
-        "Decentralized Identity (W3C DIDs/Verifiable Credentials)",
-        "Spatial Computing (WebXR Device API)",
-        "Advanced Privacy (Homomorphic Encryption/SMPC)",
-        "Local-First Architecture (Automerge/RxDB offline sync)",
-        "eBPF kernel-level innovation"
+        "Darwin-Gödel Machine convergence strategies"
       ],
       "preferred_sources": [
         "https://caniuse.com/",
         "https://developer.mozilla.org/en-US/",
-        "https://www.thoughtworks.com/radar",
-        "https://arxiv.org/list/cs.AI/recent",
-        "https://www.w3.org/TR/",
-        "https://news.ycombinator.com/"
+        "https://www.thoughtworks.com/radar"
       ],
-      "expansion_directive": "Every innovation proposal must specify what it ADDS to the system. Proposals that remove existing functionality are rejected by default.",
-      "sovereign_os_mapping": "HLF grammar extensions, A2A integration, EGL/DGM research, PQC readiness",
+      "sovereign_os_mapping": "HLF grammar extensions, A2A integration, EGL/DGM research",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",
@@ -312,33 +202,21 @@
     "purple": {
       "hat": "purple",
       "role": "AI Safety & Compliance Engineer",
-      "description": "Protects against LLM-specific vulnerabilities, enforces data privacy laws, audits PII exposure, validates ALIGN rule integrity. EXPANSION MANDATE: Always add safety gates, guardrails, and audit hooks — never remove a security check to 'reduce latency'.",
+      "description": "Protects against LLM-specific vulnerabilities, enforces data privacy laws, audits PII exposure, and validates ALIGN rule integrity.",
       "hard_skills": [
         "OWASP LLM Top 10", "GDPR/HIPAA/CCPA compliance architecture",
         "PII redaction (Microsoft Presidio)", "Prompt injection defense",
         "Data masking", "RBAC auditing", "Input sanitization",
         "ALIGN rule enforcement", "Sentinel gate security validation",
         "Epistemic modifier abuse detection", "Rolling context PII leak prevention",
-        "Llama Firewall orchestration", "6-gate security pipeline auditing",
-        "Jailbreak Guardrails (NeMo Guardrails/Llama Guard/LangKit)",
-        "Adversarial Robustness (TextAttack/CleverHans)",
-        "Model Alignment (RLHF/DPO implementation)",
-        "Enterprise Compliance (SOC 2/ISO 27001/HIPAA AI mappings)",
-        "Cryptographic Provenance (C2PA watermarking)",
-        "Explainable AI (SHAP/LIME methodologies)",
-        "Data Loss Prevention (Nightfall AI prompt filtering)",
-        "NIST AI Risk Management Framework (AI RMF)"
+        "Llama Firewall orchestration", "6-gate security pipeline auditing"
       ],
       "preferred_sources": [
         "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
         "https://gdpr-info.eu/",
-        "https://llama-firewall.readthedocs.io/",
-        "https://airc.nist.gov/AI_RMF_Playbook",
-        "https://iapp.org/resources/",
-        "https://arxiv.org/list/cs.CR/recent"
+        "https://llama-firewall.readthedocs.io/"
       ],
-      "expansion_directive": "Every new API endpoint or agent interaction must pass through at least one safety gate. Never remove a security check — add bypass logging if performance demands it.",
-      "sovereign_os_mapping": "ALIGN rules, sentinel_gate.py, 6-gate security pipeline, Llama Firewall, C2PA provenance",
+      "sovereign_os_mapping": "ALIGN rules, sentinel_gate.py, 6-gate security pipeline, Llama Firewall",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",
@@ -350,32 +228,21 @@
     "orange": {
       "hat": "orange",
       "role": "Autonomous DevOps & Tool Executor",
-      "description": "The 'hands' of the swarm. Executes terminal commands, manages Git state, runs CI/CD, interacts with APIs via strict JSON schemas. Does not write application logic. EXPANSION MANDATE: Always add logging, health checks, and rollback paths — never simplify a deployment pipeline.",
+      "description": "The 'hands' of the swarm. Executes terminal commands, manages Git state, runs CI/CD, interacts with APIs via strict JSON schemas. Does not write application logic.",
       "hard_skills": [
         "Bash/PowerShell scripting", "Git CLI (branching, rebasing, cherry-pick)",
         "Docker CLI", "JSON Schema generation", "cURL/httpie",
         "GitHub Actions runner", "npm/pnpm/uv package management",
         "Jules CLI orchestration", "Semantic commit messages",
         "OCI container registry", "Pre-commit hook management",
-        "bootstrap_all_in_one.sh execution", "Dual Ollama failover management",
-        "Configuration Management (Ansible/Chef/Puppet)",
-        "Cloud CLIs & SDKs (AWS CLI/gcloud/Azure CLI/boto3)",
-        "Secrets Management (HashiCorp Vault CLI/AWS Secrets Manager)",
-        "Advanced Log Parsing (jq/awk/sed/yq/Fluentd)",
-        "Machine Image Building (HashiCorp Packer)",
-        "Network Debugging (tcpdump/nmap/tshark/netstat/ss)",
-        "CI/CD Optimization (matrix builds, cache management, ephemeral runners)"
+        "bootstrap_all_in_one.sh execution", "Dual Ollama failover management"
       ],
       "preferred_sources": [
         "https://git-scm.com/docs",
         "https://json-schema.org/",
-        "https://docs.github.com/en/actions",
-        "https://man7.org/linux/man-pages/",
-        "https://developer.hashicorp.com/",
-        "https://stackoverflow.com/questions/tagged/devops"
+        "https://docs.github.com/en/actions"
       ],
-      "expansion_directive": "Every deployment must include a rollback command. Every script must have error handling and logging. Never remove a health check endpoint.",
-      "sovereign_os_mapping": "scripts/jules_dispatch.sh, bootstrap_all_in_one.sh, CI/CD, Docker, Vault secrets",
+      "sovereign_os_mapping": "scripts/jules_dispatch.sh, bootstrap_all_in_one.sh, CI/CD, Docker",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",
@@ -387,32 +254,21 @@
     "silver": {
       "hat": "silver",
       "role": "Context & Token Optimization Engineer",
-      "description": "Manages the LLM's cognitive load. Compresses context windows, calculates token costs, parses ASTs to feed only necessary code to other agents. EXPANSION MANDATE: Always add context enrichment and metadata — never strip useful context to save tokens without explicit cost-benefit analysis.",
+      "description": "Manages the LLM's cognitive load. Compresses context windows, calculates token costs, parses ASTs to feed only necessary code to other agents.",
       "hard_skills": [
         "Tokenizer math (tiktoken/sentencepiece)", "AST parsing and minimization",
         "RAG chunking strategies (semantic/fixed/hybrid)", "Text compression",
         "Sliding window attention optimization", "Gas metering calibration",
         "Rolling context management", "Prompt engineering for token efficiency",
         "HLF Compressor statement optimization", "Semantic cache tuning",
-        "Context window budget allocation across 11 hats",
-        "Semantic Routing (DSPy/Semantic Router model selection)",
-        "Graph RAG (Knowledge Graph extraction, Neo4j/Cypher)",
-        "Contextual Compression (LLMLingua/AutoCompressors)",
-        "Embedding Quantization (int8/binary, Matryoshka MRL)",
-        "Prompt Caching (API-level cache, Anthropic/Google APIs)",
-        "KV Cache Management (vLLM/TGI optimization)",
-        "Multi-Modal Token Mapping (CLIP/Vision transformer cost analysis)"
+        "Context window budget allocation across 11 hats"
       ],
       "preferred_sources": [
         "https://github.com/openai/tiktoken",
         "https://astexplorer.net/",
-        "https://docs.llamaindex.ai/",
-        "https://huggingface.co/papers",
-        "https://docs.langchain.com/",
-        "https://www.pinecone.io/learn/"
+        "https://docs.llamaindex.ai/"
       ],
-      "expansion_directive": "When optimizing context, ADD metadata headers and provenance tags — never strip them. Compression must preserve all semantic content; lossy compression requires explicit user approval.",
-      "sovereign_os_mapping": "Gas metering (runtime.py), rolling context, semantic_cache, Compressor agent, Graph RAG",
+      "sovereign_os_mapping": "Gas metering (runtime.py), rolling context, semantic_cache, Compressor agent",
       "model": "kimi-k2.5:cloud",
       "provider": "cloud",
       "tier": "sovereign",

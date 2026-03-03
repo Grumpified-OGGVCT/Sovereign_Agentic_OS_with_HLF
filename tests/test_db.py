@@ -3,39 +3,35 @@ Unit tests for the SQL registry (agents.core.db).
 
 All tests use in-memory SQLite — no file cleanup needed.
 """
+
 from __future__ import annotations
 
 import sqlite3
 
 from agents.core.db import (
-    ModelTier,
     TIER_MAP,
-    get_db,
-    init_db,
-    create_snapshot,
-    promote_snapshot,
-    get_active_snapshot,
-    update_snapshot_model_count,
-    upsert_model,
-    get_models_by_tier,
-    get_all_models,
-    upsert_local_inventory,
-    get_local_inventory,
-    upsert_local_metadata,
-    upsert_agent_template,
-    get_agent_template,
-    upsert_model_equivalent,
-    get_equivalents,
-    upsert_policy_bundle,
-    get_active_policies,
+    ModelTier,
     add_feedback,
-    get_feedback,
-    record_tier_change,
+    create_snapshot,
+    get_active_policies,
+    get_active_snapshot,
+    get_agent_template,
     get_current_tier,
+    get_equivalents,
+    get_feedback,
+    get_local_inventory,
+    get_models_by_tier,
+    promote_snapshot,
+    record_tier_change,
+    upsert_agent_template,
+    upsert_local_inventory,
+    upsert_model,
+    upsert_model_equivalent,
+    upsert_policy_bundle,
 )
 
-
 # ── helpers ──────────────────────────────────────────────────────────────
+
 
 def _mem_db() -> sqlite3.Connection:
     """Return an initialised in-memory database connection."""
@@ -51,26 +47,26 @@ def _mem_db() -> sqlite3.Connection:
 
 # ── Phase 1 tests ────────────────────────────────────────────────────────
 
+
 def test_init_db_creates_tables() -> None:
     """All 9 tables exist after schema creation."""
     conn = _mem_db()
     cur = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
     # Filter out sqlite_sequence (auto-created by SQLite for AUTOINCREMENT columns)
-    tables = sorted(
-        row["name"] for row in cur.fetchall()
-        if not row["name"].startswith("sqlite_")
+    tables = sorted(row["name"] for row in cur.fetchall() if not row["name"].startswith("sqlite_"))
+    expected = sorted(
+        [
+            "snapshots",
+            "models",
+            "model_tiers",
+            "user_local_inventory",
+            "local_model_metadata",
+            "agent_templates",
+            "model_equivalents",
+            "policy_bundles",
+            "model_feedback",
+        ]
     )
-    expected = sorted([
-        "snapshots",
-        "models",
-        "model_tiers",
-        "user_local_inventory",
-        "local_model_metadata",
-        "agent_templates",
-        "model_equivalents",
-        "policy_bundles",
-        "model_feedback",
-    ])
     assert tables == expected
     conn.close()
 
@@ -145,10 +141,10 @@ def test_local_inventory_upsert() -> None:
     inv = get_local_inventory(conn)
     assert len(inv) == 1
     assert inv[0]["model_id"] == "phi3:mini"
-    first_seen = inv[0]["last_seen"]
 
     # Upsert again — last_seen should update
     import time
+
     time.sleep(0.01)  # ensure clock ticks
     upsert_local_inventory(conn, "phi3:mini", size_gb=2.3, vram_required_mb=3100)
     inv2 = get_local_inventory(conn)
@@ -171,7 +167,8 @@ def test_agent_template_crud() -> None:
     conn = _mem_db()
 
     upsert_agent_template(
-        conn, "coder",
+        conn,
+        "coder",
         required_tier="A",
         system_prompt="You are a coding assistant.",
         tools=["file_read", "file_write"],
@@ -184,7 +181,8 @@ def test_agent_template_crud() -> None:
 
     # Update
     upsert_agent_template(
-        conn, "coder",
+        conn,
+        "coder",
         required_tier="S",
         system_prompt="You are an elite coding assistant.",
     )
@@ -199,8 +197,9 @@ def test_policy_bundle_crud() -> None:
     """Create active policy, deactivate, verify."""
     conn = _mem_db()
 
-    pid = upsert_policy_bundle(
-        conn, "no-uncensored",
+    upsert_policy_bundle(
+        conn,
+        "no-uncensored",
         rules={"block_uncensored": True},
         active=True,
     )
@@ -240,12 +239,10 @@ def test_tier_history_tracking() -> None:
     assert get_current_tier(conn, "llama3.1:8b") == "A"
 
     # Should have 2 history records, with the first one closed
-    rows = conn.execute(
-        "SELECT * FROM model_tiers WHERE model_id = ?", ("llama3.1:8b",)
-    ).fetchall()
+    rows = conn.execute("SELECT * FROM model_tiers WHERE model_id = ?", ("llama3.1:8b",)).fetchall()
     assert len(rows) == 2
     assert rows[0]["effective_to"] is not None  # closed
-    assert rows[1]["effective_to"] is None       # still current
+    assert rows[1]["effective_to"] is None  # still current
 
     conn.close()
 

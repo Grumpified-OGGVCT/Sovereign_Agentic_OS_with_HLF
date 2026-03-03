@@ -8,12 +8,13 @@ Responsibilities:
 4. Handle exceptions from other agents (dead-letter adjudication).
 5. Gas-accounted: each adjudication costs 2 units from the per-tier bucket.
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import threading
-import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -43,7 +44,7 @@ _BUDGET_QUARANTINE_PCT: float = float(os.environ.get("ARBITER_BUDGET_QUARANTINE_
 class ArbiterVerdict:
     """Result of an Arbiter adjudication."""
 
-    verdict: str           # ALLOW | ESCALATE | QUARANTINE
+    verdict: str  # ALLOW | ESCALATE | QUARANTINE
     rule_id: str = ""
     justification: str = ""
     event_type: str = ""
@@ -159,6 +160,7 @@ def adjudicate(event_type: str, payload: str | dict[str, Any]) -> ArbiterVerdict
 # Background consumer
 # --------------------------------------------------------------------------- #
 
+
 def _consume_loop(stop_event: threading.Event) -> None:
     """Redis XREADGROUP consumer for ``arbiter_events``."""
     try:
@@ -168,10 +170,8 @@ def _consume_loop(stop_event: threading.Event) -> None:
             os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
             decode_responses=True,
         )
-        try:
+        with contextlib.suppress(Exception):
             r.xgroup_create(ARBITER_EVENTS_STREAM, _CONSUMER_GROUP, id="0", mkstream=True)
-        except Exception:
-            pass  # consumer group already exists
 
         tier = os.environ.get("DEPLOYMENT_TIER", "hearth")
         _logger.log("ARBITER_AGENT_CONSUMER_READY", {"stream": ARBITER_EVENTS_STREAM})
@@ -179,42 +179,46 @@ def _consume_loop(stop_event: threading.Event) -> None:
         from agents.gateway.router import consume_gas  # noqa: PLC0415
 
         while not stop_event.is_set():
-            messages = r.xreadgroup(
-                _CONSUMER_GROUP,
-                "arbiter-1",
-                {ARBITER_EVENTS_STREAM: ">"},
-                count=1,
-                block=2000,
-            )
-            if not messages:
-                continue
+            try:
+                messages = r.xreadgroup(
+                    _CONSUMER_GROUP,
+                    "arbiter-1",
+                    {ARBITER_EVENTS_STREAM: ">"},
+                    count=1,
+                    block=2000,
+                )
+                if not messages:
+                    continue
 
-            for _stream, entries in messages:
-                for entry_id, data in entries:
-                    raw = data.get("data", "{}")
-                    try:
-                        if not consume_gas(tier, ADJUDICATE_GAS_COST, r):
-                            _logger.log("ARBITER_GAS_EXHAUSTED", {}, anomaly_score=0.3)
+                for _stream, entries in messages:
+                    for entry_id, data in entries:
+                        raw = data.get("data", "{}")
+                        try:
+                            if not consume_gas(tier, ADJUDICATE_GAS_COST, r):
+                                _logger.log("ARBITER_GAS_EXHAUSTED", {}, anomaly_score=0.3)
+                                r.xack(ARBITER_EVENTS_STREAM, _CONSUMER_GROUP, entry_id)
+                                continue
+
+                            event_data = json.loads(raw) if raw else {}
+                            event_type = event_data.get("event_type", "UNKNOWN")
+                            verdict = adjudicate(event_type, event_data)
+                            _logger.log(
+                                "ARBITER_VERDICT",
+                                {
+                                    "verdict": verdict.verdict,
+                                    "rule_id": verdict.rule_id,
+                                    "event_type": verdict.event_type,
+                                    "justification": verdict.justification,
+                                },
+                                anomaly_score=0.9 if verdict.verdict == VERDICT_QUARANTINE else 0.0,
+                            )
+                        except Exception as exc:
+                            _logger.log("ARBITER_CONSUME_ERROR", {"error": str(exc)}, anomaly_score=0.6)
+                        finally:
                             r.xack(ARBITER_EVENTS_STREAM, _CONSUMER_GROUP, entry_id)
-                            continue
-
-                        event_data = json.loads(raw) if raw else {}
-                        event_type = event_data.get("event_type", "UNKNOWN")
-                        verdict = adjudicate(event_type, event_data)
-                        _logger.log(
-                            "ARBITER_VERDICT",
-                            {
-                                "verdict": verdict.verdict,
-                                "rule_id": verdict.rule_id,
-                                "event_type": verdict.event_type,
-                                "justification": verdict.justification,
-                            },
-                            anomaly_score=0.9 if verdict.verdict == VERDICT_QUARANTINE else 0.0,
-                        )
-                    except Exception as exc:
-                        _logger.log("ARBITER_CONSUME_ERROR", {"error": str(exc)}, anomaly_score=0.6)
-                    finally:
-                        r.xack(ARBITER_EVENTS_STREAM, _CONSUMER_GROUP, entry_id)
+            except Exception as exc:
+                _logger.log("ARBITER_LOOP_ERROR", {"error": str(exc)}, anomaly_score=0.5)
+                time.sleep(2)
     except Exception as exc:
         _logger.log("ARBITER_FATAL", {"error": str(exc)}, anomaly_score=1.0)
 

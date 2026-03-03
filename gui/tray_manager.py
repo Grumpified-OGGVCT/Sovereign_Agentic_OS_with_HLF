@@ -1,11 +1,11 @@
-import pystray
-from pystray import MenuItem as item
-from PIL import Image, ImageDraw, ImageFont
+import os
 import subprocess
 import threading
-import sys
-import os
 import webbrowser
+
+import pystray
+from PIL import Image, ImageDraw
+from pystray import MenuItem as item
 
 # OS Level states
 backend_process = None
@@ -15,18 +15,21 @@ backend_running = False
 gui_running = False
 mcp_running = False
 
+
 # Setup Icon Graphic
 def create_image(width, height, color1, color2):
-    image = Image.new('RGB', (width, height), color1)
+    image = Image.new("RGB", (width, height), color1)
     dc = ImageDraw.Draw(image)
     dc.rectangle((width // 2, 0, width, height // 2), fill=color2)
     dc.rectangle((0, height // 2, width // 2, height), fill=color2)
     return image
 
-icon_img = create_image(64, 64, 'black', 'blue')
+
+icon_img = create_image(64, 64, "black", "blue")
 
 
 # --- Actions ---
+
 
 def start_backend(icon, item):
     global backend_process, backend_running
@@ -35,12 +38,10 @@ def start_backend(icon, item):
         # Profile hearth by default
         env = os.environ.copy()
         env["DEPLOYMENT_TIER"] = "hearth"
-        backend_process = subprocess.Popen(
-            ["docker", "compose", "--profile", "hearth", "up", "-d"],
-            env=env
-        )
+        backend_process = subprocess.Popen(["docker", "compose", "--profile", "hearth", "up", "-d"], env=env)
         backend_running = True
         icon.notify("Sovereign OS backends started (Hearth Profiling).")
+
 
 def stop_backend(icon, item):
     global backend_process, backend_running
@@ -50,22 +51,23 @@ def stop_backend(icon, item):
         backend_running = False
         icon.notify("Sovereign OS backends shutting down.")
 
+
 def start_gui(icon, item):
     global gui_process, gui_running
     if not gui_running:
         icon.notify("Starting Sovereign Command Center UI...")
         print("[System Tray] Starting Streamlit GUI...")
-        gui_process = subprocess.Popen(
-            ["uv", "run", "streamlit", "run", "gui/app.py", "--server.headless", "true"]
-        )
+        gui_process = subprocess.Popen(["uv", "run", "streamlit", "run", "gui/app.py", "--server.headless", "true"])
         gui_running = True
-        
+
         def open_browser():
             import time
-            time.sleep(3) # Wait for Streamlit server to boot
+
+            time.sleep(3)  # Wait for Streamlit server to boot
             webbrowser.open("http://localhost:8501")
-            
+
         threading.Thread(target=open_browser, daemon=True).start()
+
 
 def stop_gui(icon, item):
     global gui_process, gui_running
@@ -74,6 +76,7 @@ def stop_gui(icon, item):
         gui_process.terminate()
         gui_running = False
         icon.notify("Command Center UI stopped.")
+
 
 def exit_action(icon, item):
     stop_gui(icon, item)
@@ -86,9 +89,7 @@ def start_mcp(icon, item):
     global mcp_process, mcp_running
     if not mcp_running:
         print("[System Tray] Starting Sovereign OS MCP Server...")
-        mcp_process = subprocess.Popen(
-            ["uv", "run", "python", "mcp/sovereign_mcp_server.py"]
-        )
+        mcp_process = subprocess.Popen(["uv", "run", "python", "mcp/sovereign_mcp_server.py"])
         mcp_running = True
         if icon:
             icon.notify("Sovereign OS MCP Server started.")
@@ -107,22 +108,23 @@ def stop_mcp(icon, item):
 # --- Menu Definition ---
 
 menu = pystray.Menu(
-    item('Start Command Center GUI \u25b6', start_gui),
-    item('Stop Command Center GUI \u23f9', stop_gui),
+    item("Start Command Center GUI \u25b6", start_gui),
+    item("Stop Command Center GUI \u23f9", stop_gui),
     pystray.Menu.SEPARATOR,
-    item('Start OS Backend \u2699', start_backend),
-    item('Stop OS Backend \u26d4', stop_backend),
+    item("Start OS Backend \u2699", start_backend),
+    item("Stop OS Backend \u26d4", stop_backend),
     pystray.Menu.SEPARATOR,
-    item('Start MCP Server \U0001f517', start_mcp),
-    item('Stop MCP Server \u23f9', stop_mcp),
+    item("Start MCP Server \U0001f517", start_mcp),
+    item("Stop MCP Server \u23f9", stop_mcp),
     pystray.Menu.SEPARATOR,
-    item('Exit Manager \u274c', exit_action)
+    item("Exit Manager \u274c", exit_action),
 )
 
 icon = pystray.Icon("SovereignOS", icon_img, "Sovereign Agentic OS", menu)
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--auto-launch", action="store_true", help="Automatically start backend and GUI on boot")
     args = parser.parse_args()

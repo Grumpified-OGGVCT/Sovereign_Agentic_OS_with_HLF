@@ -4,45 +4,40 @@ Tests for the Phase 3 registry-aware router — route_request() + AgentProfile.
 All tests use in-memory SQLite so no file cleanup is needed.
 Legacy route_intent() is NOT tested here (it has its own coverage in test_policy.py).
 """
+
 from __future__ import annotations
 
-import json
 import sqlite3
 import sys
-import os
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-
-import pytest
+from unittest.mock import MagicMock, patch
 
 # Ensure agents package is importable
 _root = Path(__file__).resolve().parent.parent
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
-from agents.gateway.router import (
+from agents.core.db import (  # noqa: E402
+    _SCHEMA_SQL,
+    create_snapshot,
+    get_db,
+    init_db,
+    promote_snapshot,
+    upsert_agent_template,
+    upsert_local_inventory,
+    upsert_model,
+    upsert_model_equivalent,
+)
+from agents.gateway.router import (  # noqa: E402
+    _SPECIALIZATION_PATTERNS,
+    _TIER_WALK_ORDER,
     AgentProfile,
     route_intent,
     route_request,
-    _TIER_WALK_ORDER,
-    _SPECIALIZATION_PATTERNS,
-    check_vram_threshold,
 )
-from agents.core.db import (
-    init_db,
-    get_db,
-    create_snapshot,
-    promote_snapshot,
-    upsert_model,
-    upsert_local_inventory,
-    upsert_local_metadata,
-    upsert_agent_template,
-    upsert_model_equivalent,
-    _SCHEMA_SQL,
-)
-
 
 # ─── Helpers ─────────────────────────────────────────────────────────────
+
 
 def _seed_registry(conn: sqlite3.Connection) -> int:
     """Create and promote a snapshot with some scored models + local inventory."""
@@ -62,7 +57,8 @@ def _seed_registry(conn: sqlite3.Connection) -> int:
 
     # Agent template for coding
     upsert_agent_template(
-        conn, "coding",
+        conn,
+        "coding",
         system_prompt="You are a senior software engineer.",
         tools=["code_search", "file_edit"],
         restrictions={"max_tokens": 8192},
@@ -79,7 +75,6 @@ def _make_mem_db() -> tuple[sqlite3.Connection, Path]:
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
     # Use init_db's table creation SQL but on in-memory conn
-    from agents.core.db import _SCHEMA_SQL
     conn.executescript(_SCHEMA_SQL)
     return conn, Path(":memory:")
 
@@ -158,11 +153,23 @@ def test_route_request_fallback_no_db_file():
 
     def fake_imports():
         from agents.core.db import (
-            get_db, init_db,
-            get_models_by_tier, get_local_inventory,
-            get_agent_template, get_equivalents,
+            get_agent_template,
+            get_db,
+            get_equivalents,
+            get_local_inventory,
+            get_models_by_tier,
+            init_db,
         )
-        return get_db, mock_db_path, init_db, get_models_by_tier, get_local_inventory, get_agent_template, get_equivalents
+
+        return (
+            get_db,
+            mock_db_path,
+            init_db,
+            get_models_by_tier,
+            get_local_inventory,
+            get_agent_template,
+            get_equivalents,
+        )
 
     with patch("agents.gateway.router._try_import_db", side_effect=fake_imports):
         profile = route_request("hello world", {})

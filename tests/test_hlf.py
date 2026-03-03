@@ -51,7 +51,9 @@ class TestHlfCompile:
         assert "RESULT" in tags
 
     def test_malformed_intent_rejected(self) -> None:
-        with pytest.raises(Exception):
+        from hlf.hlfc import HlfSyntaxError
+
+        with pytest.raises(HlfSyntaxError):
             hlfc_compile("just plain text without tags")
 
     def test_tag_arity_checking(self) -> None:

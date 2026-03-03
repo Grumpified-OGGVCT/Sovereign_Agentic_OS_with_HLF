@@ -1,46 +1,56 @@
 from __future__ import annotations
+
 import argparse
 import json
 import os
 import time
 from dataclasses import asdict
-from typing import Dict, List
 
 from .artifacts import ensure_dir, make_manifest, make_versioned_output_dir
-from .config import CLOUD_OLLAMA, LOCAL_OLLAMA, DEFAULT_FAMILIES
-from .models import CardInfo
 from .clients.ollama_client import (
-    fetch_tags, model_root, normalize_model_id, compute_sync_actions, run_pull, best_entry_by_norm
+    best_entry_by_norm,
+    compute_sync_actions,
+    fetch_tags,
+    model_root,
+    normalize_model_id,
+    run_pull,
 )
 from .clients.openrouter_client import fetch_rankings, find_rank_for_root
 from .clients.sheets_client import upload_tabs
-from .parsers.card_parser import fetch_card
-from .parsers.benchmark_parser import benchmark_composite
-from .scoring import (
-    category_scores, score_to_tier, confidence_score, highest_strength_use_case, official_capabilities_json
-)
+from .config import CLOUD_OLLAMA, DEFAULT_FAMILIES, LOCAL_OLLAMA
 from .diffing import build_diff
-from .io.csv_io import write_csv, read_csv
+from .io.csv_io import read_csv, write_csv
 from .io.json_io import write_json, write_jsonl
-
+from .models import CardInfo
+from .parsers.benchmark_parser import benchmark_composite
+from .parsers.card_parser import fetch_card
+from .scoring import (
+    category_scores,
+    confidence_score,
+    highest_strength_use_case,
+    official_capabilities_json,
+    score_to_tier,
+)
 
 # ---------------------------------------------------------------------------
 # Registry bridge — persist pipeline results to registry.db
 # ---------------------------------------------------------------------------
 
+
 def _try_import_db():
     """Lazy-import the db module to avoid hard dependency."""
     try:
         from agents.core import db
+
         return db
     except ImportError:
         return None
 
 
 def _persist_to_registry(
-    catalog_rows: List[Dict],
-    matrix_rows: List[Dict],
-    dup_rows: List[Dict],
+    catalog_rows: list[dict],
+    matrix_rows: list[dict],
+    dup_rows: list[dict],
     families: list[str],
     promote: bool = False,
     db_path: str | None = None,
@@ -63,8 +73,8 @@ def _persist_to_registry(
     # Build a lookup: model_id → best tier from matrix_rows
     # matrix_rows has per-category tiers; pick the best (lowest index in tier walk)
     _tier_rank = {"S": 0, "A+": 1, "A": 2, "A-": 3, "B+": 4, "B": 5, "C": 6, "D": 7}
-    best_tier: Dict[str, str] = {}
-    best_score: Dict[str, float] = {}
+    best_tier: dict[str, str] = {}
+    best_score: dict[str, float] = {}
     for row in matrix_rows:
         mid = row["official_nomenclature"]
         tier = row["tier"]
@@ -117,7 +127,8 @@ def _persist_to_registry(
             db.upsert_local_inventory(conn, mid, size_gb=size_gb)
             # Also persist extended metadata if available
             db.upsert_local_metadata(
-                conn, mid,
+                conn,
+                mid,
                 digest=row.get("digest", ""),
                 modified_at=row.get("modified_at", ""),
                 quantization_level="",
@@ -138,6 +149,7 @@ def _persist_to_registry(
         "local_synced": local_synced,
         "promoted": promote,
     }
+
 
 def run_pipeline_scheduled(promote: bool = True) -> None:
     """Run the pipeline programmatically (no sys.argv).
@@ -204,16 +216,18 @@ def parse_args() -> argparse.Namespace:
     )
     return ap.parse_args()
 
+
 def parse_families_csv(value: str) -> set[str]:
     if not value:
         return set()
     return {x.strip().lower() for x in value.split(",") if x.strip()}
 
+
 def load_families_file(path: str) -> set[str]:
     if not path or not os.path.exists(path):
         return set()
     out: set[str] = set()
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             s = line.strip()
             if not s or s.startswith("#"):
@@ -222,6 +236,7 @@ def load_families_file(path: str) -> set[str]:
             if s:
                 out.add(s)
     return out
+
 
 def run_pipeline(args: argparse.Namespace | None = None) -> None:
     if args is None:
@@ -273,21 +288,29 @@ def run_pipeline(args: argparse.Namespace | None = None) -> None:
 
     print("[3/9] Card cache")
     roots = sorted(set(model_root(m.name) for m in (cloud_scope + local_scope)))
-    cards: Dict[str, CardInfo] = {}
+    cards: dict[str, CardInfo] = {}
     for i, r in enumerate(roots, 1):
         try:
             cards[r] = fetch_card(r, cache_dir=args.cache_dir)
         except Exception as e:
             cards[r] = CardInfo(
-                slug=r, title=r, summary="", cap_tags=[], specialties=[],
-                benchmark_mentions=[], benchmark_structured=[], context_mentions=[],
-                raw_text=f"ERROR fetching card: {e}", fetched_at_utc=""
+                slug=r,
+                title=r,
+                summary="",
+                cap_tags=[],
+                specialties=[],
+                benchmark_mentions=[],
+                benchmark_structured=[],
+                context_mentions=[],
+                raw_text=f"ERROR fetching card: {e}",
+                fetched_at_utc="",
             )
         if i % 20 == 0:
             print(f"  cached {i}/{len(roots)}")
         time.sleep(args.sleep_cards)
 
     print("[4/9] Sync actions")
+
     def pull_target_fn(cloud_name: str) -> str:
         root = model_root(cloud_name)
         card = cards.get(root)
@@ -307,23 +330,25 @@ def run_pipeline(args: argparse.Namespace | None = None) -> None:
     print("[6/9] Build outputs")
     combined_best = best_entry_by_norm(cloud_scope + local_scope)
 
-    catalog_rows: List[Dict] = []
-    matrix_rows: List[Dict] = []
-    bench_long_rows: List[Dict] = []
-    raw_rows: List[Dict] = []
-    dup_rows: List[Dict] = []
+    catalog_rows: list[dict] = []
+    matrix_rows: list[dict] = []
+    bench_long_rows: list[dict] = []
+    raw_rows: list[dict] = []
+    dup_rows: list[dict] = []
 
-    for l in local_scope:
-        dup_rows.append({
-            "local_model": l.name,
-            "normalized_id": normalize_model_id(l.name),
-            "family_guess": model_root(l.name),
-            "is_community_fork": str("/" in l.name).lower(),
-            "canonical_official_family_guess": model_root(l.name),
-            "digest": l.digest,
-            "modified_at": l.modified_at,
-            "size_bytes": l.size or "",
-        })
+    for loc in local_scope:
+        dup_rows.append(
+            {
+                "local_model": loc.name,
+                "normalized_id": normalize_model_id(loc.name),
+                "family_guess": model_root(loc.name),
+                "is_community_fork": str("/" in loc.name).lower(),
+                "canonical_official_family_guess": model_root(loc.name),
+                "digest": loc.digest,
+                "modified_at": loc.modified_at,
+                "size_bytes": loc.size or "",
+            }
+        )
 
     for _, m in combined_best.items():
         root = model_root(m.name)
@@ -335,68 +360,76 @@ def run_pipeline(args: argparse.Namespace | None = None) -> None:
         use_case = highest_strength_use_case(cat_scores, card, m.name)
         cap_json = official_capabilities_json(card)
 
-        catalog_rows.append({
-            "official_nomenclature": m.name,
-            "family": root,
-            "is_community_fork": str("/" in m.name).lower(),
-            "digest": m.digest,
-            "modified_at": m.modified_at,
-            "size_bytes": m.size or "",
-            "official_capabilities": cap_json,
-            "highest_strength_use_case": use_case,
-            "benchmark_composite": comp["composite"],
-            "benchmark_metric_count": comp["metric_count"],
-            "confidence_score": conf,
-            "openrouter_rank": rank_hit["rank"] if rank_hit else "",
-            "openrouter_tokens": rank_hit["tokens"] if rank_hit else "",
-            "openrouter_delta_or_share": rank_hit["delta_or_share"] if rank_hit else "",
-            "source_card_slug": card.slug,
-            "source_fetched_at_utc": card.fetched_at_utc,
-        })
+        catalog_rows.append(
+            {
+                "official_nomenclature": m.name,
+                "family": root,
+                "is_community_fork": str("/" in m.name).lower(),
+                "digest": m.digest,
+                "modified_at": m.modified_at,
+                "size_bytes": m.size or "",
+                "official_capabilities": cap_json,
+                "highest_strength_use_case": use_case,
+                "benchmark_composite": comp["composite"],
+                "benchmark_metric_count": comp["metric_count"],
+                "confidence_score": conf,
+                "openrouter_rank": rank_hit["rank"] if rank_hit else "",
+                "openrouter_tokens": rank_hit["tokens"] if rank_hit else "",
+                "openrouter_delta_or_share": rank_hit["delta_or_share"] if rank_hit else "",
+                "source_card_slug": card.slug,
+                "source_fetched_at_utc": card.fetched_at_utc,
+            }
+        )
 
         for cat, sc in sorted(cat_scores.items(), key=lambda x: (-x[1], x[0])):
             if sc < 2.0:
                 continue
-            matrix_rows.append({
-                "category": cat,
-                "tier": score_to_tier(sc),
-                "official_nomenclature": m.name,
-                "official_capabilities": cap_json,
-                "highest_strength_use_case": use_case,
-                "category_score": round(sc, 6),
-                "confidence_score": conf,
-                "benchmark_composite": comp["composite"],
-                "benchmark_metric_count": comp["metric_count"],
-                "benchmark_evidence": " | ".join(card.benchmark_mentions[:30]),
-                "specialty_notes": " | ".join(card.specialties[:30]),
-                "openrouter_rank": rank_hit["rank"] if rank_hit else "",
-                "openrouter_tokens": rank_hit["tokens"] if rank_hit else "",
-                "openrouter_delta_or_share": rank_hit["delta_or_share"] if rank_hit else "",
-                "modified_at": m.modified_at,
-                "digest": m.digest,
-            })
+            matrix_rows.append(
+                {
+                    "category": cat,
+                    "tier": score_to_tier(sc),
+                    "official_nomenclature": m.name,
+                    "official_capabilities": cap_json,
+                    "highest_strength_use_case": use_case,
+                    "category_score": round(sc, 6),
+                    "confidence_score": conf,
+                    "benchmark_composite": comp["composite"],
+                    "benchmark_metric_count": comp["metric_count"],
+                    "benchmark_evidence": " | ".join(card.benchmark_mentions[:30]),
+                    "specialty_notes": " | ".join(card.specialties[:30]),
+                    "openrouter_rank": rank_hit["rank"] if rank_hit else "",
+                    "openrouter_tokens": rank_hit["tokens"] if rank_hit else "",
+                    "openrouter_delta_or_share": rank_hit["delta_or_share"] if rank_hit else "",
+                    "modified_at": m.modified_at,
+                    "digest": m.digest,
+                }
+            )
 
         for b in card.benchmark_structured:
-            bench_long_rows.append({
-                "official_nomenclature": m.name,
-                "metric": b["metric"],
-                "value": b["value"],
-                "is_percent": b["is_percent"],
-                "normalized": b["normalized"],
-                "weight": b["weight"],
-                "weighted_score": b["weighted_score"],
-                "raw_snippet": b["raw_snippet"],
-                "source_card_slug": card.slug,
-            })
+            bench_long_rows.append(
+                {
+                    "official_nomenclature": m.name,
+                    "metric": b["metric"],
+                    "value": b["value"],
+                    "is_percent": b["is_percent"],
+                    "normalized": b["normalized"],
+                    "weight": b["weight"],
+                    "weighted_score": b["weighted_score"],
+                    "raw_snippet": b["raw_snippet"],
+                    "source_card_slug": card.slug,
+                }
+            )
 
-        raw_rows.append({
-            "official_nomenclature": m.name,
-            "raw_text": card.raw_text,
-            "benchmark_mentions": card.benchmark_mentions,
-            "benchmark_structured": card.benchmark_structured,
-            "specialties": card.specialties,
-            "fetched_at_utc": card.fetched_at_utc,
-        })
+        raw_rows.append(
+            {
+                "official_nomenclature": m.name,
+                "raw_text": card.raw_text,
+                "benchmark_mentions": card.benchmark_mentions,
+                "benchmark_structured": card.benchmark_structured,
+                "specialties": card.specialties,
+                "fetched_at_utc": card.fetched_at_utc,
+            }
+        )
 
     print("[7/9] Diff")
     diff_rows, promoted_rows, demoted_rows = [], [], []
@@ -410,27 +443,91 @@ def run_pipeline(args: argparse.Namespace | None = None) -> None:
     write_csv(
         os.path.join(out_dir, "sync_actions.csv"),
         [asdict(a) for a in sync_actions],
-        ["normalized_id","cloud_name","local_name","action","reason","pull_target","cloud_digest","local_digest","cloud_modified_at","local_modified_at"]
+        [
+            "normalized_id",
+            "cloud_name",
+            "local_name",
+            "action",
+            "reason",
+            "pull_target",
+            "cloud_digest",
+            "local_digest",
+            "cloud_modified_at",
+            "local_modified_at",
+        ],
     )
     write_csv(
         os.path.join(out_dir, "model_catalog.csv"),
         catalog_rows,
-        ["official_nomenclature","family","is_community_fork","digest","modified_at","size_bytes","official_capabilities","highest_strength_use_case","benchmark_composite","benchmark_metric_count","confidence_score","openrouter_rank","openrouter_tokens","openrouter_delta_or_share","source_card_slug","source_fetched_at_utc"]
+        [
+            "official_nomenclature",
+            "family",
+            "is_community_fork",
+            "digest",
+            "modified_at",
+            "size_bytes",
+            "official_capabilities",
+            "highest_strength_use_case",
+            "benchmark_composite",
+            "benchmark_metric_count",
+            "confidence_score",
+            "openrouter_rank",
+            "openrouter_tokens",
+            "openrouter_delta_or_share",
+            "source_card_slug",
+            "source_fetched_at_utc",
+        ],
     )
     write_csv(
         os.path.join(out_dir, "matrix.csv"),
         matrix_rows,
-        ["category","tier","official_nomenclature","official_capabilities","highest_strength_use_case","category_score","confidence_score","benchmark_composite","benchmark_metric_count","benchmark_evidence","specialty_notes","openrouter_rank","openrouter_tokens","openrouter_delta_or_share","modified_at","digest"]
+        [
+            "category",
+            "tier",
+            "official_nomenclature",
+            "official_capabilities",
+            "highest_strength_use_case",
+            "category_score",
+            "confidence_score",
+            "benchmark_composite",
+            "benchmark_metric_count",
+            "benchmark_evidence",
+            "specialty_notes",
+            "openrouter_rank",
+            "openrouter_tokens",
+            "openrouter_delta_or_share",
+            "modified_at",
+            "digest",
+        ],
     )
     write_csv(
         os.path.join(out_dir, "benchmark_long.csv"),
         bench_long_rows,
-        ["official_nomenclature","metric","value","is_percent","normalized","weight","weighted_score","raw_snippet","source_card_slug"]
+        [
+            "official_nomenclature",
+            "metric",
+            "value",
+            "is_percent",
+            "normalized",
+            "weight",
+            "weighted_score",
+            "raw_snippet",
+            "source_card_slug",
+        ],
     )
     write_csv(
         os.path.join(out_dir, "duplicates_map.csv"),
         dup_rows,
-        ["local_model","normalized_id","family_guess","is_community_fork","canonical_official_family_guess","digest","modified_at","size_bytes"]
+        [
+            "local_model",
+            "normalized_id",
+            "family_guess",
+            "is_community_fork",
+            "canonical_official_family_guess",
+            "digest",
+            "modified_at",
+            "size_bytes",
+        ],
     )
     write_jsonl(os.path.join(out_dir, "model_catalog.raw.jsonl"), raw_rows)
 
@@ -438,17 +535,56 @@ def run_pipeline(args: argparse.Namespace | None = None) -> None:
         write_csv(
             os.path.join(out_dir, "matrix_diff.csv"),
             diff_rows,
-            ["category","official_nomenclature","change_type","prev_tier","curr_tier","prev_score","curr_score","prev_confidence","curr_confidence","tier_delta","score_delta","confidence_delta"]
+            [
+                "category",
+                "official_nomenclature",
+                "change_type",
+                "prev_tier",
+                "curr_tier",
+                "prev_score",
+                "curr_score",
+                "prev_confidence",
+                "curr_confidence",
+                "tier_delta",
+                "score_delta",
+                "confidence_delta",
+            ],
         )
         write_csv(
             os.path.join(out_dir, "promoted.csv"),
             promoted_rows,
-            ["category","official_nomenclature","change_type","prev_tier","curr_tier","prev_score","curr_score","prev_confidence","curr_confidence","tier_delta","score_delta","confidence_delta"]
+            [
+                "category",
+                "official_nomenclature",
+                "change_type",
+                "prev_tier",
+                "curr_tier",
+                "prev_score",
+                "curr_score",
+                "prev_confidence",
+                "curr_confidence",
+                "tier_delta",
+                "score_delta",
+                "confidence_delta",
+            ],
         )
         write_csv(
             os.path.join(out_dir, "demoted.csv"),
             demoted_rows,
-            ["category","official_nomenclature","change_type","prev_tier","curr_tier","prev_score","curr_score","prev_confidence","curr_confidence","tier_delta","score_delta","confidence_delta"]
+            [
+                "category",
+                "official_nomenclature",
+                "change_type",
+                "prev_tier",
+                "curr_tier",
+                "prev_score",
+                "curr_score",
+                "prev_confidence",
+                "curr_confidence",
+                "tier_delta",
+                "score_delta",
+                "confidence_delta",
+            ],
         )
 
     manifest = make_manifest(
@@ -469,16 +605,20 @@ def run_pipeline(args: argparse.Namespace | None = None) -> None:
 
     if args.gsheet_id and args.gcp_creds:
         print("[9/9] Upload Sheets")
-        upload_tabs(args.gsheet_id, args.gcp_creds, {
-            "Matrix": matrix_rows,
-            "Catalog": catalog_rows,
-            "BenchmarkLong": bench_long_rows,
-            "SyncActions": [asdict(a) for a in sync_actions],
-            "Diff": diff_rows if diff_rows else [{"note": "No diff rows"}],
-            "Promoted": promoted_rows if promoted_rows else [{"note": "No promoted rows"}],
-            "Demoted": demoted_rows if demoted_rows else [{"note": "No demoted rows"}],
-            "Manifest": [manifest],
-        })
+        upload_tabs(
+            args.gsheet_id,
+            args.gcp_creds,
+            {
+                "Matrix": matrix_rows,
+                "Catalog": catalog_rows,
+                "BenchmarkLong": bench_long_rows,
+                "SyncActions": [asdict(a) for a in sync_actions],
+                "Diff": diff_rows if diff_rows else [{"note": "No diff rows"}],
+                "Promoted": promoted_rows if promoted_rows else [{"note": "No promoted rows"}],
+                "Demoted": demoted_rows if demoted_rows else [{"note": "No demoted rows"}],
+                "Manifest": [manifest],
+            },
+        )
 
     # ── Registry Bridge ──────────────────────────────────────────────────
     registry_summary = {"registry_persisted": False, "reason": "--registry-db not set"}
@@ -491,10 +631,12 @@ def run_pipeline(args: argparse.Namespace | None = None) -> None:
             families=families,
             promote=args.promote,
         )
-        print(f"  → snapshot #{registry_summary.get('snapshot_id', '?')}: "
-              f"{registry_summary.get('models_upserted', 0)} models, "
-              f"{registry_summary.get('local_synced', 0)} local, "
-              f"promoted={registry_summary.get('promoted', False)}")
+        print(
+            f"  → snapshot #{registry_summary.get('snapshot_id', '?')}: "
+            f"{registry_summary.get('models_upserted', 0)} models, "
+            f"{registry_summary.get('local_synced', 0)} local, "
+            f"promoted={registry_summary.get('promoted', False)}"
+        )
     manifest["registry"] = registry_summary
 
     print("Done.")

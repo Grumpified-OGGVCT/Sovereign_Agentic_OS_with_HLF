@@ -8,8 +8,10 @@ Responsibilities:
 4. Consume ``sentinel_events`` stream for reactive scanning.
 5. Gas-accounted: each scan costs 1 unit from the per-tier bucket.
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import re
@@ -31,9 +33,7 @@ _PRIVESC_PATTERNS: list[tuple[str, str]] = [
     (r"(?i)(ptrace|SYS_ADMIN|CAP_SYS_PTRACE)", "PRIVESC-004"),
     (r"(?i)(token.*exfil|steal.*credential|dump.*secret)", "PRIVESC-005"),
 ]
-_COMPILED_PRIVESC: list[tuple[re.Pattern[str], str]] = [
-    (re.compile(pat), rid) for pat, rid in _PRIVESC_PATTERNS
-]
+_COMPILED_PRIVESC: list[tuple[re.Pattern[str], str]] = [(re.compile(pat), rid) for pat, rid in _PRIVESC_PATTERNS]
 
 # Redis stream names
 SENTINEL_EVENTS_STREAM = "sentinel_events"
@@ -114,14 +114,16 @@ def _publish_alert(r: Any, verdict: SentinelVerdict, original_payload: str) -> N
         r.xadd(
             ARBITER_EVENTS_STREAM,
             {
-                "data": json.dumps({
-                    "event_type": "SECURITY_ALERT",
-                    "source_agent": "sentinel",
-                    "rule_id": verdict.rule_id,
-                    "severity": verdict.severity,
-                    "preview": original_payload[:120],
-                    "ts": time.time(),
-                }),
+                "data": json.dumps(
+                    {
+                        "event_type": "SECURITY_ALERT",
+                        "source_agent": "sentinel",
+                        "rule_id": verdict.rule_id,
+                        "severity": verdict.severity,
+                        "preview": original_payload[:120],
+                        "ts": time.time(),
+                    }
+                ),
             },
         )
     except Exception as exc:
@@ -132,6 +134,7 @@ def _publish_alert(r: Any, verdict: SentinelVerdict, original_payload: str) -> N
 # Background consumer
 # --------------------------------------------------------------------------- #
 
+
 def _consume_loop(stop_event: threading.Event) -> None:
     """Redis XREADGROUP consumer for ``sentinel_events``."""
     try:
@@ -141,10 +144,8 @@ def _consume_loop(stop_event: threading.Event) -> None:
             os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
             decode_responses=True,
         )
-        try:
+        with contextlib.suppress(Exception):
             r.xgroup_create(SENTINEL_EVENTS_STREAM, _CONSUMER_GROUP, id="0", mkstream=True)
-        except Exception:
-            pass  # consumer group already exists
 
         tier = os.environ.get("DEPLOYMENT_TIER", "hearth")
         _logger.log("SENTINEL_AGENT_CONSUMER_READY", {"stream": SENTINEL_EVENTS_STREAM})
@@ -152,40 +153,44 @@ def _consume_loop(stop_event: threading.Event) -> None:
         from agents.gateway.router import consume_gas  # noqa: PLC0415
 
         while not stop_event.is_set():
-            messages = r.xreadgroup(
-                _CONSUMER_GROUP,
-                "sentinel-1",
-                {SENTINEL_EVENTS_STREAM: ">"},
-                count=1,
-                block=2000,
-            )
-            if not messages:
-                continue
+            try:
+                messages = r.xreadgroup(
+                    _CONSUMER_GROUP,
+                    "sentinel-1",
+                    {SENTINEL_EVENTS_STREAM: ">"},
+                    count=1,
+                    block=2000,
+                )
+                if not messages:
+                    continue
 
-            for _stream, entries in messages:
-                for entry_id, data in entries:
-                    raw = data.get("data", "{}")
-                    try:
-                        if not consume_gas(tier, SCAN_GAS_COST, r):
-                            _logger.log("SENTINEL_GAS_EXHAUSTED", {}, anomaly_score=0.3)
+                for _stream, entries in messages:
+                    for entry_id, data in entries:
+                        raw = data.get("data", "{}")
+                        try:
+                            if not consume_gas(tier, SCAN_GAS_COST, r):
+                                _logger.log("SENTINEL_GAS_EXHAUSTED", {}, anomaly_score=0.3)
+                                r.xack(SENTINEL_EVENTS_STREAM, _CONSUMER_GROUP, entry_id)
+                                continue
+
+                            verdict = scan_payload(raw)
+                            if verdict.blocked:
+                                _publish_alert(r, verdict, raw)
+                            _logger.log(
+                                "SENTINEL_SCAN_COMPLETE",
+                                {
+                                    "blocked": verdict.blocked,
+                                    "rule_id": verdict.rule_id,
+                                    "source": verdict.source,
+                                },
+                            )
+                        except Exception as exc:
+                            _logger.log("SENTINEL_CONSUME_ERROR", {"error": str(exc)}, anomaly_score=0.6)
+                        finally:
                             r.xack(SENTINEL_EVENTS_STREAM, _CONSUMER_GROUP, entry_id)
-                            continue
-
-                        verdict = scan_payload(raw)
-                        if verdict.blocked:
-                            _publish_alert(r, verdict, raw)
-                        _logger.log(
-                            "SENTINEL_SCAN_COMPLETE",
-                            {
-                                "blocked": verdict.blocked,
-                                "rule_id": verdict.rule_id,
-                                "source": verdict.source,
-                            },
-                        )
-                    except Exception as exc:
-                        _logger.log("SENTINEL_CONSUME_ERROR", {"error": str(exc)}, anomaly_score=0.6)
-                    finally:
-                        r.xack(SENTINEL_EVENTS_STREAM, _CONSUMER_GROUP, entry_id)
+            except Exception as exc:
+                _logger.log("SENTINEL_LOOP_ERROR", {"error": str(exc)}, anomaly_score=0.5)
+                time.sleep(2)
     except Exception as exc:
         _logger.log("SENTINEL_FATAL", {"error": str(exc)}, anomaly_score=1.0)
 

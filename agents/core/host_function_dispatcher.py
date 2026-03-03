@@ -16,10 +16,11 @@ Security guarantees enforced here:
     (raw value is still returned to the caller; only the logged representation is hashed)
   - No subprocess calls: binary execution uses the Docker SDK via Dapr container spawn
 """
+
 from __future__ import annotations
 
-import hashlib
 import functools
+import hashlib
 import json
 import os
 import time
@@ -31,9 +32,7 @@ import httpx
 from agents.core.logger import ALSLogger
 
 _logger = ALSLogger(agent_role="host-fn-dispatcher", goal_id="execution")
-_REGISTRY_PATH = (
-    Path(__file__).parent.parent.parent / "governance" / "host_functions.json"
-)
+_REGISTRY_PATH = Path(__file__).parent.parent.parent / "governance" / "host_functions.json"
 _registry: dict[str, dict] | None = None
 
 
@@ -66,8 +65,7 @@ def dispatch(name: str, args: list, tier: str = "hearth") -> Any:
     allowed_tiers = fn_meta.get("tier", [])
     if tier not in allowed_tiers:
         raise PermissionError(
-            f"Host function '{name}' is not available in tier '{tier}'. "
-            f"Requires one of: {allowed_tiers}"
+            f"Host function '{name}' is not available in tier '{tier}'. Requires one of: {allowed_tiers}"
         )
 
     backend = fn_meta.get("backend", "builtin")
@@ -75,9 +73,7 @@ def dispatch(name: str, args: list, tier: str = "hearth") -> Any:
 
     # Structured log — sensitive outputs recorded as SHA-256 hash (never raw)
     log_result = (
-        hashlib.sha256(str(result).encode()).hexdigest()
-        if fn_meta.get("sensitive", False)
-        else str(result)[:200]
+        hashlib.sha256(str(result).encode()).hexdigest() if fn_meta.get("sensitive", False) else str(result)[:200]
     )
     _logger.log(
         "HOST_FN_CALL",
@@ -89,6 +85,7 @@ def dispatch(name: str, args: list, tier: str = "hearth") -> Any:
 # --------------------------------------------------------------------------- #
 # Backend implementations
 # --------------------------------------------------------------------------- #
+
 
 def _dispatch_backend(backend: str, name: str, args: list, meta: dict) -> Any:
     if backend == "builtin":
@@ -103,7 +100,25 @@ def _dispatch_backend(backend: str, name: str, args: list, meta: dict) -> Any:
         return _docker_spawn(args, meta)
     if backend == "dapr_container_spawn":
         return _dapr_container_spawn(name, args, meta)
+    if backend == "tool_forge":
+        return _tool_forge(args)
     raise RuntimeError(f"Unknown backend: {backend}")
+
+
+def _tool_forge(args: list) -> str:
+    """FORGE_TOOL <task_description> — dispatch to tool_forge."""
+    if not args or not args[0]:
+        return "FORGE_TOOL_ERROR: Missing task description"
+
+    from agents.core.tool_forge import forge_tool
+
+    result = forge_tool(str(args[0]))
+    if not result:
+        return "FORGE_TOOL_REJECTED: Security gates or LLM judge failed"
+
+    return json.dumps(
+        {"name": result["name"], "sha256": result["sha256"], "human_readable": result.get("human_readable", "")}
+    )
 
 
 def _exec_builtin(name: str, args: list) -> Any:
@@ -141,9 +156,7 @@ def _acfs_path(raw: str) -> Path:
         target = (base / raw.lstrip("/")).absolute()
 
     if not target.is_relative_to(base):
-        raise PermissionError(
-            f"ACFS confinement violation: '{raw}' resolves outside BASE_DIR"
-        )
+        raise PermissionError(f"ACFS confinement violation: '{raw}' resolves outside BASE_DIR")
     return target
 
 
@@ -190,7 +203,6 @@ def _dapr_file_write(args: list) -> bool:
 def _dapr_http(name: str, args: list, meta: dict) -> str:
     """HTTP_GET <url> and WEB_SEARCH <query> — network helpers (Dapr optional)."""
     query_or_url = str(args[0]) if args else ""
-    dapr_host = os.environ.get("DAPR_HOST", "http://localhost:3500")
 
     if name == "WEB_SEARCH":
         # Perform a direct HTTP GET for WEB_SEARCH (caller is responsible for providing a full URL).
@@ -301,4 +313,3 @@ def _dapr_container_spawn(name: str, args: list, meta: dict) -> str:
             anomaly_score=0.4,
         )
         return f"{name}_UNAVAILABLE: Neither Dapr container nor Ollama OpenClaw reachable"
-

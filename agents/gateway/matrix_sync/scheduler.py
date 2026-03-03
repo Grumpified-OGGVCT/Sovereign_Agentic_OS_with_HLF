@@ -8,6 +8,7 @@ Each trigger calls :func:`run_pipeline_scheduled` which persists results to
 ``registry.db`` and promotes the snapshot to active (configurable via
 ``pipeline_scheduler.promote`` in settings).
 """
+
 from __future__ import annotations
 
 import json
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 _scheduler: BackgroundScheduler | None = None
 _last_run_time: float | None = None
-_last_run_status: str = "never_run"   # "ok" | "error" | "never_run"
+_last_run_status: str = "never_run"  # "ok" | "error" | "never_run"
 _last_run_error: str = ""
 _next_run_time: float | None = None
 
@@ -56,6 +57,7 @@ def _run_job() -> None:
         promote: bool = bool(cfg.get("promote", True))
         logger.info("Scheduler: starting pipeline run (promote=%s)", promote)
         from .pipeline import run_pipeline_scheduled
+
         run_pipeline_scheduled(promote=promote)
         _last_run_status = "ok"
         _last_run_error = ""

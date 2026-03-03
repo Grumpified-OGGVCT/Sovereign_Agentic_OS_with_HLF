@@ -8,6 +8,7 @@ real-time metrics. Falls back gracefully when services are unavailable.
 
 import json
 import os
+import time
 import urllib.request
 from pathlib import Path
 
@@ -152,6 +153,7 @@ def get_host_function_count() -> int:
         pass
     return 0
 
+
 def check_local_node_status() -> tuple[str, str]:
     """Check if the Local Autonomous Node is running by inspecting its heartbeat log."""
     log_path = _PROJECT_ROOT / "logs" / "local_node.log"
@@ -160,7 +162,7 @@ def check_local_node_status() -> tuple[str, str]:
             # Check if updated in the last 2 minutes
             mtime = os.path.getmtime(log_path)
             if (time.time() - mtime) < 120:
-                with open(log_path, 'r') as f:
+                with open(log_path) as f:
                     lines = f.readlines()
                     if lines:
                         last_line = lines[-1].strip()
@@ -392,19 +394,24 @@ def check_for_updates() -> dict:
     try:
         subprocess.run(
             ["git", "fetch", "--quiet"],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
             cwd=str(_PROJECT_ROOT),
         )
         behind = subprocess.run(
             ["git", "rev-list", "--count", "HEAD..origin/main"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
             cwd=str(_PROJECT_ROOT),
         )
         count = int(behind.stdout.strip() or 0)
         if count > 0:
             log = subprocess.run(
                 ["git", "log", "--oneline", f"-{min(count, 10)}", "origin/main"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
                 cwd=str(_PROJECT_ROOT),
             )
             result = {
@@ -424,14 +431,18 @@ def apply_update() -> tuple[bool, str]:
     try:
         pull = subprocess.run(
             ["git", "pull", "origin", "main"],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
             cwd=str(_PROJECT_ROOT),
         )
         if pull.returncode != 0:
             return False, f"Git pull failed: {pull.stderr.strip()}"
         sync = subprocess.run(
             ["uv", "sync", "--all-extras"],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True,
+            text=True,
+            timeout=120,
             cwd=str(_PROJECT_ROOT),
         )
         if sync.returncode != 0:
@@ -453,8 +464,8 @@ if update_info["available"]:
         f'<div class="update-banner">'
         f'<span class="update-icon">🔔</span>'
         f'<span class="update-text">Updates Available — '
-        f'{update_info["commits_behind"]} commit(s) behind origin/main</span>'
-        f'</div>',
+        f"{update_info['commits_behind']} commit(s) behind origin/main</span>"
+        f"</div>",
         unsafe_allow_html=True,
     )
     with st.expander("📋 Review & Apply Updates", expanded=False):
@@ -473,9 +484,7 @@ if update_info["available"]:
                     st.rerun()
                 else:
                     st.error(msg)
-                    st.warning(
-                        "⚠️ Manual resolution may be needed. Run `git status` in terminal."
-                    )
+                    st.warning("⚠️ Manual resolution may be needed. Run `git status` in terminal.")
         with col_dismiss:
             if st.button("🔕 Dismiss", use_container_width=True):
                 st.cache_data.clear()
@@ -1415,9 +1424,7 @@ with right_pane:
     secondary_ok = False
     if OLLAMA_HOST_SECONDARY:
         try:
-            _s_req = urllib.request.Request(
-                f"{OLLAMA_HOST_SECONDARY}/api/tags", method="GET"
-            )
+            _s_req = urllib.request.Request(f"{OLLAMA_HOST_SECONDARY}/api/tags", method="GET")
             with urllib.request.urlopen(_s_req, timeout=3) as _s_resp:
                 secondary_ok = _s_resp.status == 200
         except Exception:
@@ -1443,9 +1450,7 @@ with right_pane:
         "round_robin": "⚖️ Round-Robin (alternating)",
         "primary_only": "1️⃣ Primary Only",
     }
-    st.caption(
-        f"Strategy: {_strat_labels.get(OLLAMA_LOAD_STRATEGY, OLLAMA_LOAD_STRATEGY)}"
-    )
+    st.caption(f"Strategy: {_strat_labels.get(OLLAMA_LOAD_STRATEGY, OLLAMA_LOAD_STRATEGY)}")
 
     # Show last endpoint used (from session state, set by chat)
     last_ep = st.session_state.get("last_ollama_endpoint")
@@ -1465,7 +1470,8 @@ with right_pane:
     # Try to load registry data from db.py
     _registry_loaded = False
     try:
-        from agents.core.db import get_db, get_active_snapshot, get_all_models, get_local_inventory
+        from agents.core.db import get_active_snapshot, get_all_models, get_db, get_local_inventory
+
         _db_path = _PROJECT_ROOT / "data" / "registry.db"
         if _db_path.exists():
             with get_db(_db_path) as _conn:
@@ -1476,11 +1482,7 @@ with right_pane:
                     _registry_loaded = True
 
                     # Snapshot info
-                    st.caption(
-                        f"Snapshot #{_snap['id']} | "
-                        f"{_snap['model_count']} models | "
-                        f"Run: {_snap['run_ts']}"
-                    )
+                    st.caption(f"Snapshot #{_snap['id']} | {_snap['model_count']} models | Run: {_snap['run_ts']}")
 
                     # Tier breakdown
                     _tier_counts: dict[str, int] = {}
@@ -1490,9 +1492,7 @@ with right_pane:
 
                     if _tier_counts:
                         _tier_order = ["S", "A+", "A", "A-", "B+", "B", "C", "D"]
-                        _tier_display = {
-                            t: _tier_counts.get(t, 0) for t in _tier_order if _tier_counts.get(t, 0) > 0
-                        }
+                        _tier_display = {t: _tier_counts.get(t, 0) for t in _tier_order if _tier_counts.get(t, 0) > 0}
                         _tier_str = " · ".join(f"**{k}**: {v}" for k, v in _tier_display.items())
                         st.markdown(f"Tiers: {_tier_str}")
 
@@ -1548,10 +1548,7 @@ with right_pane:
                 st.markdown(f"{_lat_color} **{_latency}ms**")
             st.caption(f"Tier: {_last_route.get('tier', 'N/A')}")
     else:
-        st.caption(
-            "No routing trace yet. Submit a chat message to see which model "
-            "handles the request."
-        )
+        st.caption("No routing trace yet. Submit a chat message to see which model handles the request.")
 
     st.markdown("---")
 
@@ -1568,7 +1565,8 @@ with right_pane:
         with _fb_cols[0]:
             if st.button("👍", key="fb_up", help="Rate this response positively"):
                 try:
-                    from agents.core.db import get_db, add_feedback
+                    from agents.core.db import add_feedback, get_db
+
                     _db_path = _PROJECT_ROOT / "data" / "registry.db"
                     with get_db(_db_path) as _conn:
                         add_feedback(_conn, _last_model, 5, "thumbs_up")
@@ -1578,7 +1576,8 @@ with right_pane:
         with _fb_cols[1]:
             if st.button("👎", key="fb_down", help="Rate this response negatively"):
                 try:
-                    from agents.core.db import get_db, add_feedback
+                    from agents.core.db import add_feedback, get_db
+
                     _db_path = _PROJECT_ROOT / "data" / "registry.db"
                     with get_db(_db_path) as _conn:
                         add_feedback(_conn, _last_model, 1, "thumbs_down")

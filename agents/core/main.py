@@ -9,8 +9,10 @@ For each received intent the executor:
   2. If the payload is text-mode (raw human language), call the local Ollama
      instance to generate an HLF response, compile it, and then execute.
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import signal
@@ -28,16 +30,14 @@ _logger = ALSLogger(agent_role="agent-executor", goal_id="boot")
 def _try_route_request():
     """Lazy import of route_request to avoid circular imports."""
     try:
-        from agents.gateway.router import route_request, AgentProfile
+        from agents.gateway.router import AgentProfile, route_request
+
         return route_request, AgentProfile
     except ImportError:
         return None, None
-_SYSTEM_PROMPT_PATH = (
-    Path(__file__).parent.parent.parent
-    / "governance"
-    / "templates"
-    / "system_prompt.txt"
-)
+
+
+_SYSTEM_PROMPT_PATH = Path(__file__).parent.parent.parent / "governance" / "templates" / "system_prompt.txt"
 
 
 def quarantine_dump() -> None:
@@ -54,7 +54,7 @@ def _handle_sigusr1(signum: int, frame: object) -> None:
 
 
 if hasattr(signal, "SIGUSR1"):
-    signal.signal(getattr(signal, "SIGUSR1"), _handle_sigusr1)
+    signal.signal(signal.SIGUSR1, _handle_sigusr1)
 
 
 # --------------------------------------------------------------------------- #
@@ -95,21 +95,21 @@ def _get_ollama_endpoints() -> list[tuple[str, dict[str, str]]]:
 # Ollama inference (text → HLF)
 # --------------------------------------------------------------------------- #
 
+
 def _ollama_generate(text: str, model: str | None = None) -> str:
     """
     Call the local Ollama instance or cloud provider to convert human-language
     text into an HLF program.
     """
     effective_model = model or os.environ.get("PRIMARY_MODEL") or os.environ.get("SUMMARIZATION_MODEL", "qwen:7b")
-    
+
     # 1. Cloud Provider Fallback (OpenRouter/Ollama Cloud)
     openrouter_api = os.environ.get("OPENROUTER_API")
     ollama_api_key = os.environ.get("OLLAMA_API_KEY")
     is_cloud = effective_model.endswith(":cloud") or openrouter_api or ollama_api_key
 
-    if is_cloud:
+    if is_cloud and openrouter_api:
         # Use OpenRouter as primary cloud bridge if available
-        if openrouter_api:
             _logger.log("CLOUD_INFERENCE_START", {"provider": "openrouter", "model": effective_model})
             try:
                 resp = httpx.post(
@@ -121,12 +121,17 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
                     json={
                         "model": effective_model.replace(":cloud", ""),
                         "messages": [
-                            {"role": "system", "content": _SYSTEM_PROMPT_PATH.read_text().strip() if _SYSTEM_PROMPT_PATH.exists() else ""},
-                            {"role": "user", "content": text}
+                            {
+                                "role": "system",
+                                "content": _SYSTEM_PROMPT_PATH.read_text().strip()
+                                if _SYSTEM_PROMPT_PATH.exists()
+                                else "",
+                            },
+                            {"role": "user", "content": text},
                         ],
-                        "temperature": 0.0
+                        "temperature": 0.0,
                     },
-                    timeout=60.0
+                    timeout=60.0,
                 )
                 resp.raise_for_status()
                 return resp.json()["choices"][0]["message"]["content"].strip()
@@ -149,11 +154,12 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
     last_exc = None
     for host, headers in _get_ollama_endpoints():
         try:
+            # Enforce strict 12s timeout for Ollama endpoint calls
             resp = httpx.post(
                 f"{host}/api/generate",
                 json=payload,
                 headers={"Content-Type": "application/json", **headers},
-                timeout=60.0,
+                timeout=12.0,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -170,6 +176,7 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
 # --------------------------------------------------------------------------- #
 # AgentProfile-aware inference (Phase 4 v2)
 # --------------------------------------------------------------------------- #
+
 
 def _ollama_generate_v2(text: str, profile: Any) -> str:
     """
@@ -234,11 +241,12 @@ def _ollama_generate_v2(text: str, profile: Any) -> str:
     last_exc = None
     for host, headers in _get_ollama_endpoints():
         try:
+            # Enforce strict 12s timeout for Ollama V2 endpoint calls
             resp = httpx.post(
                 f"{host}/api/generate",
                 json=payload,
                 headers={"Content-Type": "application/json", **headers},
-                timeout=60.0,
+                timeout=12.0,
             )
             resp.raise_for_status()
             _logger.log("OLLAMA_V2_ENDPOINT_USED", {"host": host, "model": model})
@@ -253,6 +261,7 @@ def _ollama_generate_v2(text: str, profile: Any) -> str:
 # Intent execution pipeline
 # --------------------------------------------------------------------------- #
 
+
 def execute_intent(payload: dict) -> dict:
     """
     Execute a single intent payload received from the Redis stream.
@@ -263,8 +272,9 @@ def execute_intent(payload: dict) -> dict:
 
     Returns the HLF execution result dict.
     """
+    from hlf.hlfc import HlfSyntaxError
+    from hlf.hlfc import compile as hlfc_compile
     from hlf.hlfrun import run as hlfrun
-    from hlf.hlfc import compile as hlfc_compile, HlfSyntaxError
 
     tier = os.environ.get("DEPLOYMENT_TIER", "hearth")
     max_gas = int(os.environ.get("MAX_GAS_LIMIT", "10"))
@@ -308,10 +318,7 @@ def execute_intent(payload: dict) -> dict:
             return {"code": 1, "message": "no text or ast in payload", "gas_used": 0}
         try:
             # Use AgentProfile-aware inference if available, else legacy
-            if profile is not None:
-                hlf_response = _ollama_generate_v2(text, profile)
-            else:
-                hlf_response = _ollama_generate(text)
+            hlf_response = _ollama_generate_v2(text, profile) if profile is not None else _ollama_generate(text)
             _logger.log(
                 "OLLAMA_RESPONSE",
                 {"request_id": request_id, "preview": hlf_response[:120]},
@@ -350,6 +357,7 @@ def execute_intent(payload: dict) -> dict:
 # Redis stream consumer loop
 # --------------------------------------------------------------------------- #
 
+
 def run() -> None:
     _logger.log("AGENT_EXECUTOR_START", {"tier": os.environ.get("DEPLOYMENT_TIER", "hearth")})
     try:
@@ -361,17 +369,13 @@ def run() -> None:
         )
         group = "executor-group"
         stream = "intents"
-        try:
+        with contextlib.suppress(Exception):
             r.xgroup_create(stream, group, id="0", mkstream=True)
-        except Exception:
-            pass  # consumer group already exists
 
         _logger.log("CONSUMER_GROUP_READY", {"stream": stream, "group": group})
 
         while True:
-            messages = r.xreadgroup(
-                group, "executor-1", {stream: ">"}, count=1, block=5000
-            )
+            messages = r.xreadgroup(group, "executor-1", {stream: ">"}, count=1, block=5000)
             if not messages:
                 continue
             for _stream, entries in messages:
@@ -399,9 +403,7 @@ def run() -> None:
                             anomaly_score=0.9,
                         )
     except Exception as exc:
-        _logger.log(
-            "AGENT_EXECUTOR_FATAL", {"error": str(exc)}, anomaly_score=1.0
-        )
+        _logger.log("AGENT_EXECUTOR_FATAL", {"error": str(exc)}, anomaly_score=1.0)
 
 
 if __name__ == "__main__":

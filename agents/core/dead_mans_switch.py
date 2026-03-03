@@ -2,13 +2,16 @@
 The Dead Man's Switch (Governance Fail-Safe).
 Handles Time-To-Live (TTL) for Human-In-The-Loop inputs and cascading container panic resets.
 """
+
 from __future__ import annotations
 
+import contextlib
+import json
+import logging
 import os
 import signal
 import sys
-import logging
-import json
+
 import redis
 
 try:
@@ -18,13 +21,14 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+
 class DeadManSwitch:
     """Monitors system health and aborts if criteria are met."""
 
     # Limit configuration
     MAX_PANIC_RESETS = 3
     PANIC_WINDOW_SECONDS = 300  # 5 minutes
-    HITL_TTL_SECONDS = 3600     # 1 Hour before auto-abort on Human-In-The-Loop
+    HITL_TTL_SECONDS = 3600  # 1 Hour before auto-abort on Human-In-The-Loop
 
     def __init__(self):
         self.panic_timestamps: list[float] = []
@@ -35,9 +39,7 @@ class DeadManSwitch:
         """Record a container/agent internal panic/crash."""
         self.panic_timestamps.append(current_time)
         # Clear out timestamps older than the window
-        self.panic_timestamps = [
-            t for t in self.panic_timestamps if current_time - t <= self.PANIC_WINDOW_SECONDS
-        ]
+        self.panic_timestamps = [t for t in self.panic_timestamps if current_time - t <= self.PANIC_WINDOW_SECONDS]
 
         if len(self.panic_timestamps) >= self.MAX_PANIC_RESETS:
             self.trigger_kill_switch("Cascading Failure (>3 panics in 5 minutes)")
@@ -63,20 +65,18 @@ class DeadManSwitch:
         then mathematically sever sovereign-net bridging via Docker SDK.
         """
         logger.critical(f"DEAD MAN'S SWITCH TRIGGERED: {reason}")
-        
+
         # 1. Trigger SIGUSR1 to own process to dump memory
-        try:
+        with contextlib.suppress(Exception):
             os.kill(os.getpid(), signal.SIGUSR1)
-        except Exception:
-            pass
-            
+
         # 2. Sever sovereign-net connectivity
         if docker is not None:
             try:
                 client = docker.from_env()
                 # Find the container this process is running in
                 # In Docker, hostname is typically the short container ID
-                hostname = os.environ.get('HOSTNAME') 
+                hostname = os.environ.get("HOSTNAME")
                 if hostname:
                     container = client.containers.get(hostname)
                     networks = client.networks.list(names=["sovereign-net"])
@@ -85,10 +85,10 @@ class DeadManSwitch:
                         networks[0].disconnect(container, force=True)
             except Exception as e:
                 logger.error(f"Failed to sever Docker network: {e}")
-        
+
         # 3. Halt process
         sys.exit(1)
 
+
 # Global singleton
 switch = DeadManSwitch()
-

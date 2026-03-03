@@ -12,6 +12,7 @@ Covers:
 - list_tools: discovers persisted JSON bundles
 - FORGE_TOOL host function dispatch
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -26,10 +27,12 @@ import pytest
 # Fixtures
 # --------------------------------------------------------------------------- #
 
+
 @pytest.fixture(autouse=True)
 def reset_tool_forge_state():
     """Reset in-memory state before each test to ensure isolation."""
     import agents.core.tool_forge as tf
+
     tf._registered_tools.clear()
     tf._task_loop_counter.clear()
     yield
@@ -40,11 +43,7 @@ def reset_tool_forge_state():
 @pytest.fixture
 def safe_tool_code() -> str:
     """A minimal valid Python function that passes all validation gates."""
-    return (
-        'def tool_add_two_numbers(a, b):\n'
-        '    """Add two numbers together."""\n'
-        '    return a + b\n'
-    )
+    return 'def tool_add_two_numbers(a, b):\n    """Add two numbers together."""\n    return a + b\n'
 
 
 @pytest.fixture
@@ -59,6 +58,7 @@ def forge_dir(tmp_path, monkeypatch) -> Path:
 # --------------------------------------------------------------------------- #
 # Loop detection
 # --------------------------------------------------------------------------- #
+
 
 class TestLoopDetection:
     def test_record_increments_counter(self) -> None:
@@ -103,6 +103,7 @@ class TestLoopDetection:
 # forge_tool — early exit
 # --------------------------------------------------------------------------- #
 
+
 class TestForgeToolEarlyExit:
     def test_returns_empty_when_loop_count_lt_3(self) -> None:
         from agents.core.tool_forge import forge_tool
@@ -126,6 +127,7 @@ class TestForgeToolEarlyExit:
 # --------------------------------------------------------------------------- #
 # forge_tool — full pipeline (mocked LLM)
 # --------------------------------------------------------------------------- #
+
 
 class TestForgeToolPipeline:
     def test_successful_forge(self, forge_dir: Path, safe_tool_code: str) -> None:
@@ -193,6 +195,7 @@ class TestForgeToolPipeline:
 # --------------------------------------------------------------------------- #
 # export_tool / import_tool (decentralized sharing)
 # --------------------------------------------------------------------------- #
+
 
 class TestDecentralizedSharing:
     def _make_bundle(self, safe_tool_code: str) -> dict[str, Any]:
@@ -304,6 +307,7 @@ class TestDecentralizedSharing:
 # list_tools
 # --------------------------------------------------------------------------- #
 
+
 class TestListTools:
     def test_list_empty_by_default(self, forge_dir: Path) -> None:
         from agents.core.tool_forge import list_tools
@@ -367,6 +371,7 @@ class TestListTools:
 # FORGE_TOOL host function dispatch
 # --------------------------------------------------------------------------- #
 
+
 class TestForgeToolHostFunction:
     def test_dispatch_forge_tool_no_task(self) -> None:
         """Empty task returns an error string."""
@@ -425,6 +430,7 @@ class TestForgeToolHostFunction:
 # --------------------------------------------------------------------------- #
 # ACFS manifest
 # --------------------------------------------------------------------------- #
+
 
 class TestACFSManifest:
     def test_tool_forge_dir_in_manifest(self) -> None:

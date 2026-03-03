@@ -8,6 +8,7 @@ Usage::
 This is the entry-point used by the GitHub Actions ``pipeline-schedule.yml``
 cron workflow (and can also be invoked manually for testing).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -19,7 +20,7 @@ _root = Path(__file__).resolve().parent.parent
 if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
-from agents.gateway.matrix_sync.pipeline import run_pipeline_scheduled
+from agents.gateway.matrix_sync.pipeline import run_pipeline_scheduled  # noqa: E402
 
 
 def main() -> None:

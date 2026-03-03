@@ -12,6 +12,7 @@ Pipeline stages:
   4. Hat Analysis — run Eleven Thinking Hats on current system state
   5. Results persistence — store cycle results and hat findings in SQLite
 """
+
 from __future__ import annotations
 
 import json
@@ -19,9 +20,8 @@ import logging
 import os
 import sqlite3
 import time
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Optional
 
 from agents.core.logger import ALSLogger as _ALSLogger
 
@@ -35,10 +35,12 @@ _COLD_ARCHIVE = Path(os.environ.get("BASE_DIR", "/app")) / "data" / "cold_archiv
 # Report structure
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class DreamCycleReport:
     """Structured output from a complete dream cycle."""
-    cycle_type: str = "scheduled"   # 'scheduled' | 'manual'
+
+    cycle_type: str = "scheduled"  # 'scheduled' | 'manual'
     start_time: float = 0.0
     duration_seconds: float = 0.0
     # Context compression
@@ -53,21 +55,20 @@ class DreamCycleReport:
     hat_findings_count: int = 0
     # Summary
     summary: str = ""
-    error: Optional[str] = None
+    error: str | None = None
 
 
 # ---------------------------------------------------------------------------
 # Stage 1: Context Compression
 # ---------------------------------------------------------------------------
 
+
 def compress_rolling_context(conn: sqlite3.Connection) -> dict:
     """Map-reduce summarize day's rolling context. Returns stats dict."""
     from agents.core.fractal_summarization import FractalSummarizer
 
     cutoff = time.time() - 86400  # 24 hours
-    rows = conn.execute(
-        "SELECT session_id, fifo_blob FROM rolling_context WHERE timestamp > ?", (cutoff,)
-    ).fetchall()
+    rows = conn.execute("SELECT session_id, fifo_blob FROM rolling_context WHERE timestamp > ?", (cutoff,)).fetchall()
     if not rows:
         return {"compressed": 0, "result": 0, "ratio": 0.0}
 
@@ -85,8 +86,7 @@ def compress_rolling_context(conn: sqlite3.Connection) -> dict:
     token_count = len(summary) // 4
 
     conn.execute(
-        "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
-        "VALUES (?, ?, ?, ?)",
+        "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) VALUES (?, ?, ?, ?)",
         ("dream_summary", time.time(), summary, token_count),
     )
     conn.commit()
@@ -100,6 +100,7 @@ def compress_rolling_context(conn: sqlite3.Connection) -> dict:
 # ---------------------------------------------------------------------------
 # Stage 2: Trace Archival
 # ---------------------------------------------------------------------------
+
 
 def archive_old_traces(conn: sqlite3.Connection) -> None:
     """
@@ -137,9 +138,7 @@ def archive_old_traces(conn: sqlite3.Connection) -> None:
             "PARQUET_FALLBACK", {"ts": ts_tag}, anomaly_score=0.2
         )
         archive_file = cold_archive / f"archive_{ts_tag}.json"
-        archive_file.write_text(
-            json.dumps([{"session_id": r[1], "timestamp": r[2], "blob": r[3]} for r in rows])
-        )
+        archive_file.write_text(json.dumps([{"session_id": r[1], "timestamp": r[2], "blob": r[3]} for r in rows]))
 
     rowids = [r[0] for r in rows]
     placeholders = ",".join("?" * len(rowids))
@@ -165,8 +164,8 @@ def _practice_hlf(conn: sqlite3.Connection | None = None, count: int = 5) -> dic
     Generate HLF intents via Ollama and validate them through the parser.
     Returns practice stats.
     """
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
     if ollama_host and not ollama_host.startswith("http"):
@@ -203,14 +202,16 @@ def _practice_hlf(conn: sqlite3.Connection | None = None, count: int = 5) -> dic
         detail = {"prompt": prompt, "passed": False, "hlf": "", "error": ""}
 
         try:
-            payload = json.dumps({
-                "model": model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-                "stream": False,
-            }).encode()
+            payload = json.dumps(
+                {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ],
+                    "stream": False,
+                }
+            ).encode()
 
             req = urllib.request.Request(
                 f"{ollama_host}/api/chat",
@@ -225,8 +226,10 @@ def _practice_hlf(conn: sqlite3.Connection | None = None, count: int = 5) -> dic
             detail["hlf"] = hlf_response[:500]  # Cap for storage
 
             # Validate: check for required HLF markers
-            has_tag = any(f"[{tag}]" in hlf_response for tag in
-                         ["INTENT", "CONSTRAINT", "EXPECT", "SET", "ACTION", "FUNCTION", "RESULT"])
+            has_tag = any(
+                f"[{tag}]" in hlf_response
+                for tag in ["INTENT", "CONSTRAINT", "EXPECT", "SET", "ACTION", "FUNCTION", "RESULT"]
+            )
             has_terminator = "Ω" in hlf_response or "END" in hlf_response
 
             if has_tag and has_terminator:
@@ -247,6 +250,7 @@ def _practice_hlf(conn: sqlite3.Connection | None = None, count: int = 5) -> dic
 # ---------------------------------------------------------------------------
 # Stage 4: Hat Analysis (delegates to hat_engine)
 # ---------------------------------------------------------------------------
+
 
 def _run_hat_analysis(conn: sqlite3.Connection | None = None) -> dict:
     """Run all hats and return summary."""
@@ -292,6 +296,7 @@ def _run_hat_analysis(conn: sqlite3.Connection | None = None) -> dict:
 # ---------------------------------------------------------------------------
 # Stage 5: Persistence
 # ---------------------------------------------------------------------------
+
 
 def _ensure_dream_tables(conn: sqlite3.Connection) -> None:
     """Create dream tables if they don't exist (for standalone runs)."""
@@ -351,6 +356,7 @@ def _persist_report(conn: sqlite3.Connection, report: DreamCycleReport) -> int:
 # ---------------------------------------------------------------------------
 # Main Dream Cycle
 # ---------------------------------------------------------------------------
+
 
 def run_dream_cycle(manual: bool = False) -> DreamCycleReport:
     """
@@ -446,6 +452,7 @@ def run_dream_cycle(manual: bool = False) -> DreamCycleReport:
         if hat_results.get("_raw_reports"):
             try:
                 from agents.core.hat_engine import persist_findings
+
                 persist_findings(conn, cycle_id, hat_results["_raw_reports"])
             except Exception as e:
                 logger.warning(f"  Hat findings persistence failed: {e}")

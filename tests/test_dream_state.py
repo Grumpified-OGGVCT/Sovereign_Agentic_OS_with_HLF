@@ -4,6 +4,7 @@ Tests for Phase 4.3 new features:
 - Log Storage Truncator (parquet archive)
 - Dream State archive format
 """
+
 from __future__ import annotations
 
 import sqlite3
@@ -29,6 +30,7 @@ def _make_conn(path: Path) -> sqlite3.Connection:
     # Load sqlite-vec if available (test environment may not have it)
     try:
         import sqlite_vec
+
         conn.enable_load_extension(True)
         sqlite_vec.load(conn)
         conn.enable_load_extension(False)
@@ -114,10 +116,13 @@ class TestDynamicContextPruning:
         for i in range(10):
             _insert_fact(conn, f"prune_{i}", 0.05)
 
-        with patch.dict("os.environ", {
-            "BASE_DIR": str(tmp_path),
-            "FACT_PRUNE_CONFIDENCE": "0.1",
-        }):
+        with patch.dict(
+            "os.environ",
+            {
+                "BASE_DIR": str(tmp_path),
+                "FACT_PRUNE_CONFIDENCE": "0.1",
+            },
+        ):
             count = prune_old_facts(conn)
 
         if count > 0:
@@ -138,8 +143,7 @@ class TestDreamStateArchive:
         old_ts = time.time() - 8 * 86400
         for i in range(3):
             conn.execute(
-                "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) "
-                "VALUES (?, ?, ?, ?)",
+                "INSERT INTO rolling_context (session_id, timestamp, fifo_blob, token_count) VALUES (?, ?, ?, ?)",
                 (f"sess_{i}", old_ts, f"blob_{i}", 10),
             )
         conn.commit()
@@ -167,9 +171,7 @@ class TestDreamStateArchive:
         with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
             archive_old_traces(conn)
 
-        count = conn.execute(
-            "SELECT COUNT(*) FROM rolling_context WHERE session_id='to_delete'"
-        ).fetchone()[0]
+        count = conn.execute("SELECT COUNT(*) FROM rolling_context WHERE session_id='to_delete'").fetchone()[0]
         assert count == 0
 
     def test_archive_skips_recent_rows(self, tmp_path: Path) -> None:
@@ -186,9 +188,7 @@ class TestDreamStateArchive:
             archive_old_traces(conn)
 
         # Recent rows should remain
-        count = conn.execute(
-            "SELECT COUNT(*) FROM rolling_context WHERE session_id='recent'"
-        ).fetchone()[0]
+        count = conn.execute("SELECT COUNT(*) FROM rolling_context WHERE session_id='recent'").fetchone()[0]
         assert count == 1
         # No archive file created
         cold_archive = tmp_path / "data" / "cold_archive"

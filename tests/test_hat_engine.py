@@ -9,18 +9,19 @@ Tests:
   - Database persistence of findings
   - Dream cycle report structure
 """
+
 from __future__ import annotations
 
 import json
 import sqlite3
 import time
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-
+from unittest.mock import patch
 
 # ---------------------------------------------------------------------------
 # Helper: create a test DB with dream tables
 # ---------------------------------------------------------------------------
+
 
 def _make_dream_db(path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(path))
@@ -75,8 +76,7 @@ class TestHatDefinitions:
     def test_all_eleven_hats_exist(self) -> None:
         from agents.core.hat_engine import HAT_DEFINITIONS
 
-        expected = {"red", "black", "white", "yellow", "green", "blue",
-                    "indigo", "cyan", "purple", "orange", "silver"}
+        expected = {"red", "black", "white", "yellow", "green", "blue", "indigo", "cyan", "purple", "orange", "silver"}
         assert set(HAT_DEFINITIONS.keys()) == expected
 
     def test_each_hat_has_required_fields(self) -> None:
@@ -96,20 +96,22 @@ class TestFindingParsing:
     def test_parse_valid_json_array(self) -> None:
         from agents.core.hat_engine import _parse_findings
 
-        raw = json.dumps([
-            {
-                "severity": "HIGH",
-                "title": "Redis has no persistence",
-                "description": "State lost on crash",
-                "recommendation": "Enable AOF",
-            },
-            {
-                "severity": "MEDIUM",
-                "title": "No health checks",
-                "description": "Silent failures",
-                "recommendation": "Add /health endpoints",
-            },
-        ])
+        raw = json.dumps(
+            [
+                {
+                    "severity": "HIGH",
+                    "title": "Redis has no persistence",
+                    "description": "State lost on crash",
+                    "recommendation": "Enable AOF",
+                },
+                {
+                    "severity": "MEDIUM",
+                    "title": "No health checks",
+                    "description": "Silent failures",
+                    "recommendation": "Add /health endpoints",
+                },
+            ]
+        )
         findings = _parse_findings("green", raw)
         assert len(findings) == 2
         assert findings[0].hat == "green"
@@ -120,9 +122,11 @@ class TestFindingParsing:
     def test_parse_json_wrapped_in_markdown(self) -> None:
         from agents.core.hat_engine import _parse_findings
 
-        raw = "Here's my analysis:\n```json\n" + json.dumps([
-            {"severity": "LOW", "title": "Minor issue", "description": "x", "recommendation": "y"}
-        ]) + "\n```\nThat's all."
+        raw = (
+            "Here's my analysis:\n```json\n"
+            + json.dumps([{"severity": "LOW", "title": "Minor issue", "description": "x", "recommendation": "y"}])
+            + "\n```\nThat's all."
+        )
 
         findings = _parse_findings("blue", raw)
         assert len(findings) == 1
@@ -147,7 +151,7 @@ class TestHatPersistence:
     """Test database persistence of findings."""
 
     def test_persist_and_retrieve_findings(self, tmp_path: Path) -> None:
-        from agents.core.hat_engine import HatFinding, HatReport, persist_findings, get_recent_findings
+        from agents.core.hat_engine import HatFinding, HatReport, get_recent_findings, persist_findings
 
         conn = _make_dream_db(tmp_path / "test.db")
 

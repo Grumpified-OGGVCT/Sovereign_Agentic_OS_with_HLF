@@ -3,6 +3,7 @@
 Generate documentation from spec files (governance/, pyproject.toml).
 Placeholder for Phase 5 doc generation pipeline.
 """
+
 from __future__ import annotations
 
 import json

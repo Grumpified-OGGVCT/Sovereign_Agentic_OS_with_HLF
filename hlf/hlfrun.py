@@ -21,6 +21,7 @@ Host functions (I/O — mediated via host_function_dispatcher):
   [ACTION] WEB_SEARCH <query>
   [ACTION] OPENCLAW_SUMMARIZE <path>
 """
+
 from __future__ import annotations
 
 import base64
@@ -39,6 +40,7 @@ _VAR_RE = re.compile(r"\$\{(\w+)\}")
 # --------------------------------------------------------------------------- #
 # Built-in pure functions
 # --------------------------------------------------------------------------- #
+
 
 def _builtin_hash(*args: Any) -> str:
     """HASH <algorithm> <text> → hex digest. Only sha256 supported."""
@@ -61,7 +63,7 @@ def _builtin_base64_decode(*args: Any) -> str:
 
 
 def _builtin_now(*_args: Any) -> str:
-    return datetime.datetime.now(datetime.timezone.utc).isoformat()
+    return datetime.datetime.now(datetime.UTC).isoformat()
 
 
 def _builtin_uuid(*_args: Any) -> str:
@@ -80,6 +82,7 @@ _BUILTIN_FUNCTIONS: dict[str, Any] = {
 # --------------------------------------------------------------------------- #
 # Runtime interpreter
 # --------------------------------------------------------------------------- #
+
 
 class HLFInterpreter:
     """
@@ -123,9 +126,7 @@ class HLFInterpreter:
             if node is None:
                 continue
             if self.gas_used >= self.max_gas:
-                raise HlfRuntimeError(
-                    f"Gas limit exceeded: {self.gas_used}/{self.max_gas}"
-                )
+                raise HlfRuntimeError(f"Gas limit exceeded: {self.gas_used}/{self.max_gas}")
             self.gas_used += 1
             self._execute_node(node)
             if self._result_code is not None:
@@ -212,6 +213,7 @@ class HLFInterpreter:
     def _expand(self, value: Any) -> Any:
         """Expand ${VAR} references from the current runtime scope."""
         if isinstance(value, str):
+
             def _replace(m: re.Match) -> str:
                 return str(self.scope.get(m.group(1), m.group(0)))
 
@@ -226,6 +228,7 @@ class HLFInterpreter:
 # --------------------------------------------------------------------------- #
 # Public API
 # --------------------------------------------------------------------------- #
+
 
 def run(
     ast: dict,

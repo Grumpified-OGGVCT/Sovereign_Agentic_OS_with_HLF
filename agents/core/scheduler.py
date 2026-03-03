@@ -20,6 +20,7 @@ Environment:
     PIPELINE_AUTO_PROMOTE    — auto-promote snapshots (default true)
     PIPELINE_ROLLBACK_THRESHOLD — max acceptable tier-D increase % (default 20)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -29,14 +30,12 @@ import signal
 import sqlite3
 import sys
 import threading
-import time
 import traceback
-from contextlib import contextmanager
-from dataclasses import dataclass, field, asdict
-from datetime import datetime, timezone
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Ensure project root is importable
 _root = Path(__file__).resolve().parent.parent.parent
@@ -58,15 +57,17 @@ ROLLBACK_THRESHOLD = float(os.getenv("PIPELINE_ROLLBACK_THRESHOLD", "20"))  # pe
 # Telemetry — tracks pipeline run history
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RunRecord:
     """Immutable record of a single pipeline execution."""
+
     run_id: int
     started_at: str
     finished_at: str = ""
     duration_sec: float = 0.0
     status: str = "running"  # running | success | failed | rolled_back
-    snapshot_id: Optional[int] = None
+    snapshot_id: int | None = None
     models_upserted: int = 0
     local_synced: int = 0
     promoted: bool = False
@@ -85,26 +86,25 @@ class Telemetry:
         self._run_counter = 0
         self._total_errors = 0
         self._consecutive_failures = 0
-        self._daemon_started_at = datetime.now(timezone.utc).isoformat()
+        self._daemon_started_at = datetime.now(UTC).isoformat()
 
     def start_run(self) -> RunRecord:
         with self._lock:
             self._run_counter += 1
             rec = RunRecord(
                 run_id=self._run_counter,
-                started_at=datetime.now(timezone.utc).isoformat(),
+                started_at=datetime.now(UTC).isoformat(),
             )
             self._runs.append(rec)
             if len(self._runs) > self.MAX_HISTORY:
-                self._runs = self._runs[-self.MAX_HISTORY:]
+                self._runs = self._runs[-self.MAX_HISTORY :]
             return rec
 
     def finish_run(self, rec: RunRecord, status: str, error: str = "") -> None:
         with self._lock:
-            rec.finished_at = datetime.now(timezone.utc).isoformat()
+            rec.finished_at = datetime.now(UTC).isoformat()
             rec.duration_sec = round(
-                (datetime.fromisoformat(rec.finished_at) -
-                 datetime.fromisoformat(rec.started_at)).total_seconds(), 2
+                (datetime.fromisoformat(rec.finished_at) - datetime.fromisoformat(rec.started_at)).total_seconds(), 2
             )
             rec.status = status
             rec.error = error
@@ -135,6 +135,7 @@ _telemetry = Telemetry()
 # Snapshot Diffing — detect regressions before promoting
 # ---------------------------------------------------------------------------
 
+
 def _diff_snapshots(conn: sqlite3.Connection, old_snap_id: int, new_snap_id: int) -> dict:
     """Compare two snapshots for tier shifts.
 
@@ -150,14 +151,10 @@ def _diff_snapshots(conn: sqlite3.Connection, old_snap_id: int, new_snap_id: int
     old_models = {}
     new_models = {}
 
-    for row in conn.execute(
-        "SELECT model_id, tier FROM models WHERE snapshot_id = ?", (old_snap_id,)
-    ):
+    for row in conn.execute("SELECT model_id, tier FROM models WHERE snapshot_id = ?", (old_snap_id,)):
         old_models[row[0]] = row[1]
 
-    for row in conn.execute(
-        "SELECT model_id, tier FROM models WHERE snapshot_id = ?", (new_snap_id,)
-    ):
+    for row in conn.execute("SELECT model_id, tier FROM models WHERE snapshot_id = ?", (new_snap_id,)):
         new_models[row[0]] = row[1]
 
     tier_rank = {"S": 0, "A+": 1, "A": 2, "A-": 3, "B+": 4, "B": 5, "C": 6, "D": 7}
@@ -206,6 +203,7 @@ def _diff_snapshots(conn: sqlite3.Connection, old_snap_id: int, new_snap_id: int
 # Rollback logic
 # ---------------------------------------------------------------------------
 
+
 def _rollback_snapshot(conn: sqlite3.Connection, bad_snap_id: int, good_snap_id: int) -> None:
     """Revert active snapshot from bad → good.
 
@@ -227,10 +225,11 @@ def _rollback_snapshot(conn: sqlite3.Connection, bad_snap_id: int, good_snap_id:
 # Core pipeline execution with advanced governance
 # ---------------------------------------------------------------------------
 
+
 def _run_pipeline_cycle() -> None:
     """Execute one pipeline cycle with diffing, rollback, and telemetry."""
+    from agents.core.db import db_path, get_active_snapshot, get_db
     from agents.gateway.matrix_sync.pipeline import run_pipeline_scheduled
-    from agents.core.db import get_db, db_path, get_active_snapshot
 
     rec = _telemetry.start_run()
 
@@ -253,10 +252,7 @@ def _run_pipeline_cycle() -> None:
         # Post-run: evaluate the new snapshot
         with get_db(_db_file) as conn:
             # Find the newest non-active snapshot
-            row = conn.execute(
-                "SELECT id FROM snapshots WHERE status != 'active' "
-                "ORDER BY id DESC LIMIT 1"
-            ).fetchone()
+            row = conn.execute("SELECT id FROM snapshots WHERE status != 'active' ORDER BY id DESC LIMIT 1").fetchone()
             new_snap_id = row[0] if row else None
 
             if new_snap_id and prev_snap_id:
@@ -268,17 +264,22 @@ def _run_pipeline_cycle() -> None:
                 if diff["tier_d_delta_pct"] > ROLLBACK_THRESHOLD:
                     _rollback_snapshot(conn, new_snap_id, prev_snap_id)
                     rec.promoted = False
-                    _telemetry.finish_run(rec, "rolled_back",
+                    _telemetry.finish_run(
+                        rec,
+                        "rolled_back",
                         f"D-tier spike: {diff['old_d_pct']:.1f}% → {diff['new_d_pct']:.1f}% "
-                        f"(delta {diff['tier_d_delta_pct']:.1f}% > threshold {ROLLBACK_THRESHOLD}%)"
+                        f"(delta {diff['tier_d_delta_pct']:.1f}% > threshold {ROLLBACK_THRESHOLD}%)",
                     )
-                    print(f"⚠️  ROLLBACK: Snapshot #{new_snap_id} rolled back. "
-                          f"D-tier delta {diff['tier_d_delta_pct']:.1f}% exceeds threshold.")
+                    print(
+                        f"⚠️  ROLLBACK: Snapshot #{new_snap_id} rolled back. "
+                        f"D-tier delta {diff['tier_d_delta_pct']:.1f}% exceeds threshold."
+                    )
                     return
 
                 # Safe to promote
                 if AUTO_PROMOTE:
                     from agents.core.db import promote_snapshot
+
                     promote_snapshot(conn, new_snap_id)
                     conn.commit()
                     rec.promoted = True
@@ -288,6 +289,7 @@ def _run_pipeline_cycle() -> None:
                 # First ever snapshot — promote unconditionally
                 if AUTO_PROMOTE:
                     from agents.core.db import promote_snapshot
+
                     promote_snapshot(conn, new_snap_id)
                     conn.commit()
                     rec.promoted = True
@@ -306,6 +308,7 @@ def _run_pipeline_cycle() -> None:
 # ---------------------------------------------------------------------------
 # Health HTTP Server
 # ---------------------------------------------------------------------------
+
 
 class _HealthHandler(BaseHTTPRequestHandler):
     """Minimal HTTP handler exposing daemon telemetry as JSON."""
@@ -397,7 +400,7 @@ def run_daemon(once: bool = False) -> None:
         health_server = _start_health_server()
 
     # Run first cycle immediately
-    print(f"\n⏱  Cycle 1 starting at {datetime.now(timezone.utc).isoformat()}")
+    print(f"\n⏱  Cycle 1 starting at {datetime.now(UTC).isoformat()}")
     _run_pipeline_cycle()
 
     if once:
@@ -406,13 +409,13 @@ def run_daemon(once: bool = False) -> None:
 
     # Subsequent cycles on interval
     while not _shutdown_event.is_set():
-        next_run = datetime.now(timezone.utc).timestamp() + interval_sec
-        next_run_str = datetime.fromtimestamp(next_run, tz=timezone.utc).isoformat()
+        next_run = datetime.now(UTC).timestamp() + interval_sec
+        next_run_str = datetime.fromtimestamp(next_run, tz=UTC).isoformat()
         print(f"\n💤 Next cycle at {next_run_str} ({INTERVAL_HOURS}h)")
 
         # Wait in small increments so we can respond to shutdown signals
         while not _shutdown_event.is_set():
-            remaining = next_run - datetime.now(timezone.utc).timestamp()
+            remaining = next_run - datetime.now(UTC).timestamp()
             if remaining <= 0:
                 break
             _shutdown_event.wait(min(remaining, 30))
@@ -420,7 +423,7 @@ def run_daemon(once: bool = False) -> None:
         if _shutdown_event.is_set():
             break
 
-        print(f"\n⏱  Cycle starting at {datetime.now(timezone.utc).isoformat()}")
+        print(f"\n⏱  Cycle starting at {datetime.now(UTC).isoformat()}")
         _run_pipeline_cycle()
 
     if health_server:
@@ -432,33 +435,30 @@ def run_daemon(once: bool = False) -> None:
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def main() -> None:
-    ap = argparse.ArgumentParser(
-        description="Pipeline Scheduler Daemon — runs model sync on a 6-hour cycle."
-    )
+    # Use defaults from module-level config if not provided
+    default_interval = float(os.getenv("PIPELINE_INTERVAL_HOURS", "6"))
+    default_port = int(os.getenv("PIPELINE_HEALTH_PORT", "8099"))
+
+    ap = argparse.ArgumentParser(description="Pipeline Scheduler Daemon — runs model sync on a 6-hour cycle.")
+    ap.add_argument("--once", action="store_true", help="Run a single pipeline cycle and exit (for CI/cron).")
     ap.add_argument(
-        "--once", action="store_true",
-        help="Run a single pipeline cycle and exit (for CI/cron)."
+        "--interval", type=float, default=None, help=f"Override interval in hours (default: {default_interval})."
     )
+    ap.add_argument("--port", type=int, default=None, help=f"Override health endpoint port (default: {default_port}).")
     ap.add_argument(
-        "--interval", type=float, default=None,
-        help=f"Override interval in hours (default: {INTERVAL_HOURS})."
-    )
-    ap.add_argument(
-        "--port", type=int, default=None,
-        help=f"Override health endpoint port (default: {HEALTH_PORT})."
-    )
-    ap.add_argument(
-        "--no-promote", dest="promote", action="store_false", default=True,
-        help="Disable auto-promotion of new snapshots."
+        "--no-promote",
+        dest="promote",
+        action="store_false",
+        default=True,
+        help="Disable auto-promotion of new snapshots.",
     )
     args = ap.parse_args()
 
     global INTERVAL_HOURS, HEALTH_PORT, AUTO_PROMOTE
-    if args.interval is not None:
-        INTERVAL_HOURS = args.interval
-    if args.port is not None:
-        HEALTH_PORT = args.port
+    INTERVAL_HOURS = args.interval if args.interval is not None else INTERVAL_HOURS
+    HEALTH_PORT = args.port if args.port is not None else HEALTH_PORT
     if not args.promote:
         AUTO_PROMOTE = False
 

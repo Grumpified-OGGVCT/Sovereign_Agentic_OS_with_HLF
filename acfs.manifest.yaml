@@ -4,10 +4,12 @@ directories:
   - { path: "/data/sqlite", permissions: "700" }
   - { path: "/data/cold_archive", permissions: "700" }
   - { path: "/data/quarantine_dumps", permissions: "700" }
+  - { path: "/data/tool_forge", permissions: "700" }
   - { path: "/governance", permissions: "555" }
   - { path: "/agents", permissions: "555" }
   - { path: "/security", permissions: "555" }
-modules: {}
+modules:
+  hello_world: "711c9a755897e8187567e5958d89ee70cd40726931fcff638923723bb455eec7"
 active_sha256_checksums:
   bootstrap_all_in_one.sh: ""
   security/seccomp.json: ""

@@ -8,8 +8,10 @@ Responsibilities:
 4. Publish to ``arbiter_events`` on budget breach.
 5. Gas-accounted: each audit costs 1 unit from the per-tier bucket.
 """
+
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sqlite3
@@ -87,9 +89,7 @@ def audit_budget(
 
     def _run(c: sqlite3.Connection) -> BudgetStatus:
         try:
-            row = c.execute(
-                "SELECT COALESCE(SUM(token_count), 0) FROM rolling_context"
-            ).fetchone()
+            row = c.execute("SELECT COALESCE(SUM(token_count), 0) FROM rolling_context").fetchone()
             used = int(row[0]) if row else 0
         except Exception:
             used = 0
@@ -120,14 +120,16 @@ def _publish_budget_alert(r: Any, status: BudgetStatus) -> None:
         r.xadd(
             ARBITER_EVENTS_STREAM,
             {
-                "data": json.dumps({
-                    "event_type": "BUDGET_GATE",
-                    "source_agent": "scribe",
-                    "tokens_used": status.tokens_used,
-                    "budget": status.budget,
-                    "pct": round(status.pct, 4),
-                    "ts": time.time(),
-                }),
+                "data": json.dumps(
+                    {
+                        "event_type": "BUDGET_GATE",
+                        "source_agent": "scribe",
+                        "tokens_used": status.tokens_used,
+                        "budget": status.budget,
+                        "pct": round(status.pct, 4),
+                        "ts": time.time(),
+                    }
+                ),
             },
         )
     except Exception as exc:
@@ -138,6 +140,7 @@ def _publish_budget_alert(r: Any, status: BudgetStatus) -> None:
 # Background consumer
 # --------------------------------------------------------------------------- #
 
+
 def _consume_loop(stop_event: threading.Event) -> None:
     """Redis XREADGROUP consumer for ``scribe_events``."""
     try:
@@ -147,10 +150,8 @@ def _consume_loop(stop_event: threading.Event) -> None:
             os.environ.get("REDIS_URL", "redis://localhost:6379/0"),
             decode_responses=True,
         )
-        try:
+        with contextlib.suppress(Exception):
             r.xgroup_create(SCRIBE_EVENTS_STREAM, _CONSUMER_GROUP, id="0", mkstream=True)
-        except Exception:
-            pass  # consumer group already exists
 
         tier = os.environ.get("DEPLOYMENT_TIER", "hearth")
         _logger.log("SCRIBE_AGENT_CONSUMER_READY", {"stream": SCRIBE_EVENTS_STREAM})
@@ -158,40 +159,44 @@ def _consume_loop(stop_event: threading.Event) -> None:
         from agents.gateway.router import consume_gas  # noqa: PLC0415
 
         while not stop_event.is_set():
-            messages = r.xreadgroup(
-                _CONSUMER_GROUP,
-                "scribe-1",
-                {SCRIBE_EVENTS_STREAM: ">"},
-                count=1,
-                block=2000,
-            )
-            if not messages:
-                continue
+            try:
+                messages = r.xreadgroup(
+                    _CONSUMER_GROUP,
+                    "scribe-1",
+                    {SCRIBE_EVENTS_STREAM: ">"},
+                    count=1,
+                    block=2000,
+                )
+                if not messages:
+                    continue
 
-            for _stream, entries in messages:
-                for entry_id, data in entries:
-                    try:
-                        if not consume_gas(tier, AUDIT_GAS_COST, r):
-                            _logger.log("SCRIBE_GAS_EXHAUSTED", {}, anomaly_score=0.3)
+                for _stream, entries in messages:
+                    for entry_id, _data in entries:
+                        try:
+                            if not consume_gas(tier, AUDIT_GAS_COST, r):
+                                _logger.log("SCRIBE_GAS_EXHAUSTED", {}, anomaly_score=0.3)
+                                r.xack(SCRIBE_EVENTS_STREAM, _CONSUMER_GROUP, entry_id)
+                                continue
+
+                            status = audit_budget()
+                            if status.gate_blocked:
+                                _publish_budget_alert(r, status)
+                            _logger.log(
+                                "SCRIBE_AUDIT_COMPLETE",
+                                {
+                                    "tokens_used": status.tokens_used,
+                                    "budget": status.budget,
+                                    "pct": round(status.pct, 4),
+                                    "gate_blocked": status.gate_blocked,
+                                },
+                            )
+                        except Exception as exc:
+                            _logger.log("SCRIBE_CONSUME_ERROR", {"error": str(exc)}, anomaly_score=0.6)
+                        finally:
                             r.xack(SCRIBE_EVENTS_STREAM, _CONSUMER_GROUP, entry_id)
-                            continue
-
-                        status = audit_budget()
-                        if status.gate_blocked:
-                            _publish_budget_alert(r, status)
-                        _logger.log(
-                            "SCRIBE_AUDIT_COMPLETE",
-                            {
-                                "tokens_used": status.tokens_used,
-                                "budget": status.budget,
-                                "pct": round(status.pct, 4),
-                                "gate_blocked": status.gate_blocked,
-                            },
-                        )
-                    except Exception as exc:
-                        _logger.log("SCRIBE_CONSUME_ERROR", {"error": str(exc)}, anomaly_score=0.6)
-                    finally:
-                        r.xack(SCRIBE_EVENTS_STREAM, _CONSUMER_GROUP, entry_id)
+            except Exception as exc:
+                _logger.log("SCRIBE_LOOP_ERROR", {"error": str(exc)}, anomaly_score=0.5)
+                time.sleep(2)
     except Exception as exc:
         _logger.log("SCRIBE_FATAL", {"error": str(exc)}, anomaly_score=1.0)
 

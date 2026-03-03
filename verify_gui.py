@@ -1,5 +1,7 @@
-from playwright.sync_api import sync_playwright, expect
 import time
+
+from playwright.sync_api import expect, sync_playwright
+
 
 def test_gui_changes():
     with sync_playwright() as p:
@@ -16,7 +18,7 @@ def test_gui_changes():
             # Wait for the app to load
             print("Waiting for app to load...")
             page.wait_for_selector(".stApp", timeout=15000)
-            time.sleep(2) # Give it a bit more time to render everything
+            time.sleep(2)  # Give it a bit more time to render everything
 
             # 1. Verify Empty Chat State
             print("Checking empty chat state...")
@@ -54,6 +56,7 @@ def test_gui_changes():
             raise e
         finally:
             browser.close()
+
 
 if __name__ == "__main__":
     test_gui_changes()
