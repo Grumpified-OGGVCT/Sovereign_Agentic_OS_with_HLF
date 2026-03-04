@@ -832,7 +832,7 @@ with center_canvas:
             "glm-5:cloud",
             "minimax-m2.5:cloud",
             "qwen3.5:cloud",
-            "qwen3.5:122b-cloud",
+            "qwen3.5:397b-cloud",
         }
 
         with chat_top_left:
