@@ -1,10 +1,11 @@
-import pytest
 import sqlite3
-import json
-import time
-from agents.core.sentinel_agent import scan_payload, SentinelVerdict
-from agents.core.scribe_agent import audit_budget, BudgetStatus
-from agents.core.arbiter_agent import adjudicate, ArbiterVerdict
+
+import pytest
+
+from agents.core.arbiter_agent import adjudicate
+from agents.core.scribe_agent import audit_budget
+from agents.core.sentinel_agent import scan_payload
+
 
 class TestSentinelAgent:
     def test_scan_payload_clean(self):
@@ -25,7 +26,10 @@ class TestScribeAgent:
     def mock_db(self):
         conn = sqlite3.connect(":memory:")
         # Provide the expected schema for memory.db as requested by audit_budget
-        conn.execute("CREATE TABLE rolling_context (id INTEGER PRIMARY KEY, role TEXT, content TEXT, token_count INTEGER)")
+        conn.execute(
+            "CREATE TABLE rolling_context "
+            "(id INTEGER PRIMARY KEY, role TEXT, content TEXT, token_count INTEGER)"
+        )
         yield conn
         conn.close()
 
