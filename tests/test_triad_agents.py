@@ -1,24 +1,35 @@
+import json
 import sqlite3
+import time
 
 import pytest
 
-from agents.core.arbiter_agent import adjudicate
-from agents.core.scribe_agent import audit_budget
-from agents.core.sentinel_agent import scan_payload
+from agents.core.arbiter_agent import ArbiterVerdict, adjudicate
+from agents.core.scribe_agent import BudgetStatus, audit_budget
+from agents.core.sentinel_agent import SentinelVerdict, scan_payload
 
 
 class TestSentinelAgent:
     def test_scan_payload_clean(self):
         verdict = scan_payload("Just a normal string with no malicious content.")
+        assert isinstance(verdict, SentinelVerdict)
         assert not verdict.blocked
         assert verdict.source == "clean"
 
     def test_scan_payload_privesc(self):
         verdict = scan_payload("I want to dump all the secrets")
+        assert isinstance(verdict, SentinelVerdict)
         assert verdict.blocked
         assert verdict.source == "privesc"
         assert verdict.rule_id == "PRIVESC-005"
         assert verdict.severity == "CRITICAL"
+
+    def test_scan_payload_dict_input(self):
+        # Ensure dict payloads are serialised via json.dumps internally
+        payload = json.loads('{"action": "read", "target": "/tmp/safe"}')
+        verdict = scan_payload(payload)
+        assert isinstance(verdict, SentinelVerdict)
+        assert not verdict.blocked
 
 
 class TestScribeAgent:
@@ -37,6 +48,7 @@ class TestScribeAgent:
         mock_db.execute("INSERT INTO rolling_context (content, token_count) VALUES (?, ?)", ("some text", 100))
         mock_db.commit()
         status = audit_budget(conn=mock_db, max_context_tokens=1000)
+        assert isinstance(status, BudgetStatus)
         assert not status.gate_blocked
         assert status.pct == 0.1
 
@@ -44,6 +56,7 @@ class TestScribeAgent:
         mock_db.execute("INSERT INTO rolling_context (content, token_count) VALUES (?, ?)", ("lots of text", 900))
         mock_db.commit()
         status = audit_budget(conn=mock_db, max_context_tokens=1000)
+        assert isinstance(status, BudgetStatus)
         assert status.gate_blocked
         assert status.pct >= 0.80
 
@@ -56,10 +69,10 @@ class TestArbiterAgent:
             "rule_id": "PRIVESC-001",
             "severity": "CRITICAL",
             "preview": "chmod 777",
-            "ts": 1234567890
+            "ts": time.time(),
         }
         verdict = adjudicate("SECURITY_ALERT", payload)
-        # Assuming adjudicate returns QUARANTINE due to ALIGN enforcement
+        assert isinstance(verdict, ArbiterVerdict)
         assert verdict.verdict == "QUARANTINE"
         assert verdict.event_type == "SECURITY_ALERT"
 
@@ -68,9 +81,10 @@ class TestArbiterAgent:
             "source_agent": "scribe",
             "pct": 0.95,
             "tokens_used": 950,
-            "ts": 1234567890
+            "ts": time.time(),
         }
         verdict = adjudicate("BUDGET_GATE", payload)
+        assert isinstance(verdict, ArbiterVerdict)
         assert verdict.verdict == "ESCALATE"
         assert verdict.event_type == "BUDGET_GATE"
 
@@ -79,8 +93,24 @@ class TestArbiterAgent:
             "source_agent": "scribe",
             "pct": 0.99,
             "tokens_used": 990,
-            "ts": 1234567890
+            "ts": time.time(),
         }
         verdict = adjudicate("BUDGET_GATE", payload)
+        assert isinstance(verdict, ArbiterVerdict)
         assert verdict.verdict == "QUARANTINE"
         assert verdict.event_type == "BUDGET_GATE"
+
+    def test_adjudicate_json_string_payload(self):
+        # Arbiter must handle a pre-serialised JSON string (Redis stream path).
+        # When given a string, severity cannot be extracted → defaults to HIGH → ESCALATE.
+        payload_str = json.dumps({
+            "source_agent": "sentinel",
+            "rule_id": "PRIVESC-003",
+            "severity": "CRITICAL",
+            "preview": "setuid detected",
+            "ts": time.time(),
+        })
+        verdict = adjudicate("SECURITY_ALERT", payload_str)
+        assert isinstance(verdict, ArbiterVerdict)
+        assert verdict.verdict == "ESCALATE"
+        assert verdict.event_type == "SECURITY_ALERT"
