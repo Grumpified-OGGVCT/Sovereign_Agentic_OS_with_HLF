@@ -224,24 +224,28 @@ class TestDynamicContextPruningUpdates:
     """Ensure query_memory logic updates last_accessed timestamps correctly"""
 
     def test_query_memory_updates_last_accessed(self, tmp_path: Path) -> None:
+        import importlib.util
+        import sys
         import time
         from unittest.mock import patch
 
-        import importlib.util
-        import sys
         import mcp
 
         # We must load it directly without using the 'mcp' namespace prefix because it shadows the pypi package
-        spec = importlib.util.spec_from_file_location("sovereign_mcp_server", str(Path(__file__).parent.parent / "mcp" / "sovereign_mcp_server.py"))
+        mcp_path = Path(__file__).parent.parent / "mcp" / "sovereign_mcp_server.py"
+        spec = importlib.util.spec_from_file_location("sovereign_mcp_server", str(mcp_path))
         mcp_module = importlib.util.module_from_spec(spec)
 
         # Patch mcp_module FastMCP to not crash on version kwarg
         import mcp.server.fastmcp
+
         old_init = mcp.server.fastmcp.FastMCP.__init__
+
         def new_init(self, *args, **kwargs):
             kwargs.pop("version", None)
             kwargs.pop("description", None)
             old_init(self, *args, **kwargs)
+
         mcp.server.fastmcp.FastMCP.__init__ = new_init
 
         sys.modules["sovereign_mcp_server"] = mcp_module
@@ -252,13 +256,13 @@ class TestDynamicContextPruningUpdates:
         # Fake an old time for last_accessed
         old_time = time.time() - 100 * 86400  # 100 days ago
 
-        # Manually alter table since _make_conn might not have our schema modifications if we ran the patching slightly incorrectly
-        try:
+        # Manually alter table to ensure it has our schema modifications
+        import contextlib
+
+        with contextlib.suppress(Exception):
             conn.execute("ALTER TABLE fact_store ADD COLUMN created_at REAL NOT NULL DEFAULT 0.0")
-        except: pass
-        try:
+        with contextlib.suppress(Exception):
             conn.execute("ALTER TABLE fact_store ADD COLUMN last_accessed REAL NOT NULL DEFAULT 0.0")
-        except: pass
 
         # Insert test facts
         conn.execute(
@@ -278,6 +282,7 @@ class TestDynamicContextPruningUpdates:
 
             # Verify the DB row has an updated last_accessed timestamp
             import sqlite3
+
             conn2 = sqlite3.connect(str(tmp_path / "mem.db"))
             row = conn2.execute("SELECT last_accessed FROM fact_store WHERE entity_id = 'test_query'").fetchone()
             conn2.close()
