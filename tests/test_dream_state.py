@@ -281,8 +281,6 @@ class TestDynamicContextPruningUpdates:
             assert results[0]["entity_id"] == "test_query"
 
             # Verify the DB row has an updated last_accessed timestamp
-            import sqlite3
-
             conn2 = sqlite3.connect(str(tmp_path / "mem.db"))
             row = conn2.execute("SELECT last_accessed FROM fact_store WHERE entity_id = 'test_query'").fetchone()
             conn2.close()
