@@ -5,9 +5,15 @@
       "role": "Lead Systems Architect",
       "description": "System design, infrastructure blueprints, API contracts, container orchestration, and routing logic. Orchestrates the execution order of all other hats.",
       "hard_skills": [
-        "Docker/Podman", "Kubernetes", "OpenAPI/Swagger", "Mermaid.js",
-        "Nginx/Traefik", "Microservices", "SAFE 13-layer architecture",
-        "HLF pipeline design", "Directed Acyclic Graph (DAG) task decomposition"
+        "Docker/Podman",
+        "Kubernetes",
+        "OpenAPI/Swagger",
+        "Mermaid.js",
+        "Nginx/Traefik",
+        "Microservices",
+        "SAFE 13-layer architecture",
+        "HLF pipeline design",
+        "Directed Acyclic Graph (DAG) task decomposition"
       ],
       "preferred_sources": [
         "https://docs.docker.com/compose/",
@@ -28,10 +34,17 @@
       "role": "Database Administrator & Data Engineer",
       "description": "Data modeling, schema migrations, query optimization, vector databases, RAG chunking, and factual audit trails.",
       "hard_skills": [
-        "PostgreSQL", "SQLite WAL", "SQLAlchemy/Alembic", "Redis",
-        "Vector databases (Pinecone/pgvector)", "Indexing strategies",
-        "Query optimization", "Merkle chain logging", "JSON Schema",
-        "HLF dictionary.json maintenance", "ALIGN_LEDGER.yaml data integrity"
+        "PostgreSQL",
+        "SQLite WAL",
+        "SQLAlchemy/Alembic",
+        "Redis",
+        "Vector databases (Pinecone/pgvector)",
+        "Indexing strategies",
+        "Query optimization",
+        "Merkle chain logging",
+        "JSON Schema",
+        "HLF dictionary.json maintenance",
+        "ALIGN_LEDGER.yaml data integrity"
       ],
       "preferred_sources": [
         "https://www.postgresql.org/docs/current/",
@@ -52,10 +65,17 @@
       "role": "Frontend UI/UX Engineer",
       "description": "Client-facing application, reactivity, state management, pixel-perfect styling. Builds the transparency panels, dashboard, and user-facing GUI.",
       "hard_skills": [
-        "React/Next.js", "TypeScript", "Tailwind CSS", "Framer Motion",
-        "Redux/Zustand", "DOM manipulation", "HTML5 Canvas/SVG",
-        "Responsive design", "Progressive Web Apps (PWA)",
-        "InsAIts V2 transparency panel rendering", "Dream Mode visualization"
+        "React/Next.js",
+        "TypeScript",
+        "Tailwind CSS",
+        "Framer Motion",
+        "Redux/Zustand",
+        "DOM manipulation",
+        "HTML5 Canvas/SVG",
+        "Responsive design",
+        "Progressive Web Apps (PWA)",
+        "InsAIts V2 transparency panel rendering",
+        "Dream Mode visualization"
       ],
       "preferred_sources": [
         "https://react.dev/reference/react",
@@ -76,11 +96,19 @@
       "role": "Backend API Engineer",
       "description": "Core business logic, server-side routing, third-party API integration, WebSocket handling, and HLF runtime execution.",
       "hard_skills": [
-        "Python (FastAPI/Flask)", "Node.js (Express)", "REST/GraphQL",
-        "Redis caching", "JWT/OAuth2", "WebSockets", "gRPC",
-        "HLF runtime execution (hlf/runtime.py)", "Gas metering logic",
-        "Host function dispatch", "Ollama API integration",
-        "MCP server implementation", "A2A protocol handling"
+        "Python (FastAPI/Flask)",
+        "Node.js (Express)",
+        "REST/GraphQL",
+        "Redis caching",
+        "JWT/OAuth2",
+        "WebSockets",
+        "gRPC",
+        "HLF runtime execution (hlf/runtime.py)",
+        "Gas metering logic",
+        "Host function dispatch",
+        "Ollama API integration",
+        "MCP server implementation",
+        "A2A protocol handling"
       ],
       "preferred_sources": [
         "https://fastapi.tiangolo.com/",
@@ -101,11 +129,20 @@
       "role": "SecOps & QA Engineer",
       "description": "Writes tests, configures CI/CD pipelines, patches vulnerabilities. Tries to break everything before it ships. Guardian of the 443-test baseline.",
       "hard_skills": [
-        "pytest", "Jest", "Cypress", "GitHub Actions", "OWASP Top 10",
-        "SAST/DAST", "Fuzzing", "Property-based testing (Hypothesis)",
-        "Coverage analysis", "Mutation testing",
-        "HLF fixture validation", "ALIGN rule enforcement testing",
-        "Sentinel gate bypass detection", "Gas budget exhaustion testing"
+        "pytest",
+        "Jest",
+        "Cypress",
+        "GitHub Actions",
+        "OWASP Top 10",
+        "SAST/DAST",
+        "Fuzzing",
+        "Property-based testing (Hypothesis)",
+        "Coverage analysis",
+        "Mutation testing",
+        "HLF fixture validation",
+        "ALIGN rule enforcement testing",
+        "Sentinel gate bypass detection",
+        "Gas budget exhaustion testing"
       ],
       "preferred_sources": [
         "https://jestjs.io/docs/getting-started",
@@ -127,10 +164,15 @@
       "role": "Accessibility & Semantic Engineer",
       "description": "Ensures code is usable by humans, screen readers, and search engines. Validates semantic HTML, ARIA attributes, responsive breakpoints, and human-readable transparency.",
       "hard_skills": [
-        "WCAG 2.1 AA/AAA compliance", "Semantic HTML5", "ARIA roles/attributes",
-        "CSS Grid/Flexbox", "i18n/L10n (react-i18next)",
-        "Screen reader testing (NVDA/VoiceOver)", "Color contrast analysis",
-        "Keyboard navigation", "Focus management",
+        "WCAG 2.1 AA/AAA compliance",
+        "Semantic HTML5",
+        "ARIA roles/attributes",
+        "CSS Grid/Flexbox",
+        "i18n/L10n (react-i18next)",
+        "Screen reader testing (NVDA/VoiceOver)",
+        "Color contrast analysis",
+        "Keyboard navigation",
+        "Focus management",
         "InsAIts V2 human_readable field enforcement",
         "HLF AST node transparency auditing"
       ],
@@ -153,11 +195,16 @@
       "role": "Cross-Feature Architect",
       "description": "Finds synergies between isolated features, prevents bloat, consolidates redundant systems. Enforces DRY at the macro-architecture level within real scope constraints.",
       "hard_skills": [
-        "Domain-Driven Design (DDD)", "Event-Driven Architecture (Kafka/RabbitMQ)",
-        "GraphQL Federation", "Bounded Context mapping",
-        "Macro-DRY analysis", "Feature consolidation",
-        "SAFE Three-Brain paradigm alignment", "HLF module reuse patterns",
-        "Pipeline gate consolidation", "MoMA routing optimization"
+        "Domain-Driven Design (DDD)",
+        "Event-Driven Architecture (Kafka/RabbitMQ)",
+        "GraphQL Federation",
+        "Bounded Context mapping",
+        "Macro-DRY analysis",
+        "Feature consolidation",
+        "SAFE Three-Brain paradigm alignment",
+        "HLF module reuse patterns",
+        "Pipeline gate consolidation",
+        "MoMA routing optimization"
       ],
       "preferred_sources": [
         "https://martinfowler.com/tags/domain%20driven%20design.html",
@@ -178,12 +225,18 @@
       "role": "Innovation & Ideation Architect",
       "description": "Forward-looking feature ideation strictly bound by real-time search/RAG validation. Proposes innovations that are IN SCOPE and verified against production-ready documentation.",
       "hard_skills": [
-        "Real-Time Web Search validation", "Proof of Concept (PoC) engineering",
-        "Technology Radar analysis", "WebAuthn/Passkeys", "WebWorkers",
-        "IndexedDB", "WebRTC", "WebGPU feasibility assessment",
-        "HLF grammar extension ideation", "A2A protocol innovation",
+        "Real-Time Web Search validation",
+        "Proof of Concept (PoC) engineering",
+        "Technology Radar analysis",
+        "WebAuthn/Passkeys",
+        "WebWorkers",
+        "IndexedDB",
+        "WebRTC",
+        "WebGPU feasibility assessment",
+        "HLF grammar extension ideation",
+        "A2A protocol innovation",
         "EGL (Evolutionary Generality Loss) metric exploration",
-        "Darwin-Gödel Machine convergence strategies"
+        "Darwin-G\u00f6del Machine convergence strategies"
       ],
       "preferred_sources": [
         "https://caniuse.com/",
@@ -204,12 +257,19 @@
       "role": "AI Safety & Compliance Engineer",
       "description": "Protects against LLM-specific vulnerabilities, enforces data privacy laws, audits PII exposure, and validates ALIGN rule integrity.",
       "hard_skills": [
-        "OWASP LLM Top 10", "GDPR/HIPAA/CCPA compliance architecture",
-        "PII redaction (Microsoft Presidio)", "Prompt injection defense",
-        "Data masking", "RBAC auditing", "Input sanitization",
-        "ALIGN rule enforcement", "Sentinel gate security validation",
-        "Epistemic modifier abuse detection", "Rolling context PII leak prevention",
-        "Llama Firewall orchestration", "6-gate security pipeline auditing"
+        "OWASP LLM Top 10",
+        "GDPR/HIPAA/CCPA compliance architecture",
+        "PII redaction (Microsoft Presidio)",
+        "Prompt injection defense",
+        "Data masking",
+        "RBAC auditing",
+        "Input sanitization",
+        "ALIGN rule enforcement",
+        "Sentinel gate security validation",
+        "Epistemic modifier abuse detection",
+        "Rolling context PII leak prevention",
+        "Llama Firewall orchestration",
+        "6-gate security pipeline auditing"
       ],
       "preferred_sources": [
         "https://owasp.org/www-project-top-10-for-large-language-model-applications/",
@@ -230,12 +290,19 @@
       "role": "Autonomous DevOps & Tool Executor",
       "description": "The 'hands' of the swarm. Executes terminal commands, manages Git state, runs CI/CD, interacts with APIs via strict JSON schemas. Does not write application logic.",
       "hard_skills": [
-        "Bash/PowerShell scripting", "Git CLI (branching, rebasing, cherry-pick)",
-        "Docker CLI", "JSON Schema generation", "cURL/httpie",
-        "GitHub Actions runner", "npm/pnpm/uv package management",
-        "Jules CLI orchestration", "Semantic commit messages",
-        "OCI container registry", "Pre-commit hook management",
-        "bootstrap_all_in_one.sh execution", "Dual Ollama failover management"
+        "Bash/PowerShell scripting",
+        "Git CLI (branching, rebasing, cherry-pick)",
+        "Docker CLI",
+        "JSON Schema generation",
+        "cURL/httpie",
+        "GitHub Actions runner",
+        "npm/pnpm/uv package management",
+        "Jules CLI orchestration",
+        "Semantic commit messages",
+        "OCI container registry",
+        "Pre-commit hook management",
+        "bootstrap_all_in_one.sh execution",
+        "Dual Ollama failover management"
       ],
       "preferred_sources": [
         "https://git-scm.com/docs",
@@ -256,11 +323,16 @@
       "role": "Context & Token Optimization Engineer",
       "description": "Manages the LLM's cognitive load. Compresses context windows, calculates token costs, parses ASTs to feed only necessary code to other agents.",
       "hard_skills": [
-        "Tokenizer math (tiktoken/sentencepiece)", "AST parsing and minimization",
-        "RAG chunking strategies (semantic/fixed/hybrid)", "Text compression",
-        "Sliding window attention optimization", "Gas metering calibration",
-        "Rolling context management", "Prompt engineering for token efficiency",
-        "HLF Compressor statement optimization", "Semantic cache tuning",
+        "Tokenizer math (tiktoken/sentencepiece)",
+        "AST parsing and minimization",
+        "RAG chunking strategies (semantic/fixed/hybrid)",
+        "Text compression",
+        "Sliding window attention optimization",
+        "Gas metering calibration",
+        "Rolling context management",
+        "Prompt engineering for token efficiency",
+        "HLF Compressor statement optimization",
+        "Semantic cache tuning",
         "Context window budget allocation across 11 hats"
       ],
       "preferred_sources": [
@@ -275,6 +347,80 @@
       "restrictions": {
         "temperature": 0.2,
         "max_tokens": 4096
+      }
+    },
+    "sentinel": {
+      "hat": "black",
+      "role": "Aegis-Nexus Sentinel Agent",
+      "description": "Security guardian. Detects privilege escalation, injection attacks, data exfiltration, and ALIGN Ledger violations via pattern matching and HLF payload scanning.",
+      "hard_skills": [
+        "Privilege escalation detection",
+        "ALIGN Ledger enforcement",
+        "Injection attack pattern matching",
+        "Data exfiltration prevention",
+        "Sentinel gate security validation"
+      ],
+      "preferred_sources": [
+        "https://attack.mitre.org/",
+        "https://owasp.org/www-project-top-ten/"
+      ],
+      "sovereign_os_mapping": "agents/core/sentinel_agent.py, agents/gateway/sentinel_gate.py, ALIGN Ledger",
+      "model": "qwen3-vl:32b-cloud",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.0,
+        "max_tokens": 2048,
+        "gas_per_scan": 1
+      }
+    },
+    "scribe": {
+      "hat": "silver",
+      "role": "Aegis-Nexus Scribe Agent",
+      "description": "Memory and Token Auditor. Maintains the immutable ALS Merkle log of all system activities. Audits gas consumption, monitors rolling_context token usage, and enforces the 80% token-budget gate.",
+      "hard_skills": [
+        "Context memory monitoring",
+        "Token budget enforcement",
+        "Gas accounting",
+        "ALS Merkle logging",
+        "Context sizing optimization"
+      ],
+      "preferred_sources": [
+        "https://github.com/openai/tiktoken",
+        "https://astexplorer.net/"
+      ],
+      "sovereign_os_mapping": "agents/core/scribe_agent.py, agents/core/logger.py, gas metering, rolling context",
+      "model": "qwen:7b",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.2,
+        "max_tokens": 4096,
+        "budget_gate_pct": 0.8
+      }
+    },
+    "arbiter": {
+      "hat": "purple",
+      "role": "Aegis-Nexus Arbiter Agent",
+      "description": "Decision Adjudicator. Adjudicates security alerts and budget breaches from Sentinel and Scribe against ALIGN Ledger rules. Issues ALLOW, ESCALATE, or QUARANTINE verdicts and handles agent exceptions.",
+      "hard_skills": [
+        "ALIGN rule adjudication",
+        "Exception handling & dead-letter adjudication",
+        "Security event orchestration",
+        "Agent quarantine and emergency overrides",
+        "Governance policy enforcement"
+      ],
+      "preferred_sources": [
+        "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+      ],
+      "sovereign_os_mapping": "agents/core/arbiter_agent.py, agents/gateway/sentinel_gate.py",
+      "model": "qwen-max",
+      "provider": "cloud",
+      "tier": "sovereign",
+      "restrictions": {
+        "temperature": 0.1,
+        "max_tokens": 4096,
+        "gas_per_adjudication": 2
       }
     }
   }
