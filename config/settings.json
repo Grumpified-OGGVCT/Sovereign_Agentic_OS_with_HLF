@@ -1,7 +1,7 @@
 {
   "deployment_tier": "hearth",
   "models": {
-    "primary": "qwen3-vl:32b:cloud",
+    "primary": "qwen3-vl:32b-cloud",
     "reasoning": "qwen-max",
     "summarization": "qwen:7b",
     "embedding": "nomic-embed-text"

@@ -671,7 +671,7 @@ with st.sidebar:
             "summarization": "qwen:7b",
             "reasoning": "kimi-k2.5:cloud",
             "embedding": "nomic-embed-text",
-            "vision": "qwen3-vl:32b:cloud",
+            "vision": "qwen3-vl:32b-cloud",
         }
         for task_type, model_name in _auto_assign_config.items():
             st.caption(f"  `{task_type}` → `{model_name}`")
@@ -832,7 +832,7 @@ with center_canvas:
             "glm-5:cloud",
             "minimax-m2.5:cloud",
             "qwen3.5:cloud",
-            "qwen3.5:397b-cloud",
+            "qwen3.5:122b-cloud",
         }
 
         with chat_top_left:

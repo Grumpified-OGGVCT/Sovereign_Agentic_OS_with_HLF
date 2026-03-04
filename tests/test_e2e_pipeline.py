@@ -55,7 +55,7 @@ def _seed_registry(conn: sqlite3.Connection) -> int:
     promote_snapshot(conn, snap_id)
 
     # Cloud tier-S model (should be preferred by tier walk)
-    upsert_model(conn, snap_id, "qwen3-vl:32b:cloud", family="qwen", raw_score=9.5, tier="S")
+    upsert_model(conn, snap_id, "qwen3-vl:32b-cloud", family="qwen", raw_score=9.5, tier="S")
     # Mid-tier model
     upsert_model(conn, snap_id, "qwen-max", family="qwen", raw_score=8.0, tier="A")
     # Low-tier local model
@@ -74,7 +74,7 @@ def _seed_registry(conn: sqlite3.Connection) -> int:
     )
 
     # OpenRouter equivalent for primary model
-    upsert_model_equivalent(conn, "qwen3-vl:32b:cloud", "openrouter", "qwen/qwen3-vl-32b")
+    upsert_model_equivalent(conn, "qwen3-vl:32b-cloud", "openrouter", "qwen/qwen3-vl-32b")
 
     return snap_id
 
@@ -95,7 +95,7 @@ class TestRegistrySeeding:
             tier_b = get_models_by_tier(conn, "B", snapshot_id=snap_id)
 
         assert len(tier_s) == 1
-        assert tier_s[0]["model_id"] == "qwen3-vl:32b:cloud"
+        assert tier_s[0]["model_id"] == "qwen3-vl:32b-cloud"
 
         assert len(tier_a) == 1
         assert tier_a[0]["model_id"] == "qwen-max"
@@ -380,7 +380,7 @@ class TestFullPipelineFlow:
         # Step 2 — registry verification
         with get_db(registry_db) as conn:
             tier_s_models = get_models_by_tier(conn, "S", snapshot_id=snap_id)
-        assert any(m["model_id"] == "qwen3-vl:32b:cloud" for m in tier_s_models)
+        assert any(m["model_id"] == "qwen3-vl:32b-cloud" for m in tier_s_models)
 
         # Step 3 — route_request
         routing_log_events: list[dict[str, Any]] = []
