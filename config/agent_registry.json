@@ -365,7 +365,7 @@
         "https://owasp.org/www-project-top-ten/"
       ],
       "sovereign_os_mapping": "agents/core/sentinel_agent.py, agents/gateway/sentinel_gate.py, ALIGN Ledger",
-      "model": "qwen3-vl:32b-cloud",
+      "model": "qwen3-vl-32b:cloud",
       "provider": "cloud",
       "tier": "sovereign",
       "restrictions": {
@@ -390,7 +390,7 @@
         "https://astexplorer.net/"
       ],
       "sovereign_os_mapping": "agents/core/scribe_agent.py, agents/core/logger.py, gas metering, rolling context",
-      "model": "qwen:7b",
+      "model": "qwen-7b:cloud",
       "provider": "cloud",
       "tier": "sovereign",
       "restrictions": {
@@ -414,7 +414,7 @@
         "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
       ],
       "sovereign_os_mapping": "agents/core/arbiter_agent.py, agents/gateway/sentinel_gate.py",
-      "model": "qwen-max",
+      "model": "qwen-max:cloud",
       "provider": "cloud",
       "tier": "sovereign",
       "restrictions": {
