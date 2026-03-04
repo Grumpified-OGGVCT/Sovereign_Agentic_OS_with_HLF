@@ -8,7 +8,7 @@ real-time metrics. Falls back gracefully when services are unavailable.
 
 import json
 import os
-import time
+import time  # noqa: F401
 import urllib.request
 from pathlib import Path
 
@@ -156,7 +156,7 @@ def get_host_function_count() -> int:
 
 def check_local_node_status() -> tuple[str, str]:
     """Check if the Local Autonomous Node is running by inspecting its heartbeat log."""
-    import time
+    import time  # noqa: F811
     log_path = _PROJECT_ROOT / "logs" / "local_node.log"
     try:
         if log_path.exists():
