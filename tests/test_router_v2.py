@@ -45,7 +45,7 @@ def _seed_registry(conn: sqlite3.Connection) -> int:
     promote_snapshot(conn, snap_id)
 
     # Scored models at various tiers
-    upsert_model(conn, snap_id, "qwen3-vl:32b-cloud", family="qwen", raw_score=9.5, tier="S")
+    upsert_model(conn, snap_id, "qwen3-vl:32b:cloud", family="qwen", raw_score=9.5, tier="S")
     upsert_model(conn, snap_id, "qwen-max", family="qwen", raw_score=8.0, tier="A")
     upsert_model(conn, snap_id, "llama3.1:8b", family="llama", raw_score=5.0, tier="B")
     upsert_model(conn, snap_id, "devstral-small-2505:24b", family="devstral", raw_score=7.0, tier="A-")
@@ -65,7 +65,7 @@ def _seed_registry(conn: sqlite3.Connection) -> int:
     )
 
     # OpenRouter equivalent
-    upsert_model_equivalent(conn, "qwen3-vl:32b-cloud", "openrouter", "qwen/qwen3-vl-32b")
+    upsert_model_equivalent(conn, "qwen3-vl:32b:cloud", "openrouter", "qwen/qwen3-vl-32b")
 
     return snap_id
 
@@ -193,7 +193,7 @@ def test_route_request_with_seeded_registry(tmp_path):
         profile = route_request("tell me about the weather", {})
         assert isinstance(profile, AgentProfile)
         # Should have picked from the tier walk (S-tier model first)
-        assert profile.model in ["qwen3-vl:32b-cloud", "qwen-max", "llama3.1:8b", "devstral-small-2505:24b"]
+        assert profile.model in ["qwen3-vl:32b:cloud", "qwen-max", "llama3.1:8b", "devstral-small-2505:24b"]
         assert len(profile.routing_trace) > 0
         # Tier walk traces should exist
         tier_walks = [t for t in profile.routing_trace if t.get("step") == "tier_walk"]

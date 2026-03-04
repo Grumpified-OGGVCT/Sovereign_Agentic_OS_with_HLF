@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     max_gas_limit: int = 10
     deployment_tier: str = "hearth"
-    primary_model: str = "qwen3-vl:32b-cloud"
+    primary_model: str = "qwen3-vl:32b:cloud"
     reasoning_model: str = "qwen-max"
     summarization_model: str = "qwen:7b"
     openrouter_api_key: str = ""

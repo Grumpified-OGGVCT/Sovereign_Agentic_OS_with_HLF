@@ -365,7 +365,7 @@
         "https://owasp.org/www-project-top-ten/"
       ],
       "sovereign_os_mapping": "agents/core/sentinel_agent.py, agents/gateway/sentinel_gate.py, ALIGN Ledger",
-      "model": "qwen3-vl:32b-cloud",
+      "model": "qwen3-vl:32b:cloud",
       "provider": "cloud",
       "tier": "sovereign",
       "restrictions": {
