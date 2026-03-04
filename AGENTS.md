@@ -18,42 +18,486 @@ This is a **Sovereign Agentic OS** — a multi-layer AI operating system built a
 | 6 | Governance | `agents/gateway/sentinel_gate.py`, `governance/ALIGN_LEDGER.yaml` |
 | 7 | Observability | `agents/core/logger.py` (ALS with Merkle chains) |
 
-## 11-Hat Aegis-Nexus Agent Personas (MANDATORY)
+## 🎩 12-Hat Aegis-Nexus CoVE v2.0 (MANDATORY)
 
-> **CRITICAL**: When decomposing tasks, Jules MUST use these 11-Hat personas instead of
+> **CRITICAL**: When decomposing tasks, agents MUST use these 12-Hat personas instead of
 > generic agent types. Organize all work, commits, and PR descriptions by hat category.
+> **Never skip** ⚫ Black, 🔵 Blue, or 🟪 Purple on any PR — they are mandatory.
 
-Jules MUST structure its work using the Sovereign OS's **11-Hat Aegis-Nexus** methodology.
-Each hat represents a specialized analysis perspective. When working on any task:
+All agents MUST structure work using the Sovereign OS's **12-Hat Aegis-Nexus CoVE v2.0** methodology.
+Each hat is a specialized adversarial lens integrating full-stack QA validation. You validate across
+**14 dimensions**: Functional Correctness, Security Posture (Zero Trust), Data Integrity, AI Safety &
+Alignment, Accessibility, Performance Under Duress, Resilience/Anti-Fragility, Regulatory Compliance,
+Internationalization, Observability, Infrastructure Hardening, Supply Chain Provenance, **MCP Workflow
+Integrity**, and **O(1) Context Bounding**.
 
-1. **Assess** which hats are relevant to the current task
-2. **Organize** your work and commits by hat category
-3. **Label** each finding/change with its hat color and severity
-4. **Never skip** the Black Hat (Security) or Purple Hat (AI Safety) on any PR
+---
 
-### Hat Definitions
+### 0️⃣ CTX-Budget Protocol (Dynamic Scaling)
 
-| Hat | Color | Focus Area | When to Apply |
-|-----|-------|-----------|---------------|
-| 🔴 Red Hat | Red | Fail-states, cascading failures, chaos testing | Error handling, resilience, exception paths |
-| ⚫ Black Hat | Black | Security exploits, ALIGN bypass, privilege escalation | ALL code changes (mandatory) |
-| ⚪ White Hat | White | Efficiency, token usage, gas budgets, DB bloat | Performance-sensitive code |
-| 🟡 Yellow Hat | Yellow | Synergies, optimization, cross-component 10x wins | Architecture, integration points |
-| 🟢 Green Hat | Green | Missing mechanisms, growth paths, evolution | New features, missing wiring |
-| 🔵 Blue Hat | Blue | Process completeness, spec accuracy, docs | Documentation, config, specs |
-| 🟣 Indigo Hat | Indigo | Cross-feature architecture, DRY, gate fusion | Refactoring, pipeline work |
-| 🩵 Cyan Hat | Cyan | Innovation, feasibility, forward-looking features | R&D, experimental features |
-| 🟪 Purple Hat | Purple | AI safety, OWASP LLM Top 10, ALIGN coverage | ALL code changes (mandatory) |
-| 🟠 Orange Hat | Orange | DevOps, CI/CD, Docker, Git hygiene | Infrastructure, deployment |
-| 🪨 Silver Hat | Silver | Context/token optimization, prompt compression | LLM interactions, prompt engineering |
+```yaml
+TIERS:
+  base:                          # Local Ollama / 4K models
+    max_tokens: 4096
+    hat_definitions: 800
+    code_diff_workspace: 2048
+    json_output: 600
+    safety_buffer: 548
+    circuit_breaker: 1200        # Truncate evidence above this
+
+  standard:                      # Mid-range models (8K-32K context)
+    max_tokens: 32768
+    hat_definitions: 4000
+    code_diff_workspace: 16384
+    json_output: 4000
+    safety_buffer: 8384
+
+  extended:                      # Strong agents (128K+ context)
+    max_tokens: 131072
+    hat_definitions: 12000
+    code_diff_workspace: 65536
+    json_output: 16000
+    safety_buffer: 37536
+
+  sovereign:                     # Infinite CTX / 1M+ models
+    max_tokens: dynamic          # Agent self-regulates
+    hat_definitions: full
+    code_diff_workspace: full
+    json_output: unbounded
+    constraint: O(1) bounding    # Workspace snapshot + last ≤10 actions
+
+TIER_SELECTION: >
+  Agents auto-detect their tier based on available context window.
+  Strong agents (Antigravity, Gemini, Jules, etc.) operate at extended
+  or sovereign tier and dynamically increase allocation as task
+  complexity demands. No agent should be artificially constrained
+  below its capability.
+
+GAS_METERING: >
+  Regardless of tier, all agents track token consumption per hat
+  and report in the final sign-off. This enables cost monitoring
+  without imposing artificial limits on capable agents.
+```
+
+---
+
+### 1️⃣ Meta-Hat Router (Deterministic Selection)
+
+**Type**: Regex-based pre-processor — **zero LLM tokens consumed**.
+
+```
+IF diff_matches(/auth|security|crypto|secret|jwt|oauth|password/i)     → ACTIVATE(⚫ Black)
+IF diff_matches(/mcp|tool|server|context7|sequential|workflow/i)       → ACTIVATE(🔷 Azure)
+IF diff_matches(/docker|k8s|.tf|.yaml|.yml|infra|deploy/i)            → ACTIVATE(🟠 Orange)
+IF diff_matches(/test|spec|.test.|.spec.|coverage/i)                  → ACTIVATE(🟡 Yellow)
+IF diff_matches(/prompt|llm|model|embedding|rag|agent|ai/i)           → ACTIVATE(🩵 Cyan)
+IF diff_matches(/frontend|ui|component|jsx|tsx|css|a11y/i)            → ACTIVATE(🔴 Red)
+IF diff_matches(/i18n|locale|translation|rtl|utf/i)                   → ACTIVATE(🟢 Green)
+IF diff_matches(/ci|cd|pipeline|github|workflow|action/i)             → ACTIVATE(🔵 Blue)
+IF diff_matches(/cost|token|budget|cache|optimize|performance/i)      → ACTIVATE(🪨 Silver)
+IF diff_matches(/license|sbom|spdx|copyright|governance/i)            → ACTIVATE(🟠 Orange)
+IF diff_matches(/bias|fairness|demographic|disparity|equity/i)        → ACTIVATE(🩵 Cyan)
+ELSE → ACTIVATE(⚫ Black, 🔵 Blue, 🟪 Purple)  # Mandatory minimum
+```
+
+🟣 **Meta-Hat Self-Check**: Before execution, verify `{⚫ Black, 🔵 Blue, 🟪 Purple} ⊆ ACTIVE_HATS`.
+If missing, abort: `"❗ Missing mandatory hat(s): [list]. Include before proceeding."`
+
+---
+
+### 🔴 Red Hat — Fail-States, Chaos & Resilience
+
+**When to apply**: Code touches error handling, exception paths, database operations, service boundaries, retry logic, shared state, async operations, user-facing interactions, or any component with external dependencies.
+
+**Validation Dimensions**: Functional Correctness, Resilience/Anti-Fragility, Accessibility (Perceptual & Cognitive), UX Integrity
+
+#### Fail-State Analysis
+- Cascading failures, service crashes, database locking, single points of failure, race conditions
+- Off-by-one errors, missing null checks, unhandled promise rejections, incorrect async/await patterns
+- Trace every user gesture (click, tap, swipe, pinch, keyboard shortcut, voice command, hover, focus) → event handler → state mutation → API dispatch → optimistic update → confirmation/reversal
+- Verify all form inputs have validation + error states
+- Check for: dead clicks, missing loading states, orphaned modals, unhandled empty states
+
+#### Frontend Deep Validation
+- **Interaction Integrity**: Trace every button → action → result chain end-to-end
+- **Form Logic & Validation Matrix**: Verify client-side validation aligns with server-side validation. Check for: validation bypass via JS disabling, regex denial-of-service (ReDoS), race conditions between blur validation and submit actions
+- **Async State Management**: Verify loading skeletons for every async operation, error boundary coverage, empty states for zero-data scenarios, skeleton screen accessibility (aria-busy), retry mechanisms with exponential backoff
+- **Frontend Security Surface**: DOM XSS via innerHTML/dangerouslySetInnerHTML, prototype pollution in JSON parsing, postMessage origin validation, localStorage/sessionStorage exposure of sensitive tokens, client-side secret leakage in bundled JS, CSP bypass vectors
+- **Responsive & Adaptive**: Verify fluid typography (clamp/rem), container queries, touch target sizes (minimum 44x44px), hover-capable device detection, reduced motion preferences (prefers-reduced-motion), dark mode contrast preservation
+- **Performance Budgets**: Core Web Vitals (LCP < 2.5s, INP < 200ms, CLS < 0.1), bundle size limits, third-party script impact, image optimization (WebP/AVIF), font loading strategies (FOUT/FOIT prevention)
+- **Progressive Enhancement**: Functionality without JavaScript, SSR hydration mismatch detection, streaming HTML (Suspense boundaries)
+
+#### Chaos Engineering Checks
+- **Dependency Failure Simulation**: Database unavailable (fallback to cache?), AI provider timeout (degraded mode?), third-party API 500 (circuit breaker triggers?), CDN failure (origin pull?)
+- **Resource Exhaustion**: 100x traffic (autoscaling?), disk full (graceful degradation?), memory pressure (OOM handling?), thread pool exhaustion (queue management?)
+- **Network Partitions**: Split-brain scenarios, partition tolerance, gossip protocol failures
+- **Byzantine Failures**: Corrupted data from "trusted" sources, clock skew (NTP failure), TLS cert expiration mid-operation
+- **Environmental Sabotage**: Internet loss mid-upload, airplane mode during payment, system clock manipulation, JavaScript disabled after page load
+
+#### Accessibility & Inclusive Design (WCAG 2.2 & Beyond)
+- **Perceptual**: WCAG 2.2 AA (4.5:1 contrast for normal text, 3:1 for large text, 3:1 for UI components), reflow at 320px, text spacing adaptation (line height 1.5, letter spacing 0.12em), color independence
+- **Motor & Interaction**: Full keyboard operability, focus indicators (minimum 2px outline), focus trap management in modals, skip links, accessible authentication (CAPTCHA alternatives)
+- **Cognitive**: Consistent navigation, error prevention for destructive actions, readable text levels (Flesch scores), extended time limits, distraction reduction (autoplay controls)
+- **Screen Reader**: Semantic HTML (landmarks, headings hierarchy), ARIA live regions for dynamic content, alternative text for complex images, form labeling, status message announcements
+- **Assistive Tech**: Speech input compatibility, switch navigation, screen magnification (200%+), high contrast mode (forced colors media query)
+
+**Flag**: Z-index nightmares, focus trap escapes, memory leaks in event listeners, hydration mismatches, viewport locking on iOS Safari, no graceful degradation, cascading failure potential, missing bulkhead isolation, missing skip links, inaccessible dropdowns, missing alt text, empty links/buttons, improper heading hierarchy, missing page titles, autoplaying audio without pause, form errors without programmatic association
+
+---
+
+### ⚫ Black Hat — Security Exploits & Zero Trust Compliance
+
+**When to apply**: ALWAYS on PRs. Code touches auth, user input, file I/O, network calls, config, agent operations, encryption, secrets management, or any external-facing surface.
+
+**Validation Dimensions**: Security Posture (Zero Trust), Supply Chain Provenance, Regulatory Compliance
+
+#### OWASP Top 10 2025
+- **A01** Broken Access Control: Privilege escalation, IDOR, missing authorization, CORS with wildcard+credentials
+- **A02** Cryptographic Failures: TLS 1.3, cert pinning, key rotation, algorithm deprecation (MD5/SHA1/RC4), HSM, E2E encryption
+- **A03** Injection: SQL (even ORMs with raw SQL), XSS (DOM/stored/reflected), LDAP, template, command injection
+- **A04** Insecure Design: Missing threat modeling, business logic flaws, missing rate limiting
+- **A05** Misconfiguration: Default credentials, unnecessary features, missing security headers, verbose errors
+- **A06** Vulnerable Components: Outdated deps with CVEs, transitive dependency risks
+- **A07** Auth Failures: OAuth 2.1/PKCE, JWT (algorithm confusion, none algorithm, key rotation), refresh token rotation, session fixation
+- **A08** Integrity Failures: Unsigned updates, unverified CI/CD, dependency confusion attacks
+- **A09** Logging Failures: Missing audit trails, PII in logs, insufficient monitoring
+- **A10** SSRF: Server-side request forgery via URL parsers, DNS rebinding
+
+#### Supply Chain Security
+- SBOM completeness, SLSA provenance, signed container images
+- Dependency pinning with hash verification, private registry auth
+- Typosquatting protection, post-quantum readiness (PQC migration planning)
+
+#### Identity & Access
+- OAuth 2.1/PKCE, JWT security (algorithm confusion, none algorithm bypass, key rotation)
+- Refresh token rotation, scope validation, RBAC/ABAC enforcement
+- Privilege escalation paths, session fixation prevention
+
+#### Privacy Engineering
+- Data minimization, purpose limitation, consent management
+- Right-to-erasure automation (GDPR Article 17), cascade deletion
+- Data portability export, cross-border transfers (SCCs), data anonymization for non-prod (GDPR Article 32)
+
+#### Adversarial User Security Tests
+- Cryptominer exploitation (resource exhaustion), scraper bypass (rotating proxies), social engineering via UI (homograph attacks), compliance evasion (log tampering, steganography)
+- **Input Fuzzing**: 10MB text in single-line inputs, SQL/LaTeX/Markdown injection, polyglot files (valid JPG+PHP), zero-width joiners, RTL overrides
+- **Concurrency Attacks**: Rapid duplicate clicks, multi-tab form submission, race condition exploitation
+- **Business Logic Abuse**: Stacked discounts, negative quantities, client-side price manipulation, IDOR via sequential IDs
+
+**Flag**: Hardcoded credentials (password=, api_key, AWS keys), missing CSP, clickjacking (X-Frame-Options), insecure deserialization, SSRF, GraphQL depth limits missing, API key rotation absent, missing request ID propagation, any input without sanitization, exposed secrets, missing rate limiting
+
+---
+
+### ⚪ White Hat — Efficiency, Performance & Data Integrity
+
+**When to apply**: Code touches LLM calls, database queries, loops, data processing, memory-heavy operations, file I/O, caching, or resource-intensive operations.
+
+**Validation Dimensions**: Performance Under Duress, Data Integrity
+
+#### Performance & Resource Analysis
+- Token waste, gas budgets, unnecessary LLM calls, context sizes, DB bloat, memory leaks
+- N+1 queries, missing indexes, full table scans, unbounded queries (missing LIMIT), connection pool exhaustion
+- Large file handling at size limits, empty/max-length/special-character/emoji inputs
+- Missing pagination, no debouncing, missing cleanup on unmount
+
+#### Data Integrity
+- **Transactions**: ACID compliance, saga patterns, two-phase commit, eventual consistency reconciliation
+- **Migration Safety**: Expand/contract pattern, rollback procedures, data loss prevention, table locking risks
+- **Data Validation**: Check constraints, foreign key enforcement, unique constraint races, data type overflows (2038 timestamp, integer overflows)
+- **Backup & Recovery**: RPO/RTO testing, point-in-time recovery, cross-region replication lag
+
+**Flag**: SQL injection via dynamic queries, read-modify-write race conditions, missing pessimistic locking for financial operations, unencrypted PII at rest, timezone inconsistencies
+
+---
+
+### 🟡 Yellow Hat — Synergies, Optimization & Strategic Value
+
+**When to apply**: Code adds new features or modifies existing components. Also applied when reviewing overall system value delivery.
+
+**Validation Dimensions**: Strategic Value, Missed Opportunities
+
+#### Synergy Analysis
+- Cross-component synergies, hidden powers, 10x improvements, reuse opportunities
+- Shared utility extraction, API surface area optimization
+
+#### Missed Opportunities
+1. **Feature/Architecture**: Capabilities differentiating product or reducing operational cost by 20%+
+2. **AI Enhancement**: Untapped AI capabilities (anomaly detection, personalization, predictive caching)
+3. **Operational Excellence**: Observability/automation improvements reducing MTTR by 50%
+4. **Developer Experience**: Tools/abstractions accelerating development velocity
+5. **User Experience**: UX patterns measurably improving engagement/retention
+
+**Flag**: Duplicated logic, missed caching opportunities, manual processes ripe for automation, underutilized infrastructure
+
+---
+
+### 🟢 Green Hat — Evolution, Missing Mechanisms & Feature Completeness
+
+**When to apply**: Code adds new capabilities, extends architecture, modifies core systems, or touches growth paths.
+
+**Validation Dimensions**: Feature Completeness, Growth Readiness, Internationalization
+
+#### Evolution Readiness
+- Missing operational wiring, growth paths, emergent behaviors
+- Dead Code Excavation: tree-shaking failures, commented-out legacy logic, unused env vars, orphaned DB tables, zombie microservices
+- Configuration Drift Detection: dev/staging/prod variances in feature flags, timeouts, resource limits, security headers
+
+#### Loose Wiring / Unfinished Functions
+- UI components visible but not wired to backend
+- Placeholder content in production ("Coming Soon", Lorem ipsum)
+- Feature flags enabled but underlying service is mock/stub
+- Documentation gaps: documented endpoints returning 404
+- Orphaned code, dead imports, unused variables
+
+#### Internationalization (i18n/l10n)
+- **Characters**: UTF-8 throughout, RTL support (Arabic/Hebrew), bidirectional text, CJK font subsetting
+- **Content**: Locale-aware date/time/number/currency formatting, pluralization (CLDR), collation/sorting
+- **UI Resilience**: German compound words, Japanese vertical text, non-Latin scripts, emoji (Unicode 15.0+)
+- **Cultural Safety**: Iconography sensitivity, color symbolism, imagery diversity
+- **Localization QA**: Translation key completeness, pseudo-localization testing, missing translation fallbacks
+
+**Flag**: Missing health checks, undefined graceful degradation, circular dependencies, SPOFs without redundancy, secrets in VCS, hardcoded English strings, concatenated untranslatable strings, fixed-width layouts breaking with long translations, DST timezone bugs
+
+---
+
+### 🔵 Blue Hat — Process, Observability & Operational Readiness
+
+**When to apply**: ALWAYS on PRs. Checks internal consistency, documentation, observability, and operational preparedness.
+
+**Validation Dimensions**: Observability, Process Completeness, Operational Readiness
+
+#### System Architecture Mapping
+- Map all entry vectors: HTTP/HTTPS, WebSocket, gRPC, GraphQL, message queue consumers, cron, webhooks, serverless triggers, edge functions, CLI interfaces
+- **State Archaeology**: Data lineage from UI state → API → Cache → DB → Eventual consistency
+- **Dependency Graph**: Internal service deps, external APIs (with SLAs), AI provider failover chains, circuit breaker configs
+
+#### Observability
+- **Telemetry**: Distributed tracing (OpenTelemetry), correlation IDs, structured logging (JSON), metric cardinality prevention, log sampling
+- **Health & Readiness**: Liveness vs readiness probes, startup probes for slow containers, dependency health aggregation
+- **Alerting**: Fatigue prevention (severity classification), runbook links, self-healing for known failures, escalation policies
+- **Incident Response**: Feature flag kill switches, circuit breaker dashboards, chaos engineering schedules, postmortem templates
+
+#### Operational Readiness
+- Runbooks for every Critical/High finding
+- Monitoring dashboards reviewed for alert fatigue
+- On-call rotation aware of new features and failure modes
+- Rollback procedure tested (restore within RTO)
+
+**Flag**: Missing error tracking (Sentry), PII in logs, unmonitored background queues, DB connection leak detection missing
+
+---
+
+### 🟣 Indigo Hat — Cross-Feature Architecture & Integration
+
+**When to apply**: Code modifies multiple files/components, refactors, adds integration points, or touches API boundaries.
+
+**Validation Dimensions**: Integration Integrity, Contract Compliance
+
+#### API & Integration Contracts
+- **Schema Compliance**: Validate against OpenAPI/GraphQL with fuzzing (1000+ malformed requests). Missing required fields, type coercion failures, null handling, unicode normalization
+- **HTTP Semantics**: Status codes (401 vs 403, 409, 422), cache-control headers, ETags, Content-Disposition
+- **Async & Events**: Webhook delivery guarantees, idempotency keys, out-of-order messages, dead letter queues, poison pills
+- **Circuit Breakers**: Timeout configs (connect vs read), retry with jitter, bulkhead isolation, fallback caches
+- **Versioning**: Breaking change detection, backward compatibility layers, deprecation headers (Sunset), migration notices
+
+#### Cross-Component Analysis
+- Pipeline consolidation, redundant components, macro-level DRY violations, gate fusion
+- End-to-end critical user journeys, API contract compliance, async race conditions, file I/O edge cases
+
+**Flag**: Mass assignment vulnerabilities, GraphQL depth limits, missing API key rotation, request ID propagation gaps, CORS misconfigurations
+
+---
+
+### 🩵 Cyan Hat — Innovation, AI/ML Validation, Bias & Feasibility
+
+**When to apply**: Code introduces new patterns, experimental features, technology choices, modifies AI/ML pipelines, or impacts demographic outcomes.
+
+**Validation Dimensions**: AI Safety & Alignment, Innovation Feasibility, AI Bias & Fairness
+
+#### AI/ML Adversarial Validation (2025+ Standards)
+- **Prompt Injection**: Direct injection, indirect injection (RAG poisoning), multi-turn jailbreaks, 50+ attack variations. Verify input sanitization, output encoding, instruction hierarchy enforcement
+- **RAG Pipeline**: Chunking quality (semantic vs fixed-size), embedding drift, vector DB consistency, context overflow, citation accuracy (grounding), hallucination metrics (faithfulness, relevance)
+- **Agent & Tool Safety**: Tool permission scaffolds (least privilege), human-in-the-loop for irreversible actions, loop termination conditions (infinite recursion prevention), tool output validation
+- **Model Robustness**: Adversarial input (typos, homoglyphs, obfuscation), model DoS (token exhaustion), training data extraction (memorization), bias amplification
+- **Observability & Alignment**: Prompt/response logging (PII redaction), A/B testing infrastructure, guardrails (moderation classifiers), explainability hooks
+- **Multi-Modal**: Toxic content detection in uploads, prompt injection via image metadata (EXIF), adversarial patches, audio transcription hallucination
+- **Model Fallback**: Primary → secondary → cached → static fallback chain
+- **AI-Specific Attacks**: Prompt injection via email, jailbreak via base64/translation, training data poisoning via feedback loops, model extraction
+
+#### AI Bias & Fairness Validation
+- **Demographic Test Matrix**: Test outputs across demographic slices (age, gender, ethnicity, disability, socioeconomic status)
+- **Disparity Impact Analysis**: Measure outcome disparities; flag statistical deviations exceeding fairness thresholds
+- **Mitigation Suggestions**: Re-weighting, debiasing techniques, adversarial training, calibration
+- **Representational Harms**: Stereotyping, erasure, denigration in generated content
+- **Audit Trail**: Document bias evaluation methodology, thresholds, and remediation steps
+
+**Flag**: Unvalidated AI outputs in SQL generation (NL2SQL), missing rate limiting on AI endpoints (cost explosion), no model fallback (single provider dependency), missing "I don't know" calibration, hallucination risks, bias indicators, untested demographic slices, disparate outcomes without mitigation
+
+---
+
+### 🟪 Purple Hat — AI Safety, Compliance & Regulatory
+
+**When to apply**: ALWAYS on PRs. Code touches agent behavior, LLM prompts, epistemic modifiers, data handling, or regulatory-scoped components.
+
+**Validation Dimensions**: Regulatory Compliance, AI Safety
+
+#### OWASP LLM Top 10 2025
+- **LLM01** Prompt Injection (direct/indirect)
+- **LLM02** Insecure Output Handling (encode AI outputs before rendering)
+- **LLM03** Training Data Poisoning (provenance verification)
+- **LLM04** Model DoS (token limit exhaustion prevention)
+- **LLM05** Supply Chain (model provenance, weight integrity)
+- **LLM06** Sensitive Data Disclosure (PII in responses)
+- **LLM07** Insecure Plugin Design (tool permission scaffolds)
+- **LLM08** Excessive Agency (unbounded agent capabilities)
+- **LLM09** Overreliance (missing human-in-the-loop for high-stakes)
+- **LLM10** Model Theft (inference API security, rate limiting)
+
+#### Sovereign OS Specific — ALIGN Rules & Epistemic Safety
+- ALIGN rules (R-001 to R-008+): Regex-based safety gates
+- Epistemic modifiers [BELIEVE]/[DOUBT]: Must not affect security decisions
+- Gas metering: Resource budgets for agent operations
+- ACFS: Sandboxed file access
+- Deployment tiers: hearth → forge → sovereign
+- Host functions: READ, WRITE, SPAWN, WEB_SEARCH — tiered capabilities
+
+#### Compliance Matrix
+- **EU AI Act (2024/1689)**: High-risk registration, CE marking, post-market monitoring
+- **GDPR**: DPIA, data subject rights, Article 32 security
+- **CCPA**: Retention, consent, deletion automation
+- **NIST AI RMF 1.0**: Govern/Map/Measure/Manage coverage
+- **ISO 42001**: AI Management Systems
+- **NIS2/DORA, PCI-DSS, HIPAA, SOC 2, ISO 27001**: As applicable
+
+**Flag**: ALIGN rule bypass via epistemic modifier abuse, PII leakage, missing consent, unaudited AI decisions, regulatory violations > €10M fines
+
+---
+
+### 🟠 Orange Hat — DevOps, Infrastructure, License & Governance
+
+**When to apply**: Code touches CI/CD, Docker, deployment configs, scripts, Git workflows, IaC, operational infrastructure, licensing, or dependency governance.
+
+**Validation Dimensions**: Infrastructure Hardening, Supply Chain Provenance, License Compliance
+
+#### Container Security
+- Non-root execution, read-only root filesystems, distroless base images
+- CVE scanning (no CRITICAL unpatched), secret mounting (tmpfs/encrypted), resource limits
+
+#### Kubernetes
+- Pod security policies (OPA/Gatekeeper), network policies (zero-trust), pod disruption budgets
+- Secrets management (external-secrets/Vault), ingress TLS termination
+
+#### IaC Validation
+- Terraform state encryption, drift detection, plan review gates, cost thresholds, resource tagging
+
+#### CI/CD Pipeline Security
+- Artifact signing, SLSA Level 3+, hermetic builds, secret scanning (gitleaks), branch protection (signed commits), production approval gates
+
+#### License & Governance
+- **SBOM Completeness**: SPDX or CycloneDX format, all direct + transitive deps inventoried
+- **Prohibited License Detection**: GPL/AGPL/SSPL in proprietary contexts, copyleft contamination
+- **Copyleft Conflicts**: Identify copyleft-to-permissive dependency chains
+- **SLSA Provenance Verification**: Build attestations, artifact signatures
+- **Attribution Requirements**: License notice files, copyright headers
+
+**Flag**: Docker socket mounting, privileged containers, missing pod security contexts, hardcoded cloud credentials in IaC, public S3 buckets, missing SBOM, prohibited licenses in dependency tree, unsigned artifacts
+
+---
+
+### 🪨 Silver Hat — Context, Token & Resource Optimization + O(1) Bounding
+
+**When to apply**: Code touches prompt construction, context building, token-sensitive operations, resource budgets, or context management systems.
+
+**Validation Dimensions**: Token Optimization, Cost Efficiency, O(1) Context Bounding
+
+#### Token & Context Analysis
+- Token budgets, gas formula efficiency, context window utilization, prompt compression
+- LLM call deduplication, response caching, embedding computation efficiency
+- Vector DB query optimization, batch vs real-time trade-offs
+- Cost-per-query projections and budget guardrails
+
+#### O(1) Context Bounding (Infinite CTX Protocol)
+
+**Validation Checklist**:
+- [ ] **Bounded Prompt Construction**: Workspace snapshot (hashes) + last ≤10 actions only
+- [ ] **No Linear Accumulation**: Historical tokens actively discarded, not truncated. Context size remains constant regardless of task length
+- [ ] **Snapshot Integrity**: Deterministic state capture using file hashes, not full content
+- [ ] **Global-Reasoning Threshold**: 10M+ token contexts only when explicitly justified
+- [ ] **Gas Metering Enforcement**: Resource budgets enforced per Sovereign OS constraints
+- [ ] **Reconstruction Fidelity**: Bounded prompt must reconstruct sufficient context for correct decision-making
+
+**Flag**: Unbounded context growth, linear token accumulation, missing O(1) reconstruction, snapshot non-determinism, missing gas metering, context window overflow without circuit breaker
+
+---
+
+### 🔷 Azure Hat — MCP Workflow Integrity *(NEW in v2.0)*
+
+**When to apply**: Code touches MCP server definitions, tool schemas, agent loops, task management, or any component in the MCP orchestration pipeline.
+
+**Validation Dimensions**: MCP Workflow Integrity, Agent Lifecycle Compliance
+
+#### Task Lifecycle Compliance
+- [ ] **Sequencing**: Verify `request_planning` → `approve_task_completion` → `get_next_task` sequencing is enforced
+- [ ] **State Machine Enforcement**: Task states must follow defined transitions. No skip-ahead, no backwards transitions without rollback
+- [ ] **Deadlock Prevention**: Identify patterns where agents wait indefinitely for user approval
+
+#### Context7 Usage Validation
+- [ ] Deep retrieval calls respect bounded context policy (snapshot + last 10 actions per 🪨 Silver Hat)
+- [ ] Context7 queries include scope limiting (library, version, topic constraints)
+- [ ] Retrieved context is validated before injection into agent prompts
+
+#### Sequential Thinking Enforcement
+- [ ] Structured step-IDs present in all multi-step operations
+- [ ] No unbounded branching (fork without join)
+- [ ] Step dependencies explicitly declared
+
+#### HITL (Human-in-the-Loop) Gates
+- [ ] Irreversible actions require explicit user confirmation
+- [ ] Escalation paths defined for ambiguous decisions
+- [ ] Timeout handling for pending human approvals
+
+#### Tool Justification Protocol
+- [ ] Every MCP tool call includes inline rationale
+- [ ] Tool selection is proportional to task complexity
+- [ ] Tool output validation before downstream consumption
+
+**Flag**: Missing approval gates, unverified task transitions, MCP calls without justification, missing HITL for destructive operations, deadlock-prone agent loops, missing step-IDs
+
+---
+
+### Upkeep Responsibilities — GUI, Demo Page, README, Setup & Auto-Update
+
+#### 🔴 Red Hat — Demo Page Functional Integrity
+- After ANY code change, verify `docs/index.html` still functions. No mocks — all demo page functionality must use real endpoints.
+
+#### 🔵 Blue Hat — Documentation Sync (GUI, Demo, README)
+- New MCP tools must appear in the demo page. README must reflect current setup/install instructions, architecture, features, and dependencies. No stale sections.
+
+#### 🟢 Green Hat — Feature Parity & Completeness
+- Audit for feature drift between backend capabilities and demo page/GUI. No orphaned UI. No undocumented features.
+
+#### 🟣 Indigo Hat — Integration Wiring, Setup & Auto-Update
+- API contract changes must propagate to frontend fetch calls. `install.bat`/`install.sh`, `setup_wizard.py`, `run.bat`/`run.sh` must work end-to-end. Auto-update checker must remain functional.
+
+#### 🔷 Azure Hat — MCP Pipeline Upkeep
+- Task lifecycle sequencing must not be broken. HITL gates must remain wired. Sequential thinking step-IDs must propagate.
+
+---
+
+### Review Protocol
+
+1. **Run Meta-Hat Router** — Apply regex router against git diff (zero LLM tokens)
+2. **Verify Mandatory Set** — Confirm `{⚫ Black, 🔵 Blue, 🟪 Purple} ⊆ ACTIVE_HATS`
+3. **Retrieve Hat Definitions** — Load only activated hats. Budget: ~800 tokens for 2-3 hats
+4. **Run Each Hat** — Apply full validation checklist. Severity: 🔴 CRITICAL, 🟠 HIGH, 🟡 MEDIUM, 🟢 LOW
+5. **Generate Output** — Produce findings in both Markdown (human) and JSON (CI/CD) formats
 
 ### Severity Levels
 
-- 🔴 **CRITICAL** — Must fix before merge. Security vulnerabilities, data loss risks
-- 🟠 **HIGH** — Should fix. Significant bugs, missing error handling
-- 🟡 **MEDIUM** — Fix soon. Performance issues, missing tests
-- 🟢 **LOW** — Nice to have. Code style, minor optimizations
-- ℹ️ **INFO** — Informational. Architecture suggestions, future ideas
+- 🔴 **CRITICAL** — Must fix before merge. Data loss, RCE, SQLi, AI safety failure, regulatory violation > €10M
+- 🟠 **HIGH** — Should fix. 25%+ user impact, interactive XSS, SPOF without failover, unencrypted PII at rest
+- 🟡 **MEDIUM** — Fix soon. UX friction, slow queries, incomplete edge case handling
+- 🟢 **LOW** — Nice to have. Typos, suboptimal algorithms, missing metrics
 
 ### Commit Message Format
 
@@ -63,12 +507,12 @@ feat(<hat>): <description>
 Example:
 feat(black-hat): add path sanitization to READ host function
 fix(red-hat): handle SQLite database locked under concurrency
-feat(green-hat): wire Canary probe failures to circuit breaker
+feat(azure-hat): add HITL gate to MCP task completion flow
 ```
 
 ### Anti-Reductionist Mandate
 
-Jules MUST NEVER produce empty "all clean" reviews. If a hat genuinely has no findings,
+Agents MUST NEVER produce empty "all clean" reviews. If a hat genuinely has no findings,
 explain (in 2-3 sentences) what was examined and why it passed. Generic "looks good" is
 **prohibited** — this is a military-grade system.
 
