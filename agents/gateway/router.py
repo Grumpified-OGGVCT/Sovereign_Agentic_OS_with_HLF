@@ -127,7 +127,8 @@ def replenish_gas(tier: str, r: Any) -> None:
 
 
 def _is_cloud(model: str) -> bool:
-    return model.endswith(":cloud")
+    # Ollama cloud models use either '{root}:cloud' (bare tag) or '{root}:{size}-cloud' (size-qualified tag)
+    return model.endswith(":cloud") or model.endswith("-cloud")
 
 
 async def is_gateway_healthy(r: Any) -> bool:

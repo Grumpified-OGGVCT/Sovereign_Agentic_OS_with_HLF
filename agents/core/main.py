@@ -106,7 +106,9 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
     # 1. Cloud Provider Fallback (OpenRouter/Ollama Cloud)
     openrouter_api = os.environ.get("OPENROUTER_API")
     ollama_api_key = os.environ.get("OLLAMA_API_KEY")
-    is_cloud = effective_model.endswith(":cloud") or openrouter_api or ollama_api_key
+    is_cloud = (
+        effective_model.endswith(":cloud") or effective_model.endswith("-cloud") or openrouter_api or ollama_api_key
+    )
 
     if is_cloud and openrouter_api:
         # Use OpenRouter as primary cloud bridge if available
@@ -119,7 +121,7 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
                     "X-Title": "Sovereign OS Autonomous Runner",
                 },
                 json={
-                    "model": effective_model.replace(":cloud", ""),
+                    "model": effective_model.removesuffix(":cloud").removesuffix("-cloud"),
                     "messages": [
                         {
                             "role": "system",
@@ -143,7 +145,7 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
         system_prompt = _SYSTEM_PROMPT_PATH.read_text().strip()
 
     payload = {
-        "model": effective_model.replace(":cloud", ""),
+        "model": effective_model.removesuffix(":cloud").removesuffix("-cloud"),
         "system": system_prompt,
         "prompt": text,
         "stream": False,
@@ -227,7 +229,7 @@ def _ollama_generate_v2(text: str, profile: Any) -> str:
 
     # --- Local Ollama path (default) — dual-endpoint failover ---
     payload = {
-        "model": model.replace(":cloud", ""),
+        "model": model.removesuffix(":cloud").removesuffix("-cloud"),
         "system": system_prompt,
         "prompt": text,
         "stream": False,
