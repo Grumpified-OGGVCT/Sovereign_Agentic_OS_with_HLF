@@ -42,7 +42,7 @@
     "enabled": true,
     "primary_host": "http://localhost:11434",
     "secondary_host": "http://localhost:11435",
-    "strategy": "failover",
+    "strategy": "round_robin",
     "cloud_models_synced": 31
   }
 }

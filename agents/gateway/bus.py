@@ -279,8 +279,8 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
     timestamp = time.time()
 
     # 5b. Dynamic Model Routing via MoMA Router (RFC 9004)
-    profile = route_request(hlf_payload, ast)
     cx = complexity_score(hlf_payload, ast)
+    profile = route_request(hlf_payload, ast, complexity=cx)
 
     # 6. Publish via Dapr pub/sub; fall back to direct Redis stream on Dapr failure
     pub_url = f"{settings.dapr_host}/v1.0/publish/pubsub/intents"

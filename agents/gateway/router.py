@@ -10,6 +10,7 @@ import json
 import os
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -152,6 +153,48 @@ def route_intent(intent_text: str, ast: dict) -> str:
     return settings.summarization_model
 
 
+# ─── Model Allowlist Enforcement ──────────────────────────────────────────
+
+_SETTINGS_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "settings.json"
+
+
+def _load_allowed_models(tier: str) -> set[str]:
+    """Load the ollama_allowed_models list for the given tier from settings.json."""
+    try:
+        data = json.loads(_SETTINGS_PATH.read_text())
+        allowed = data.get("ollama_allowed_models", {})
+        models = allowed.get(tier, [])
+        return {m.lower() for m in models}
+    except Exception:
+        return set()  # fail-open if settings unreadable
+
+
+def is_model_allowed(model: str, tier: str) -> bool:
+    """Check if a model is in the allowlist for the given deployment tier.
+
+    Normalizes model names before checking:
+      - Strips ':cloud' / '-cloud' suffix
+      - Replaces ':' with '-' for consistent comparison
+      - Uses substring matching so 'qwen-7b' matches 'qwen:7b', 'qwen-7b:latest', etc.
+    Returns True (fail-open) if the allowlist is empty or unreadable.
+    """
+    allowed = _load_allowed_models(tier)
+    if not allowed:
+        return True  # fail-open
+
+    def _normalize(name: str) -> str:
+        """Normalize a model name for comparison."""
+        name = name.lower().removesuffix(":cloud").removesuffix("-cloud")
+        return name.replace(":", "-")
+
+    norm_model = _normalize(model)
+    for allowed_model in allowed:
+        norm_allowed = _normalize(allowed_model)
+        if norm_model == norm_allowed or norm_allowed in norm_model or norm_model in norm_allowed:
+            return True
+    return False
+
+
 def verify_gas_limit(ast: dict, max_gas: int = 10) -> tuple[bool, int]:
     """Count AST nodes and check against gas limit. Returns (ok, node_count)."""
     program = ast.get("program", [])
@@ -275,10 +318,16 @@ def _try_import_db():
         return None
 
 
-def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None = None) -> AgentProfile:
+def route_request(
+    intent_text: str,
+    ast: dict,
+    metadata: dict[str, Any] | None = None,
+    complexity: float = -1.0,
+) -> AgentProfile:
     """
     Registry-aware 3-Phase Tier Walk router.  Returns a full AgentProfile.
 
+    Phase 0: Complexity Short-Circuit — 𝕔 < 0.3 → SLM, 𝕔 > 0.7 → frontier
     Phase 1: Cloud Tier Walk — query registry for best model per-tier
     Phase 2: Local Inventory Fallback — if cloud walk exhausted
     Phase 3: OpenRouter Handoff — if both cloud and local fail
@@ -287,6 +336,7 @@ def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None =
     """
     trace: list[dict[str, Any]] = []
     text_lower = intent_text.lower()
+    tier = settings.deployment_tier
 
     # ── Specialization Pre-Routing Hooks ──────────────────────────────
     specialization = None
@@ -295,6 +345,37 @@ def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None =
             specialization = spec_name
             trace.append({"step": "specialization", "match": spec_name, "keywords": keywords})
             break
+
+    # ── Phase 0: Complexity Short-Circuit ──────────────────────────────
+    if complexity >= 0 and specialization is None:
+        if complexity < 0.3:
+            trace.append({"step": "complexity_shortcircuit", "score": round(complexity, 3), "target": "slm"})
+            model = settings.summarization_model
+            if is_model_allowed(model, tier):
+                profile = AgentProfile(
+                    model=model,
+                    provider="cloud" if _is_cloud(model) else "ollama",
+                    tier="slm",
+                    routing_trace=trace,
+                    confidence=0.85,
+                )
+                _log_routing_decision(profile, intent_text, phase="complexity_slm")
+                return profile
+        elif complexity > 0.7:
+            trace.append({"step": "complexity_shortcircuit", "score": round(complexity, 3), "target": "frontier"})
+            model = settings.primary_model
+            if is_model_allowed(model, tier):
+                profile = AgentProfile(
+                    model=model,
+                    provider="cloud" if _is_cloud(model) else "ollama",
+                    tier="S",
+                    routing_trace=trace,
+                    confidence=0.9,
+                )
+                _log_routing_decision(profile, intent_text, phase="complexity_frontier")
+                return profile
+        else:
+            trace.append({"step": "complexity_midrange", "score": round(complexity, 3)})
 
     # ── Try registry-backed routing ───────────────────────────────────
     db_imports = _try_import_db()
@@ -416,6 +497,14 @@ def route_request(intent_text: str, ast: dict, metadata: dict[str, Any] | None =
                 provider = "cloud"
             elif selected_tier == "openrouter":
                 provider = "openrouter"
+
+            # ── Model Allowlist Gate ─────────────────────────────────
+            if not is_model_allowed(selected_model, tier):
+                trace.append({"step": "allowlist_blocked", "model": selected_model, "tier": tier})
+                # Downshift to summarization model (always allowed)
+                selected_model = settings.summarization_model
+                selected_tier = "allowlist_fallback"
+                trace.append({"step": "allowlist_fallback", "model": selected_model})
 
             profile = AgentProfile(
                 model=selected_model,
