@@ -218,3 +218,73 @@ class TestDreamStateArchive:
         files = list(cold_archive.iterdir())
         assert len(files) == 1
         assert files[0].suffix == ".parquet"
+
+
+class TestDynamicContextPruningUpdates:
+    """Ensure query_memory logic updates last_accessed timestamps correctly"""
+
+    def test_query_memory_updates_last_accessed(self, tmp_path: Path) -> None:
+        import importlib.util
+        import sys
+        import time
+        from unittest.mock import patch
+
+        import mcp
+
+        # We must load it directly without using the 'mcp' namespace prefix because it shadows the pypi package
+        mcp_path = Path(__file__).parent.parent / "mcp" / "sovereign_mcp_server.py"
+        spec = importlib.util.spec_from_file_location("sovereign_mcp_server", str(mcp_path))
+        mcp_module = importlib.util.module_from_spec(spec)
+
+        # Patch mcp_module FastMCP to not crash on version kwarg
+        import mcp.server.fastmcp
+
+        old_init = mcp.server.fastmcp.FastMCP.__init__
+
+        def new_init(self, *args, **kwargs):
+            kwargs.pop("version", None)
+            kwargs.pop("description", None)
+            old_init(self, *args, **kwargs)
+
+        mcp.server.fastmcp.FastMCP.__init__ = new_init
+
+        sys.modules["sovereign_mcp_server"] = mcp_module
+        spec.loader.exec_module(mcp_module)
+        query_memory = mcp_module.query_memory
+
+        conn = _make_conn(tmp_path / "mem.db")
+        # Fake an old time for last_accessed
+        old_time = time.time() - 100 * 86400  # 100 days ago
+
+        # Manually alter table to ensure it has our schema modifications
+        import contextlib
+
+        with contextlib.suppress(Exception):
+            conn.execute("ALTER TABLE fact_store ADD COLUMN created_at REAL NOT NULL DEFAULT 0.0")
+        with contextlib.suppress(Exception):
+            conn.execute("ALTER TABLE fact_store ADD COLUMN last_accessed REAL NOT NULL DEFAULT 0.0")
+
+        # Insert test facts
+        conn.execute(
+            "INSERT INTO fact_store (entity_id, vector_embedding, semantic_relationship, "
+            "confidence_score, created_at, last_accessed) "
+            "VALUES (?, NULL, ?, ?, ?, ?)",
+            ("test_query", "test_rel", 0.9, old_time, old_time),
+        )
+        conn.commit()
+
+        # Mock the `_get_db` function inside mcp to return our test connection
+        with patch("sovereign_mcp_server._get_db", return_value=conn):
+            # Run the query
+            results = query_memory(search_term="test_query")
+            assert len(results) == 1
+            assert results[0]["entity_id"] == "test_query"
+
+            # Verify the DB row has an updated last_accessed timestamp
+            conn2 = sqlite3.connect(str(tmp_path / "mem.db"))
+            row = conn2.execute("SELECT last_accessed FROM fact_store WHERE entity_id = 'test_query'").fetchone()
+            conn2.close()
+            new_last_accessed = row[0]
+            assert new_last_accessed > old_time
+            # Within the last 10 seconds
+            assert time.time() - new_last_accessed < 10
