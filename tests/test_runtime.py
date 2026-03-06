@@ -279,9 +279,10 @@ class TestModuleLoader:
         mod_dir.mkdir()
         mod_file = mod_dir / "secure.hlf"
         content = "[HLF-v2]\n[SET] secret = 42\nΩ\n"
-        mod_file.write_text(content, encoding="utf-8")
+        content_bytes = content.encode("utf-8")
+        mod_file.write_bytes(content_bytes)
 
-        sha256 = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        sha256 = hashlib.sha256(content_bytes).hexdigest()
 
         manifest_file = tmp_path / "manifest.yaml"
         manifest_file.write_text(f"modules:\n  secure: {sha256}\n", encoding="utf-8")
@@ -292,7 +293,7 @@ class TestModuleLoader:
         assert ns.bindings["secret"] == 42
 
         # Tamper with the file
-        mod_file.write_text("[HLF-v2]\n[SET] secret = 666\nΩ\n", encoding="utf-8")
+        mod_file.write_bytes("[HLF-v2]\n[SET] secret = 666\nΩ\n".encode("utf-8"))
 
         # Clear cache and reload
         loader._cache.clear()

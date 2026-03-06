@@ -607,7 +607,7 @@ def get_recent_findings(
     try:
         rows = conn.execute(
             "SELECT hat, severity, title, description, recommendation, resolved, timestamp "
-            "FROM hat_findings ORDER BY timestamp DESC LIMIT ?",
+            "FROM hat_findings ORDER BY id DESC LIMIT ?",
             (limit,),
         ).fetchall()
         return [
