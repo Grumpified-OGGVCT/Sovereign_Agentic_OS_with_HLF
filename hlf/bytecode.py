@@ -447,18 +447,33 @@ class BytecodeCompiler:
             self.instructions[jz_pos].operand = len(self.instructions)
 
     def _emit_memory(self, node: dict) -> None:
-        """Compile [MEMORY] → MEMORY_STORE."""
+        """Compile [MEMORY] entity content confidence → MEMORY_STORE.
+
+        Pushes confidence and content onto stack, then MEMORY_STORE with
+        entity operand. VM pops content + confidence and stores in scope.
+        """
         entity = node.get("entity", "")
         content = node.get("content", "")
+        confidence = node.get("confidence", 0.5)
         entity_idx = self.pool.add(entity)
+        conf_idx = self.pool.add(confidence)
         content_idx = self.pool.add(content)
+        # Stack order: push confidence first, then content (content on top)
+        self.instructions.append(_Instruction(Op.PUSH_CONST, conf_idx))
         self.instructions.append(_Instruction(Op.PUSH_CONST, content_idx))
         self.instructions.append(_Instruction(Op.MEMORY_STORE, entity_idx))
 
     def _emit_recall(self, node: dict) -> None:
-        """Compile [RECALL] → MEMORY_RECALL."""
+        """Compile [RECALL] entity top_k → MEMORY_RECALL.
+
+        Pushes top_k onto stack, then MEMORY_RECALL with entity operand.
+        VM pops top_k, retrieves memories, pushes results list.
+        """
         entity = node.get("entity", "")
+        top_k = node.get("top_k", 5)
         entity_idx = self.pool.add(entity)
+        top_k_idx = self.pool.add(top_k)
+        self.instructions.append(_Instruction(Op.PUSH_CONST, top_k_idx))
         self.instructions.append(_Instruction(Op.MEMORY_RECALL, entity_idx))
 
     def _emit_thought(self, node: dict) -> None:
@@ -801,12 +816,38 @@ class HlfVM:
         elif opcode == Op.MEMORY_STORE:
             entity = pool.get(operand)
             content = self._pop()
-            self.trace.append({"op": "MEMORY_STORE", "entity": entity, "content": content})
+            confidence = self._pop()
+            # Store in scope as MEMORY_{entity} list, matching hlfrun._exec_memory
+            mem_key = f"MEMORY_{entity}"
+            existing = self.scope.get(mem_key, [])
+            if not isinstance(existing, list):
+                existing = [existing]
+            existing.append({"content": content, "confidence": confidence})
+            self.scope[mem_key] = existing
+            self.trace.append({
+                "op": "MEMORY_STORE", "entity": entity,
+                "content": content, "confidence": confidence,
+            })
 
         elif opcode == Op.MEMORY_RECALL:
             entity = pool.get(operand)
-            self.trace.append({"op": "MEMORY_RECALL", "entity": entity})
-            self.stack.append(f"<recalled:{entity}>")  # Placeholder
+            top_k = int(self._pop())
+            # Retrieve from scope, matching hlfrun._exec_recall
+            mem_key = f"MEMORY_{entity}"
+            stored = self.scope.get(mem_key, [])
+            if isinstance(stored, list):
+                results = stored[:top_k]
+            elif stored:
+                results = [stored]
+            else:
+                results = []
+            # Store recall results in scope and push onto stack
+            self.scope[f"RECALL_{entity}"] = results
+            self.stack.append(results)
+            self.trace.append({
+                "op": "MEMORY_RECALL", "entity": entity,
+                "top_k": top_k, "found": len(results),
+            })
 
         # System
         elif opcode == Op.NOP:
