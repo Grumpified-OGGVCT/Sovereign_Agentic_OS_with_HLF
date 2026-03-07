@@ -83,6 +83,7 @@ class Op:
     RESULT       = 0x62
     MEMORY_STORE = 0x63
     MEMORY_RECALL= 0x64
+    OPENCLAW_TOOL= 0x65
 
     # System
     NOP          = 0xFE
@@ -106,7 +107,7 @@ _OP_GAS: dict[int, int] = {
     Op.JMP: 1, Op.JZ: 1, Op.JNZ: 1,
     Op.CALL_BUILTIN: 2, Op.CALL_HOST: 5, Op.CALL_TOOL: 3,
     Op.TAG: 1, Op.INTENT: 1, Op.RESULT: 1,
-    Op.MEMORY_STORE: 3, Op.MEMORY_RECALL: 3,
+    Op.MEMORY_STORE: 3, Op.MEMORY_RECALL: 3, Op.OPENCLAW_TOOL: 5,
     Op.NOP: 0, Op.HALT: 0,
 }
 
@@ -848,6 +849,19 @@ class HlfVM:
                 "top_k": top_k, "found": len(results),
             })
 
+        elif opcode == Op.OPENCLAW_TOOL:
+            func_name = pool.get(operand)
+            arg_count = int(self._pop())
+            args = [self._pop() for _ in range(arg_count)]
+            args.reverse()
+
+            # Simulated return value until API logic is fully wired
+            result = {"status": "success", "tool": func_name, "args": args}
+            self.stack.append(result)
+            self.scope[f"{func_name}_RESULT"] = result
+
+            self.trace.append({"op": "OPENCLAW_TOOL", "func": func_name, "args": args})
+
         # System
         elif opcode == Op.NOP:
             pass
@@ -971,7 +985,7 @@ def disassemble(hlb_data: bytes) -> str:
         extra = ""
         if opcode in (Op.PUSH_CONST, Op.STORE, Op.LOAD, Op.STORE_IMMUT,
                        Op.CALL_BUILTIN, Op.CALL_HOST, Op.CALL_TOOL,
-                       Op.TAG, Op.INTENT, Op.MEMORY_STORE, Op.MEMORY_RECALL):
+                       Op.TAG, Op.INTENT, Op.MEMORY_STORE, Op.MEMORY_RECALL, Op.OPENCLAW_TOOL):
             try:
                 extra = f"  ; {pool.get(operand)!r}"
             except (IndexError, KeyError):

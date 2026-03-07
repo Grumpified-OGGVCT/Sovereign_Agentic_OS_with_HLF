@@ -1,0 +1,30 @@
+{
+  "gateway": {
+    "bind": "loopback",
+    "auth": {
+      "mode": "token"
+    }
+  },
+  "tools": {
+    "deny": ["group:automation", "group:runtime", "group:fs"],
+    "exec": {
+      "security": "deny",
+      "ask": "always"
+    },
+    "elevated": {
+      "enabled": false
+    }
+  },
+  "sandbox": {
+    "mode": "all",
+    "scope": "agent",
+    "workspaceAccess": "ro"
+  },
+  "models": {
+    "providers": {
+      "ollama": {
+        "baseUrl": "http://127.0.0.1:11434"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "openclaw-sovereign",
+  "version": "0.1.0",
+  "description": "Sovereign OS Orchestration Plugin for OpenClaw",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\""
+  },
+  "dependencies": {
+    "js-yaml": "^4.1.0"
+  },
+  "author": "Sovereign OS",
+  "license": "MIT"
+}
