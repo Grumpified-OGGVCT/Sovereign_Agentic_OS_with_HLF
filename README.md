@@ -1,11 +1,11 @@
 # Sovereign Agentic OS with HLF
 
-> 🟢 **Development Status (Mar 2026)**
-> Now with full Antigravity, Jules, and GitHub Copilot integration.
-> 
-> **✅ Working**: Dream Mode (23/23), 11-Hat Engine (11 named cloud agents), Gateway Bus + ALIGN, C-SOC GUI (dark mode), Ollama Matrix, deep installation tests (65/65), auto-update with user approval, Jules 10-step daily pipeline, MCP Server auto-launch, **Infinite RAG Memory Matrix** (SQLite WAL + MCP bridge + Dream State), HLF metrics & benchmark infrastructure.
-> **🛠️ In Progress**: Copilot agent/runner factory, real-time HLF translation indicators, vector embeddings (sqlite-vec), Redis active context tiering, fractal summarization.
-> **⏸️ Paused**: Pure cloud-only orchestrations.
+> 🟢 **Development Status — Updated Mar 7, 2026**
+> Full Antigravity, Jules, and GitHub Copilot integration. HLF v0.4 Bytecode VM operational.
+>
+> **✅ Working**: 14-Hat Aegis-Nexus Engine (19 named cloud agents), HLF v0.4 Bytecode VM (compiler + stack-machine + disassembler), Gateway Bus + ALIGN, Dream Mode (23/23), C-SOC GUI (dark mode), Ollama Matrix, **573+ passing tests**, Jules 10-step daily pipeline with anti-reductionist mandate, MCP Server auto-launch, **Infinite RAG Memory Matrix** (SQLite WAL + MCP bridge + Dream State + bytecode-level RAG opcodes), **[Project Janus](https://github.com/Grumpified-OGGVCT/Project_Janus)** (sovereign archival intelligence — 4-model Infinite RAG pipeline, full-site Markdown cloner, LanceDB knowledge graph, Code-Awareness Service, Ollama-native MCP tool loop), HLF metrics & benchmark infrastructure, OpenClaw orchestration plugin (PR pending).
+> **🛠️ In Progress**: Aegis-Nexus operational wiring (Sentinel/Scribe/Arbiter agents scaffolded), HLF Tool Forge host functions, vector embeddings (sqlite-vec), Redis active context tiering, fractal summarization, GUI Cognitive SOC dashboard.
+> **⏸️ Paused**: Pure cloud-only orchestrations, LOLLMS integration (stretch goal).
 >
 > 🌐 **[Live Demo →](https://grumpified-oggvct.github.io/Sovereign_Agentic_OS_with_HLF/)** | 📊 **[HLF Progress Report →](docs/HLF_PROGRESS.md)** | 📓 **[NotebookLM Research Notebook →](https://notebooklm.google.com/notebook/13b9e9f1-77aa-4eba-8760-e38dbdc98bdc)**
 
@@ -109,7 +109,7 @@ graph TD
 The Sovereign OS began as a simple question asked when cloud API tokens ran dry: *"Why not create a compressed language exclusively for AI-to-AI communication to save tokens?"* Those scattered notes morphed into the foundational "God View" stack via intensive prompting sessions spanning days.
 
 **Forging the Manifest (The Plan from the Plans):**
-After the initial NotebookLM brainstorming exhausted context windows, the raw concepts were dumped into a monolithic baseline plan. We subjected the entire architecture to a **De Bono 11-Hat Agentic Matrix** — the original 6 perspective hats (Red, Black, White, Yellow, Green, Blue) plus 5 Sovereign OS-specific extended hats (Indigo, Cyan, Purple, Orange, Silver) — to forge the ironclad, verified system you see here.
+After the initial NotebookLM brainstorming exhausted context windows, the raw concepts were dumped into a monolithic baseline plan. We subjected the entire architecture to a **De Bono 14-Hat Agentic Matrix** — the original 6 perspective hats (Red, Black, White, Yellow, Green, Blue) plus 8 Sovereign OS-specific extended hats (Indigo, Cyan, Purple, Orange, Silver, Azure/Steward, Gold/CoVE, and Weaver) — to forge the ironclad, verified system you see here. The March 2026 upgrade introduced the Azure Hat (Steward) for MCP workflow integrity, Gold Hat (CoVE) as terminal validation authority, and the Weaver as the recursive self-improvement meta-agent.
 
 **Architectural Credits & Gratitude:**
 - **My Wife:** For her constant, patient support and giving me the massive amounts of unmanaged time required to architect this.
@@ -123,9 +123,10 @@ After the initial NotebookLM brainstorming exhausted context windows, the raw co
 - **Ollama Cloud Models:** For making local/cloud-hybrid multi-agent swarms financially feasible.
 - **Meeting Assistant & AnythingLLM:** For extracting audio and capturing vital "critic" red-teaming sessions.
 - **LOLLMS (ParisNeo):** For constant inspiration and architectural solutions throughout these builds.
+- **[Project Janus](https://github.com/Grumpified-OGGVCT/Project_Janus):** Sovereign closed-loop archival intelligence. Crawls, clones, and queries the web with a fully local AI brain — zero external APIs. Features a 4-model Infinite RAG pipeline (embeddinggemma → minimax-m2.5 reranking → gemini-3-flash compression → devstral-2 123B reasoning), full-site Markdown mirror cloner, persistent knowledge graph (LanceDB + Memory-MCP), SQLite vault with ChromaDB vector search, hot/warm/cold memory tiering, and the Code-Awareness Service bridging Janus to the Sovereign OS on port 9345.
 - **Hof (from Websim.com):** For being a constant source of wild ideas, support, and an invaluable sounding board.
 
-### Quick Start Example (v0.3.0)
+### Quick Start Example (v0.4.0)
 
 *   **Logic Isolation**:
     ```bash
@@ -277,10 +278,12 @@ HLF and the Infinite RAG are designed to amplify each other:
 ## 🌟 The Sovereign Advantage: Why it Matters
 
 The Sovereign Agentic OS represents a paradigm shift in AI autonomy:
-- **Aegis-Nexus Engine**: Our 11-hat autonomous audit cycle (11 named cloud agents: Architect, Scribe, Frontend Dev, Backend Engineer, SecOps, Sentinel, Synthesizer, Scout, Guardian, Operator, Compressor) ensures your agents never hallucinate into privilege escalation or memory leaks.
+- **14-Hat Aegis-Nexus Engine**: Our 14-hat autonomous audit cycle (19 named cloud agents across Architecture, Language, Security, Backend, Data, UX, and Meta layers) ensures your agents never hallucinate into privilege escalation or memory leaks. Key agents include Sentinel (defense-in-depth), Scribe (token auditor), Arbiter (decision adjudicator), Steward (MCP integrity), CoVE (terminal validation), and Weaver (recursive self-improvement).
+- **HLF v0.4 Bytecode VM**: A complete compiler → bytecode → stack-machine execution pipeline. HLF programs compile to binary `.hlb` format with SHA-256 checksums, gas metering, and a full disassembler for debugging. Supports 30+ opcodes including PUSH, STORE, LOAD, CALL_HOST, CALL_TOOL, MEMORY_STORE/RECALL, and OPENCLAW_TOOL.
 - **MoMA Dynamic Routing**: Intelligent "Downshifting" means you never pay for a Frontier-tier model when a local small-language model (SLM) can do the same task for free.
 - **Glass-Box Transparency**: The C-SOC dashboard allows you to see every "thought" and "action" in real-time—no secret LLM decision-making.
-- **Start Strong Mandate**: Built from day one with the assumption that AI agents will be the primary operators of the next generation of infrastructure.
+- **Anti-Reductionist Mandate**: 9 non-negotiable mandates enforced across all agents — never simplify, never reduce, never delete to make something "work." The correct response to difficulty is understanding, not removal. Formalized in `config/personas/_shared_mandates.md`.
+- **Self-Building Architecture**: Agents build the infrastructure for the next agent in a 10-step daily pipeline. The system is designed to self-improve through recursive observation of its own usage patterns.
 
 ## 🔏 Security Features & Governance
 
@@ -381,34 +384,28 @@ Every routing decision returns a structured `AgentProfile` dataclass containing:
 
 ## 🤖 Jules Autonomous Integration
 
-The OS leverages **[Google Jules](https://jules.google)** as an autonomous maintenance and evolution agent. Jules is configured via `AGENTS.md` (in repo root) to understand the full system architecture before making any changes.
+The OS leverages **[Google Jules](https://jules.google)** as an autonomous maintenance and evolution agent. Jules is configured via `AGENTS.md` (in repo root) and the **Master Handoff** ([#67](https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/issues/67)) to understand the full self-building agent architecture before making any changes.
 
 ### Governance Pipeline
 
 ![Jules Governance Pipeline — nightly/weekly/monthly orbital tracks with quality gates](docs/jules_governance_pipeline.png)
 
-### Integration Areas
+### 10-Step Daily Sequential Pipeline
 
-| Role | Trigger | Frequency | What It Touches |
-|------|---------|-----------|-----------------|
-| **HLF Grammar Evolver** | Scheduled | Weekly | `hlfc.py`, `hlflint.py`, `hlffmt.py` |
-| **Dream Cycle Enhancer** | Scheduled | Bi-weekly | `dream_state.py`, `hat_engine.py` |
-| **Pipeline Operator** | Scheduled | Nightly | `pipeline.py`, `registry.db` |
-| **ALIGN Hardener** | Scheduled | Monthly | `ALIGN_LEDGER.yaml`, `sentinel_gate.py` |
-| **GUI Feature Builder** | Scheduled | Weekly | `gui/app.py` |
-| **CI Fixer** | Event | On failure | `.github/workflows/`, any failing file |
-| **Dependency Updater** | Scheduled | Weekly | `pyproject.toml` |
+All steps execute in strict order. Each agent inherits context from the previous agent's output (defined in `config/jules_tasks.yaml`):
 
-### Scheduled Task Configuration
-
-Automated tasks are defined in `config/jules_tasks.yaml`:
-
-- **Nightly:** Pipeline sync, model health check, regression suite
-- **Weekly:** HLF grammar tests, dependency audit, linter sweep
-- **Monthly:** ALIGN governance audit, CoVE full validation, 11-Hat review
-- **Suggested Tasks:** Auto-surface `TODO`/`FIXME`/`HACK`/`SECURITY` comments
-
-Issue-to-Jules automation: `scripts/jules_dispatch.sh <issue-number>` (supports `--dry-run`)
+| Step | Agent | What It Touches | Key Invariant |
+|------|-------|-----------------|---------|
+| 1 | **HLF Grammar Evolver** | `hlfc.py`, `hlflint.py`, `hlffmt.py` | Never remove syntax |
+| 2 | **Dream Cycle Enhancer** | `dream_state.py`, `hat_engine.py` | Never simplify cognitive loops |
+| 3 | **ALIGN Hardener** | `ALIGN_LEDGER.yaml`, `sentinel_gate.py` | Never weaken governance |
+| 4 | **Transparency Assessor** | `gui/app.py`, `logger.py`, `router.py` | Never reduce visibility |
+| 5 | **GUI Feature Builder** | `gui/app.py`, `gui/` | Never remove GUI features |
+| 6 | **Gemini Model Integrator** | `db.py`, `router.py`, `settings.json` | Proper API key management |
+| 7 | **Self-Capability Tracker** | `jules_capabilities.yaml` | Never overstate capabilities |
+| 8 | **CI Fixer** | `.github/workflows/`, any failing file | Never delete tests |
+| 9 | **HLF Maximizer** | `hlf/`, `tests/`, `docs/` | Test count ≥ baseline |
+| 10 | **README Updater** (Capstone) | `README.md`, `docs/` | Reflect ALL daily changes |
 
 ### Quality Gates
 
@@ -416,7 +413,7 @@ Issue-to-Jules automation: `scripts/jules_dispatch.sh <issue-number>` (supports 
 |------|----------|-------|
 | **CoVE Full** (12-dimension) | `governance/templates/cove_full_validation.md` | Major changes, security PRs |
 | **CoVE Compact** (8-step) | `governance/templates/cove_compact_validation.md` | Small changes (< 200 lines) |
-| **11-Hat Review** | `governance/templates/eleven_hats_review.md` | Every Jules PR |
+| **14-Hat Review** | `governance/templates/eleven_hats_review.md` | Every Jules PR |
 
 ### Safety Invariants (Non-Negotiable)
 
@@ -424,9 +421,11 @@ Issue-to-Jules automation: `scripts/jules_dispatch.sh <issue-number>` (supports 
 |-----------|-------------|
 | No test deletion | LLMJudge checks diffs for removed test files |
 | No coverage reduction | Scheduled `pytest --cov` baseline comparison |
-| No simplification | `AGENTS.md` explicitly forbids reductive changes |
-| Additive-only | Every Jules prompt includes "Do NOT delete or simplify" |
-| No overcommit | Cloud model routing via `agent_registry.json` profiles |
+| No simplification | `_shared_mandates.md` — 9 supreme mandates enforced on all agents |
+| Additive-only | Global invariant in `jules_tasks.yaml` + every agent prompt |
+| No overcommit | Cloud model routing via `agent_registry.json` (19 agent profiles) |
+| No file deletion | Anti-reduction checklist enforced on every PR |
+| No scope reduction | PR merge requires anti-reduction checklist completion |
 
 ---
 
@@ -444,6 +443,7 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 | Component | Technology |
 | --------- | ---------- |
 | Language | Python 3.12 |
+| HLF Version | v0.4.0 (Bytecode VM — compiler + stack-machine + disassembler) |
 | API | FastAPI + Uvicorn |
 | Message Bus | Redis Streams |
 | Storage | SQLite (WAL mode) |
@@ -453,8 +453,10 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 | Backend | Ollama + OpenRouter |
 | ML Optimization | DSPy |
 | Parser | Lark LALR(1) |
+| Bytecode VM | Custom stack-machine with 30+ opcodes, SHA-256 checksums, gas metering |
 | Package Manager | uv |
-| Autonomous Agent | Google Jules (10-step daily pipeline) |
+| Hat Engine | 14-Hat Aegis-Nexus (19 named cloud agents) |
+| Autonomous Agent | Google Jules (10-step daily pipeline + anti-reductionist mandate) |
 | Code Agent | GitHub Copilot (agent runners + review) |
 | Agentic IDE | Google Antigravity (MCP + workflow) |
 | Cloud Platform | Google Ultimate Plan |
@@ -463,8 +465,9 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 | Installation Tests | 65 deep verification tests |
 | Auto-Update | git-based with GUI approval flow |
 | HLF Test Fixtures | 7 domain-specific `.hlf` files |
-| Total Tests | 443 (pytest collected) |
+| Total Tests | **573+** (pytest collected) |
 | Benchmarking | tiktoken cl100k_base compression analysis |
+| CI Pipeline | ruff lint + model_policy_lint + HLF token lint + pytest |
 | Live Demo | [GitHub Pages](https://grumpified-oggvct.github.io/Sovereign_Agentic_OS_with_HLF/) |
 
 ## 🛠️ Local Development
