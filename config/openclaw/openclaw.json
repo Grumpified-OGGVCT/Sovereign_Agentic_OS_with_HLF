@@ -23,7 +23,7 @@
   "models": {
     "providers": {
       "ollama": {
-        "baseUrl": "http://127.0.0.1:11434"
+        "baseUrl": "${OLLAMA_HOST:-http://localhost:11434}"
       }
     }
   }

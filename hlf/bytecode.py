@@ -855,8 +855,8 @@ class HlfVM:
             args = [self._pop() for _ in range(arg_count)]
             args.reverse()
 
-            # Simulated return value until API logic is fully wired
-            result = {"status": "success", "tool": func_name, "args": args}
+            # Stub result — real dispatch not yet wired in VM path
+            result = {"status": "stub", "tool": func_name, "args": args, "simulated": True}
             self.stack.append(result)
             self.scope[f"{func_name}_RESULT"] = result
 

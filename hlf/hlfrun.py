@@ -353,6 +353,8 @@ class HLFInterpreter:
             result = self._exec_glyph_modified(node)
         elif tag == "TOOL":
             result = self._exec_tool(node)
+        elif tag == "OPENCLAW_TOOL":
+            result = self._exec_openclaw_tool(node)
         elif tag == "IMPORT":
             self._exec_import(node)
         elif tag == "MEMORY":
@@ -633,21 +635,30 @@ class HLFInterpreter:
             "operator": "↦ 🗲",
         })
 
-        # Dispatch to OpenClaw orchestrator plugin via Ollama or direct API
+        # Dispatch to OpenClaw orchestrator plugin via configurable endpoint
+        import os
+
         import httpx
+        openclaw_url = os.environ.get(
+            "OPENCLAW_ENDPOINT", "http://127.0.0.1:8000/api/tool"
+        )
         try:
-            # We assume openclaw is running on loopback 8000 based on openclaw.json config
-            # and that we have a proxy endpoint to hit it.
-            # Here we make a best effort network call, catching errors if it's not up
-            openclaw_url = "http://127.0.0.1:8000/api/tool"
-            response = httpx.post(openclaw_url, json={"tool": tool_name, "args": args}, timeout=10.0)
+            response = httpx.post(
+                openclaw_url,
+                json={"tool": tool_name, "args": args},
+                timeout=10.0,
+            )
             if response.status_code == 200:
                 result = response.json()
             else:
                 result = {"status": "error", "message": f"HTTP {response.status_code}"}
         except httpx.RequestError as e:
-            # If the sandbox/plugin isn't running in tests, fallback gracefully
-            result = {"status": "success", "tool": tool_name, "args": args, "simulated": True, "error": str(e)}
+            result = {
+                "status": "error",
+                "tool": tool_name,
+                "args": args,
+                "error": str(e),
+            }
 
         self.scope[f"{tool_name}_RESULT"] = result
         return result
