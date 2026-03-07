@@ -434,17 +434,23 @@ class HLFInterpreter:
 
     def _exec_result(self, node: dict) -> None:
         """Execute RESULT — set result code/message and terminate execution."""
-        code = node.get("code", 0)
-        message = node.get("message", "ok")
+        code = node.get("code")
+        message = node.get("message")
 
-        # Handle args-based RESULT format
-        if code == 0 and message == "ok":
+        # Handle args-based RESULT format (keyword form: code=0 message="ok")
+        if code is None or message is None:
             for arg in node.get("args", []):
                 if isinstance(arg, dict):
-                    if "code" in arg:
+                    if "code" in arg and code is None:
                         code = int(arg["code"])
-                    if "message" in arg:
+                    if "message" in arg and message is None:
                         message = str(arg["message"])
+
+        # Apply defaults after all extraction attempts
+        if code is None:
+            code = 0
+        if message is None:
+            message = "ok"
 
         self._result_code = int(code)
         self._result_message = str(message)

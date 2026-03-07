@@ -246,12 +246,104 @@ def _format_value(value: Any) -> str:
 
 
 # --------------------------------------------------------------------------- #
+# Bytecode decompilation (.hlb → English)
+# --------------------------------------------------------------------------- #
+
+
+# Opcode → English verb mappings for prose generation
+_OPCODE_PROSE: dict[str, str] = {
+    "PUSH_CONST": "Load value",
+    "POP": "Discard top of stack",
+    "DUP": "Duplicate top of stack",
+    "STORE": "Assign to variable",
+    "LOAD": "Read variable",
+    "STORE_IMMUT": "Set immutable variable",
+    "ADD": "Add",
+    "SUB": "Subtract",
+    "MUL": "Multiply",
+    "DIV": "Divide",
+    "MOD": "Modulo",
+    "NEG": "Negate",
+    "CMP_EQ": "Compare equal",
+    "CMP_NE": "Compare not-equal",
+    "CMP_LT": "Compare less-than",
+    "CMP_LE": "Compare less-or-equal",
+    "CMP_GT": "Compare greater-than",
+    "CMP_GE": "Compare greater-or-equal",
+    "AND": "Logical AND",
+    "OR": "Logical OR",
+    "NOT": "Logical NOT",
+    "JMP": "Jump to instruction",
+    "JZ": "Jump if zero to",
+    "JNZ": "Jump if non-zero to",
+    "CALL_BUILTIN": "Call built-in function",
+    "CALL_HOST": "Dispatch host action",
+    "CALL_TOOL": "Execute tool",
+    "TAG": "Declare",
+    "INTENT": "Intent —",
+    "RESULT": "Return result",
+    "MEMORY_STORE": "Store memory for entity",
+    "MEMORY_RECALL": "Recall memories for entity",
+    "NOP": "No operation",
+    "HALT": "Program terminates",
+}
+
+
+def decompile_bytecode(hlb_data: bytes) -> str:
+    """Decompile HLF bytecode (.hlb) into human-readable English prose.
+
+    Parses the binary bytecode, resolves constant pool references,
+    and produces a prose description of each instruction.
+
+    Args:
+        hlb_data: Raw bytes of an .hlb binary.
+
+    Returns:
+        Human-readable English description of the bytecode program.
+    """
+    from hlf.bytecode import disassemble
+
+    # Get the raw disassembly text
+    raw = disassemble(hlb_data)
+
+    lines: list[str] = ["Bytecode Program (HLF .hlb → English):"]
+    lines.append("")
+
+    for raw_line in raw.splitlines():
+        raw_line = raw_line.strip()
+        if not raw_line or raw_line.startswith("===") or raw_line.startswith("---"):
+            continue
+
+        # Parse "OFFSET: OPNAME OPERAND" or "OFFSET: OPNAME"
+        parts = raw_line.split(None, 2)
+        if len(parts) < 2:
+            lines.append(f"  {raw_line}")
+            continue
+
+        # The offset is parts[0] (like "0000:"), opname is parts[1]
+        offset = parts[0].rstrip(":")
+        opname = parts[1]
+        operand = parts[2] if len(parts) > 2 else ""
+
+        prose = _OPCODE_PROSE.get(opname, opname)
+
+        if operand:
+            lines.append(f"  [{offset}] {prose} '{operand}'")
+        else:
+            lines.append(f"  [{offset}] {prose}")
+
+    lines.append("")
+    lines.append("  [Program terminates]")
+    return "\n".join(lines)
+
+
+# --------------------------------------------------------------------------- #
 # CLI
 # --------------------------------------------------------------------------- #
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python -m hlf.insaits <input.hlf|--json input.json>")
+        print("Usage: python -m hlf.insaits <input.hlf|--json input.json|--bytecode input.hlb>")
         sys.exit(1)
 
     from hlf.hlfc import compile as hlfc_compile
@@ -259,8 +351,12 @@ if __name__ == "__main__":
     if sys.argv[1] == "--json":
         with open(sys.argv[2], encoding="utf-8") as f:
             ast = json.load(f)
+        print(decompile(ast))
+    elif sys.argv[1] == "--bytecode":
+        hlb_data = Path(sys.argv[2]).read_bytes()
+        print(decompile_bytecode(hlb_data))
     else:
         source = Path(sys.argv[1]).read_text(encoding="utf-8")
         ast = hlfc_compile(source)
+        print(decompile(ast))
 
-    print(decompile(ast))

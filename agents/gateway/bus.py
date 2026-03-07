@@ -5,6 +5,7 @@ Middleware chain: rate limiter → HLF linter → ALIGN enforcer → ULID nonce 
 
 from __future__ import annotations
 
+import base64
 import json
 import time
 from contextlib import asynccontextmanager
@@ -165,6 +166,24 @@ async def scheduler_health() -> dict:
     return get_scheduler_status()
 
 
+_HLF_BYTECODE_MAGIC = bytes([0x48, 0x4C, 0x46, 0x04])  # "HLF\x04"
+
+
+def _is_bytecode_payload(payload: str) -> bool:
+    """Detect if a payload is base64-encoded .hlb bytecode.
+
+    Checks whether decoding the first 8 base64 characters yields the
+    HLF v0.4 magic header.  This is intentionally conservative —
+    regular HLF text will never start with ``SEZG`` (the Base64 prefix
+    of ``HLF\\x04``).
+    """
+    try:
+        head = base64.b64decode(payload[:8])
+        return head[:4] == _HLF_BYTECODE_MAGIC
+    except Exception:
+        return False
+
+
 @app.post(
     "/api/v1/intent",
     status_code=202,
@@ -229,6 +248,25 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
         ast: dict = {"version": "0.3.0", "program": [], "text_mode": True}
         # Text-mode intents charge 1 gas unit (LLM inference cost tracked separately)
         gas_charge = 1
+    elif _is_bytecode_payload(hlf_payload):
+        # Bytecode mode: .hlb binary submitted as base64 in the hlf field
+        from hlf.bytecode import HlfBytecodeError, execute_bytecode
+
+        try:
+            hlb_data = base64.b64decode(hlf_payload)
+            vm_result = execute_bytecode(hlb_data, tier=settings.deployment_tier)
+        except HlfBytecodeError as exc:
+            raise HTTPException(status_code=422, detail=f"Bytecode execution error: {exc}") from exc
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"Bytecode error: {exc}") from exc
+
+        ast = {
+            "version": "0.4.0",
+            "program": [],
+            "bytecode_mode": True,
+            "vm_result": vm_result,
+        }
+        gas_charge = vm_result.get("gas_used", 1)
     else:
         # HLF mode: full compile + validate pipeline
         # 2. Fast HLF Heuristic rejection

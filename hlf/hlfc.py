@@ -6,6 +6,7 @@ CLI: hlfc input.hlf [output.json]
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
@@ -1176,16 +1177,58 @@ def _pass4_dictionary_validate(program: list[dict[str, Any]]) -> None:
 
 
 def main() -> None:
-    if len(sys.argv) < 2:
-        print("Usage: hlfc input.hlf [output.json]", file=sys.stderr)
-        sys.exit(1)
-    src = Path(sys.argv[1]).read_text(encoding="utf-8")
+    """HLF Compiler CLI — compile .hlf to JSON AST, .hlb bytecode, or disassemble."""
+    parser = argparse.ArgumentParser(
+        prog="hlfc",
+        description="HLF Compiler — compiles .hlf source to JSON AST or bytecode.",
+    )
+    parser.add_argument("input", help="Input file (.hlf source or .hlb for --disassemble)")
+    parser.add_argument("output", nargs="?", default=None, help="Output file (default: stdout)")
+    parser.add_argument(
+        "--emit-bytecode",
+        action="store_true",
+        help="Compile HLF source to .hlb bytecode binary instead of JSON AST.",
+    )
+    parser.add_argument(
+        "--disassemble",
+        action="store_true",
+        help="Disassemble a .hlb bytecode file to human-readable text.",
+    )
+    args = parser.parse_args()
+    input_path = Path(args.input)
+
+    if args.disassemble:
+        # Disassemble mode: .hlb → text
+        from hlf.bytecode import disassemble
+
+        hlb_data = input_path.read_bytes()
+        text = disassemble(hlb_data)
+        if args.output:
+            Path(args.output).write_text(text, encoding="utf-8")
+        else:
+            print(text)
+        return
+
+    # Compile HLF source
+    src = input_path.read_text(encoding="utf-8")
     ast = compile(src)
-    output = json.dumps(ast, indent=2)
-    if len(sys.argv) >= 3:
-        Path(sys.argv[2]).write_text(output, encoding="utf-8")
+
+    if args.emit_bytecode:
+        # Bytecode mode: .hlf → .hlb
+        from hlf.bytecode import compile_to_bytecode
+
+        hlb = compile_to_bytecode(ast)
+        out_path = Path(args.output) if args.output else input_path.with_suffix(".hlb")
+        out_path.write_bytes(hlb)
+        size = len(hlb)
+        print(f"Wrote {size} bytes to {out_path}", file=sys.stderr)
     else:
-        print(output)
+        # JSON AST mode (default)
+        output = json.dumps(ast, indent=2)
+        if args.output:
+            Path(args.output).write_text(output, encoding="utf-8")
+        else:
+            print(output)
 
 
 if __name__ == "__main__":
