@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import pytest
 
-from hlf.memory_node import HLFMemoryNode
 from hlf.infinite_rag import InfiniteRAGEngine
-
+from hlf.memory_node import HLFMemoryNode
 
 # ------------------------------------------------------------------ #
 # Helpers

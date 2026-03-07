@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import base64
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch  # noqa: F401 — MagicMock available for future sync mock tests
 
 import pytest
 

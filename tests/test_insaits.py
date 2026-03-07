@@ -13,8 +13,7 @@ from __future__ import annotations
 import pytest
 
 from hlf.hlfc import compile as hlfc_compile
-from hlf.insaits import decompile, decompile_live, decompile_bytecode
-
+from hlf.insaits import decompile, decompile_bytecode, decompile_live
 
 # ------------------------------------------------------------------ #
 # Helpers

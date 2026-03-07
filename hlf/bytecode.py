@@ -31,7 +31,6 @@ import zlib
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # ─── Opcodes ─────────────────────────────────────────────────────────────────
 
 class Op:
