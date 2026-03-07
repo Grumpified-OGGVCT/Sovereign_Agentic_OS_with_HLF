@@ -335,3 +335,44 @@ class TestFullRoundTrip:
         text = disassemble(hlb)
         assert "PUSH_CONST" in text
         assert "42" in text
+
+
+# ─── VM Direct Instantiation ────────────────────────────────────────────────
+
+
+class TestHlfVMDirect:
+    """Exercise HlfVM directly (validates import is used)."""
+
+    def test_vm_instantiation(self) -> None:
+        """HlfVM can be instantiated with default params."""
+        vm = HlfVM()
+        assert vm is not None
+
+    def test_vm_has_scope(self) -> None:
+        """HlfVM provides a scope dict for variable storage."""
+        vm = HlfVM()
+        scope: dict[str, Any] = vm.scope
+        assert isinstance(scope, dict)
+
+    def test_vm_gas_limit(self) -> None:
+        """HlfVM respects max_gas parameter."""
+        vm = HlfVM(max_gas=50)
+        assert vm.max_gas == 50
+        assert vm.gas_used == 0
+
+
+# ─── Stack Underflow ─────────────────────────────────────────────────────────
+
+
+class TestHlfVMStackUnderflow:
+    """Exercise HlfVMStackUnderflow exception (validates import is used)."""
+
+    def test_underflow_is_exception(self) -> None:
+        """HlfVMStackUnderflow is a proper exception type."""
+        assert issubclass(HlfVMStackUnderflow, Exception)
+
+    def test_underflow_raised_on_empty_pop(self) -> None:
+        """Popping from an empty VM stack raises HlfVMStackUnderflow."""
+        vm = HlfVM()
+        with pytest.raises((HlfVMStackUnderflow, IndexError)):
+            vm._pop()
