@@ -470,6 +470,144 @@ def view_thread_history(url: str) -> list[dict]:
     return _janus_call({"cmd": "view_thread_history", "url": url})
 
 
+@mcp.tool()
+def deep_recall(
+    query: str, n_results: int = 10, scope: str | None = None,
+) -> list[dict]:
+    """
+    Deep semantic retrieval across the Janus vault (Infinite RAG pattern).
+    Returns expanded results with full metadata for comprehensive analysis.
+
+    Args:
+        query: The concept or question to deeply research.
+        n_results: Number of results (default 10, max 100).
+        scope: Optional filter by source domain.
+    """
+    return _janus_call({
+        "cmd": "deep_recall", "query": query,
+        "n_results": n_results, "scope": scope,
+    })
+
+
+@mcp.tool()
+def vault_similar(
+    text_or_url: str, n_results: int = 5,
+) -> list[dict]:
+    """
+    Find archival content semantically similar to given text or a URL's content.
+    If a URL is provided, it is fetched first and its content used for matching.
+
+    Args:
+        text_or_url: Raw text to match against, or a URL to fetch and match.
+        n_results: Number of similar results (default 5, max 30).
+    """
+    return _janus_call({
+        "cmd": "vault_similar", "text_or_url": text_or_url,
+        "n_results": n_results,
+    })
+
+
+@mcp.tool()
+def vault_stats() -> list[dict]:
+    """
+    Get statistics about the Janus vault: total threads, posts, sources,
+    snapshot dates, and embedding count. Useful for understanding coverage.
+    """
+    return _janus_call({"cmd": "vault_stats"})
+
+
+@mcp.tool()
+def janus_web_search(
+    query: str, max_results: int = 10,
+) -> list[dict]:
+    """
+    Search the public web using DuckDuckGo (no API key needed).
+    Returns structured results with title, URL, and snippet.
+
+    Args:
+        query: The search query.
+        max_results: Maximum results to return (default 10, max 25).
+    """
+    return _janus_call({
+        "cmd": "web_search", "query": query,
+        "max_results": max_results,
+    })
+
+
+@mcp.tool()
+def janus_advanced_search(
+    query: str, max_results: int = 10,
+    region: str = "wt-wt", time_range: str | None = None,
+    site: str | None = None,
+) -> list[dict]:
+    """
+    Advanced web search with region, time range, and site filtering.
+
+    Args:
+        query: The search query.
+        max_results: Maximum results (default 10, max 25).
+        region: Region code (default 'wt-wt' = worldwide). E.g. us-en, uk-en.
+        time_range: Time filter: 'd' (day), 'w' (week), 'm' (month), 'y' (year).
+        site: Domain to restrict search to (e.g. 'stolenhistory.net').
+    """
+    return _janus_call({
+        "cmd": "advanced_search", "query": query,
+        "max_results": max_results, "region": region,
+        "time_range": time_range, "site": site,
+    })
+
+
+@mcp.tool()
+def extract_page(url: str, max_chars: int = 8000) -> list[dict]:
+    """
+    Extract clean readable text from any URL. Strips navigation, scripts,
+    ads, and boilerplate — keeps only the meaningful content.
+
+    Args:
+        url: The URL to extract content from.
+        max_chars: Maximum characters to return (default 8000).
+    """
+    return _janus_call({
+        "cmd": "extract_page", "url": url, "max_chars": max_chars,
+    })
+
+
+@mcp.tool()
+def ingest_url(
+    url: str, depth: int = 1, search_after: str | None = None,
+) -> list[dict]:
+    """
+    Crawl a URL, ingest its content into the Janus vault, and optionally
+    search the freshly ingested data. Turns Janus into a real-time research
+    tool — crawl now, search immediately.
+
+    Args:
+        url: The URL to crawl and ingest.
+        depth: Link-follow levels (1 = single page, 2 = follow links).
+        search_after: Optional query to run on freshly ingested content.
+    """
+    return _janus_call({
+        "cmd": "ingest_url", "url": url,
+        "depth": depth, "search_after": search_after,
+    })
+
+
+@mcp.tool()
+def summarize_text(text: str, max_sentences: int = 5) -> list[dict]:
+    """
+    Extract the most important sentences from a block of text using
+    extractive summarization (frequency-based, no LLM needed).
+
+    Args:
+        text: The text to summarize.
+        max_sentences: Number of key sentences to extract (default 5).
+    """
+    return _janus_call({
+        "cmd": "summarize_text", "text": text,
+        "max_sentences": max_sentences,
+    })
+
+
 # ===========================================================================
 # MCP Resources
 # ===========================================================================
