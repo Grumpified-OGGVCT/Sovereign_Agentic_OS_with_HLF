@@ -182,19 +182,19 @@ class ConstantPool:
 
     def encode(self) -> bytes:
         """Encode the constant pool to binary."""
-        buf = struct.pack("<H", len(self._entries))
+        buf = bytearray(struct.pack("<H", len(self._entries)))
         for ctype, value in self._entries:
-            buf += struct.pack("<B", ctype)
+            buf.extend(struct.pack("<B", ctype))
             if ctype == _CONST_INT:
-                buf += struct.pack("<q", value)
+                buf.extend(struct.pack("<q", value))
             elif ctype == _CONST_FLOAT:
-                buf += struct.pack("<d", value)
+                buf.extend(struct.pack("<d", value))
             elif ctype == _CONST_STRING:
                 encoded = value.encode("utf-8")
-                buf += struct.pack("<H", len(encoded)) + encoded
+                buf.extend(struct.pack("<H", len(encoded)) + encoded)
             elif ctype == _CONST_BOOL:
-                buf += struct.pack("<B", 1 if value else 0)
-        return buf
+                buf.extend(struct.pack("<B", 1 if value else 0))
+        return bytes(buf)
 
     @classmethod
     def decode(cls, data: bytes, offset: int = 0) -> tuple[ConstantPool, int]:
@@ -312,18 +312,25 @@ class BytecodeCompiler:
     def _emit_result(self, node: dict) -> None:
         """Compile [RESULT] code message → PUSH code, PUSH message, RESULT."""
         code = node.get("code")
-        message = node.get("message", "ok")
+        message = node.get("message")
 
-        # Handle args-based format (keyword form)
-        if code is None:
+        # Normalize non-string message to None for extraction
+        if message is not None and not isinstance(message, str):
+            message = None
+
+        # Handle args-based format (keyword form) when either field is missing
+        if code is None or message is None:
             for arg in node.get("args", []):
                 if isinstance(arg, dict):
                     if "code" in arg and code is None:
                         code = int(arg["code"])
-                    if "message" in arg and (message is None or message == "ok"):
+                    if "message" in arg and message is None:
                         message = str(arg["message"])
+
         if code is None:
             code = 0
+        if message is None:
+            message = "ok"
 
         code_idx = self.pool.add(int(code))
         msg_idx = self.pool.add(str(message))
@@ -335,9 +342,9 @@ class BytecodeCompiler:
         """Compile [FUNCTION] name args → CALL_BUILTIN."""
         name = node.get("name", "")
         args = node.get("args", [])
-        # Push args onto stack
+        # Push args onto stack — preserve original types where possible
         for arg in args:
-            arg_idx = self.pool.add(str(arg))
+            arg_idx = self.pool.add(arg if isinstance(arg, (int, float, bool, str)) else str(arg))
             self.instructions.append(_Instruction(Op.PUSH_CONST, arg_idx))
         # Push arg count
         count_idx = self.pool.add(len(args))
@@ -347,9 +354,28 @@ class BytecodeCompiler:
         self.instructions.append(_Instruction(Op.CALL_BUILTIN, name_idx))
 
     def _emit_action(self, node: dict) -> None:
-        """Compile [ACTION] verb args → CALL_HOST."""
-        verb = node.get("verb", "")
-        args = node.get("args", [])
+        """Compile [ACTION] verb args → CALL_HOST.
+
+        HLFC AST encodes [ACTION] as:
+            {"tag": "ACTION", "args": [verb, arg1, arg2, ...]}
+
+        If an explicit ``verb`` field is present, use it directly.
+        Otherwise, derive verb from args[0] matching hlfrun._exec_action().
+        """
+        raw_args = node.get("args", []) or []
+        explicit_verb = node.get("verb")
+
+        if isinstance(explicit_verb, str) and explicit_verb:
+            verb = explicit_verb
+            args = list(raw_args)
+        else:
+            if raw_args:
+                verb = str(raw_args[0])
+                args = list(raw_args[1:])
+            else:
+                verb = ""
+                args = []
+
         for arg in args:
             arg_idx = self.pool.add(str(arg))
             self.instructions.append(_Instruction(Op.PUSH_CONST, arg_idx))
@@ -359,11 +385,16 @@ class BytecodeCompiler:
         self.instructions.append(_Instruction(Op.CALL_HOST, verb_idx))
 
     def _emit_tool(self, node: dict) -> None:
-        """Compile [TOOL] name args → CALL_TOOL."""
-        name = node.get("name", "")
+        """Compile [TOOL] tool args → CALL_TOOL."""
+        # HLFC emits tool nodes with a "tool" field, not "name".
+        try:
+            name = node["tool"]
+        except KeyError:
+            # Fallback for legacy/alternative ASTs that might use "name".
+            name = node.get("name", "")
         args = node.get("args", [])
         for arg in args:
-            arg_idx = self.pool.add(str(arg))
+            arg_idx = self.pool.add(arg if isinstance(arg, (int, float, bool, str)) else str(arg))
             self.instructions.append(_Instruction(Op.PUSH_CONST, arg_idx))
         count_idx = self.pool.add(len(args))
         self.instructions.append(_Instruction(Op.PUSH_CONST, count_idx))
@@ -493,9 +524,10 @@ class BytecodeCompiler:
     def _encode(self) -> bytes:
         """Encode instructions + constant pool into the .hlb binary format."""
         pool_bytes = self.pool.encode()
-        code_bytes = b""
+        code_buf = bytearray()
         for instr in self.instructions:
-            code_bytes += struct.pack("<BH", instr.opcode, instr.operand)
+            code_buf.extend(struct.pack("<BH", instr.opcode, instr.operand))
+        code_bytes = bytes(code_buf)
 
         # Calculate offsets
         const_pool_offset = _HEADER_SIZE
@@ -603,12 +635,23 @@ class HlfVM:
                 msg = f"Gas exhausted: used {self.gas_used}/{self.max_gas}"
                 raise HlfVMGasExhausted(msg)
 
-            # Dispatch
-            self._dispatch(opcode, operand, pool, code_section)
+            # Handle control-flow opcodes by updating ip directly
+            if opcode == Op.JMP:
+                ip = operand * instr_size
+                continue
+            if opcode == Op.JZ:
+                val = self._pop()
+                if not val:
+                    ip = operand * instr_size
+                continue
+            if opcode == Op.JNZ:
+                val = self._pop()
+                if val:
+                    ip = operand * instr_size
+                continue
 
-            # Handle jumps (ip may have changed)
-            if opcode in (Op.JMP, Op.JZ, Op.JNZ):
-                continue  # ip already updated by _dispatch
+            # Dispatch all other opcodes
+            self._dispatch(opcode, operand, pool, code_section)
 
         return VMResult(
             code=self._result_code,
@@ -705,18 +748,9 @@ class HlfVM:
             a = self._pop()
             self.stack.append(not bool(a))
 
-        # Control flow
-        elif opcode == Op.JMP:
-            # operand is instruction index, convert to byte offset
-            pass  # Handled below
-        elif opcode == Op.JZ:
-            val = self._pop()
-            if not val:
-                pass  # Jump handled below
-        elif opcode == Op.JNZ:
-            val = self._pop()
-            if val:
-                pass  # Jump handled below
+        # Control flow — handled in execute() loop, not here
+        elif opcode in (Op.JMP, Op.JZ, Op.JNZ):
+            pass  # Jumps are dispatched directly in execute() before reaching here
 
         # Calls
         elif opcode == Op.CALL_BUILTIN:
@@ -751,10 +785,10 @@ class HlfVM:
 
         elif opcode == Op.INTENT:
             action_name = pool.get(operand)
-            # action and target are on stack
+            # target is on stack; action is carried in the opcode operand
             target = self._pop()
-            action = self._pop()
-            self.trace.append({"op": "INTENT", "action": action, "target": target})
+            _action = self._pop()  # consume from stack but use operand name
+            self.trace.append({"op": "INTENT", "action": action_name, "target": target})
 
         elif opcode == Op.RESULT:
             message = self._pop()
@@ -861,13 +895,16 @@ def disassemble(hlb_data: bytes) -> str:
     if magic != _MAGIC:
         return f"<invalid magic: {magic!r}>"
 
-    const_pool_offset = struct.unpack_from("<I", hlb_data, 8)[0]
-    code_offset = struct.unpack_from("<I", hlb_data, 12)[0]
-    code_length = struct.unpack_from("<I", hlb_data, 16)[0]
-    checksum = struct.unpack_from("<I", hlb_data, 20)[0]
+    try:
+        const_pool_offset = struct.unpack_from("<I", hlb_data, 8)[0]
+        code_offset = struct.unpack_from("<I", hlb_data, 12)[0]
+        code_length = struct.unpack_from("<I", hlb_data, 16)[0]
+        checksum = struct.unpack_from("<I", hlb_data, 20)[0]
 
-    pool, _ = ConstantPool.decode(hlb_data, const_pool_offset)
-    code_section = hlb_data[code_offset:code_offset + code_length]
+        pool, _ = ConstantPool.decode(hlb_data, const_pool_offset)
+        code_section = hlb_data[code_offset:code_offset + code_length]
+    except (struct.error, UnicodeDecodeError, HlfBytecodeError) as exc:
+        return f"<invalid bytecode: {exc}>"
 
     lines = [
         f"HLF Bytecode v0.4 — {code_length} bytes code, "
