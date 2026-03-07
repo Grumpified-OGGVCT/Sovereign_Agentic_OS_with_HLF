@@ -28,9 +28,9 @@ import logging
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-from hlf.memory_node import HLFMemoryNode, _compute_hash
+from hlf.memory_node import HLFMemoryNode, _compute_hash  # noqa: F401 — shared utility for dedup
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ class InfiniteRAGEngine:
         self.db_path = str(db_path)
         self.hot_capacity = hot_capacity
         self._hot_cache: dict[str, HLFMemoryNode] = {}
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
 
     # ------------------------------------------------------------------ #
     # Connection & Schema

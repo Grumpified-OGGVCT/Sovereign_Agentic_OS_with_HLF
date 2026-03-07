@@ -202,8 +202,7 @@ class CapsuleInterpreter(HLFInterpreter):
             raise CapsuleViolation(self._capsule.agent, violation)
 
         # Allowlist check (skip structural tags)
-        if tag not in STRUCTURAL_TAGS:
-            if self._capsule.allowed_tags and tag not in self._capsule.allowed_tags:
+        if tag not in STRUCTURAL_TAGS and self._capsule.allowed_tags and tag not in self._capsule.allowed_tags:
                 violation = f"Tag [{tag}] not in capsule allowlist for '{self._capsule.agent}'"
                 self._violations_caught.append(violation)
                 raise CapsuleViolation(self._capsule.agent, violation)

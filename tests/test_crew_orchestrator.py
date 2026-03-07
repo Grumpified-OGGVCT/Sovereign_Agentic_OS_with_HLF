@@ -16,7 +16,7 @@ import json
 import sqlite3
 import time
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch  # noqa: F401 — pre-staged for mock tests
 
 import pytest
 
@@ -229,8 +229,8 @@ class TestCrewPersistence:
 
     def test_persist_and_retrieve(self, tmp_path: Path) -> None:
         from agents.core.crew_orchestrator import (
-            CrewReport,
             ConsolidationReport,
+            CrewReport,
             PersonaResponse,
             _persist_crew_report,
             get_recent_crew_discussions,

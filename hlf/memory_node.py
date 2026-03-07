@@ -16,7 +16,7 @@ import json
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any
 
 from hlf.hlfc import compile as hlfc_compile
 
@@ -51,7 +51,7 @@ class HLFMemoryNode:
     provenance_agent: str = "system"
     provenance_ts: float = field(default_factory=time.time)
     correction_count: int = 0
-    parent_hash: Optional[str] = None
+    parent_hash: str | None = None
     last_accessed: float = field(default_factory=time.time)
     created_at: float = field(default_factory=time.time)
 

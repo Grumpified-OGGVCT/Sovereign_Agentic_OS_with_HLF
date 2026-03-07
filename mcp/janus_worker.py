@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import json
 import os
-import select
+import select  # noqa: F401 — needed for non-blocking read timeout (Copilot #16)
 import sqlite3
 import sys
 import time

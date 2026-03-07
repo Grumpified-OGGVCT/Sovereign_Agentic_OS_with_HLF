@@ -273,7 +273,10 @@ HAT_DEFINITIONS: dict[str, dict] = {
         "emoji": "💎",
         "name": "Azure Hat — MCP Workflow Integrity",
         "agent_name": "steward",
-        "focus": "MCP tool lifecycle, parameter schema validation, workflow ledger, HITL gates, state machine enforcement",
+        "focus": (
+            "MCP tool lifecycle, parameter schema validation, "
+            "workflow ledger, HITL gates, state machine enforcement"
+        ),
         "system_prompt": (
             "You are the AZURE HAT analyst for a Sovereign Agentic OS. "
             "Your role is MCP WORKFLOW INTEGRITY — ensure all Model Context Protocol "
@@ -298,7 +301,11 @@ HAT_DEFINITIONS: dict[str, dict] = {
         "emoji": "✨",
         "name": "Gold Hat — CoVE Terminal Authority",
         "agent_name": "cove",
-        "focus": "12-dimension adversarial QA: functional, security, data integrity, AI safety, a11y, performance, resilience, compliance, i18n, observability, infra, supply chain",
+        "focus": (
+            "12-dimension adversarial QA: functional, security, data integrity, "
+            "AI safety, a11y, performance, resilience, compliance, i18n, "
+            "observability, infra, supply chain"
+        ),
         "system_prompt": (
             "You are the GOLD HAT — the Final QA CoVE (Comprehensive Validation Engineer) "
             "and TERMINAL AUTHORITY for the Sovereign Agentic OS. You are the last line of "

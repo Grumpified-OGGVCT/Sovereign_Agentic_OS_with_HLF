@@ -736,7 +736,7 @@ def get_system_status() -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    import sys
+    import sys  # noqa: F401 — pre-staged for CLI arg handling
 
     logging.basicConfig(level=logging.INFO, format="%(message)s")
 

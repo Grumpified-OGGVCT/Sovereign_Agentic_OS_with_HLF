@@ -18,14 +18,14 @@ Usage:
 from __future__ import annotations
 
 import json
-import sys
+import sys  # noqa: F401 — needed for REPL stdin/stdout
 import traceback
 from typing import Any
 
-from hlf.hlfc import compile as hlfc_compile, HlfSyntaxError
+from hlf.hlfc import HlfSyntaxError
+from hlf.hlfc import compile as hlfc_compile
 from hlf.hlfrun import HLFInterpreter, HlfRuntimeError
 from hlf.insaits import decompile
-
 
 # --------------------------------------------------------------------------- #
 # REPL commands

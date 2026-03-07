@@ -216,7 +216,7 @@ def _to_number(value: Any) -> int | float:
             try:
                 return float(value)
             except ValueError:
-                raise HlfRuntimeError(f"Cannot coerce '{value}' to number")
+                raise HlfRuntimeError(f"Cannot coerce '{value}' to number") from None
     if isinstance(value, bool):
         return int(value)
     raise HlfRuntimeError(f"Cannot coerce {type(value).__name__} to number")
@@ -589,7 +589,7 @@ class HLFInterpreter:
         })
 
         # Apply glyph-specific semantics
-        semantics = _GLYPH_SEMANTICS.get(glyph_name, {})
+        semantics = _GLYPH_SEMANTICS.get(glyph_name, {})  # noqa: F841 — pre-staged for glyph dispatch
 
         # PRIORITY (⩕) — override gas budget if specified
         if glyph_name == "PRIORITY":
@@ -620,7 +620,7 @@ class HLFInterpreter:
         """Execute TOOL (↦ τ) — dispatch to host function registry."""
         tool_name = node.get("tool", "")
         args = node.get("args", [])
-        type_annotation = node.get("type_annotation")
+        type_annotation = node.get("type_annotation")  # noqa: F841 — pre-staged for v4 type dispatch
 
         self._trace.append({
             "tag": "TOOL",

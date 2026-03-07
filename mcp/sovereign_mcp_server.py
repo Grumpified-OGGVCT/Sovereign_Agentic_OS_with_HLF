@@ -395,8 +395,8 @@ def get_dream_history(limit: int = 5) -> list[dict]:
 # Project Janus (Stolen History) Integration — Subprocess Isolation
 # ===========================================================================
 
-import subprocess
-import threading
+import subprocess  # noqa: E402 — intentionally sectioned for Janus isolation
+import threading  # noqa: E402
 
 _janus_proc: subprocess.Popen | None = None
 _janus_lock = threading.Lock()

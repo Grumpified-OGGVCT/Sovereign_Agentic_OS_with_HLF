@@ -293,7 +293,7 @@ class TestModuleLoader:
         assert ns.bindings["secret"] == 42
 
         # Tamper with the file
-        mod_file.write_bytes("[HLF-v2]\n[SET] secret = 666\nΩ\n".encode("utf-8"))
+        mod_file.write_bytes("[HLF-v2]\n[SET] secret = 666\nΩ\n".encode())
 
         # Clear cache and reload
         loader._cache.clear()

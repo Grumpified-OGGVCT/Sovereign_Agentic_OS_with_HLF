@@ -26,8 +26,8 @@ from dataclasses import dataclass, field
 from difflib import get_close_matches
 from typing import Any
 
-from hlf.hlfc import compile as hlfc_compile, HlfSyntaxError
-
+from hlf.hlfc import HlfSyntaxError
+from hlf.hlfc import compile as hlfc_compile
 
 # --------------------------------------------------------------------------- #
 # Operator & tag catalogs
@@ -199,7 +199,7 @@ class HLFErrorCorrector:
                 suggestions.append(f"Check syntax near '{token_val}' (token type: {token_type}).")
                 suggestions.append("Ensure brackets are balanced and tags are uppercase.")
             return (
-                f"Syntax error: unexpected token in the source.",
+                "Syntax error: unexpected token in the source.",
                 suggestions or ["Review the line indicated in the error for typos or missing brackets."],
             )
 
@@ -276,8 +276,8 @@ def verify_roundtrip(source: str) -> dict[str, Any]:
     node_count = sum(1 for n in program_original if n is not None)
     # Count substantive lines in decompiled output (skip headers/footers)
     decompiled_lines = [
-        l for l in decompiled.split("\n")
-        if l.strip() and not l.startswith("Program (") and l.strip() != "[Program terminates]"
+        line for line in decompiled.split("\n")
+        if line.strip() and not line.startswith("Program (") and line.strip() != "[Program terminates]"
     ]
 
     passed = len(missing_hr) == 0 and len(decompiled_lines) >= node_count
