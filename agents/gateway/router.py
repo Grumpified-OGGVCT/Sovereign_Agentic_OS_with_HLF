@@ -174,8 +174,9 @@ def is_model_allowed(model: str, tier: str) -> bool:
 
     Normalizes model names before checking:
       - Strips ':cloud' / '-cloud' suffix
+      - Strips ':latest' tag suffix
       - Replaces ':' with '-' for consistent comparison
-      - Uses substring matching so 'qwen-7b' matches 'qwen:7b', 'qwen-7b:latest', etc.
+      - Uses EXACT match on normalized canonical form (no substring matching)
     Returns True (fail-open) if the allowlist is empty or unreadable.
     """
     allowed = _load_allowed_models(tier)
@@ -183,14 +184,17 @@ def is_model_allowed(model: str, tier: str) -> bool:
         return True  # fail-open
 
     def _normalize(name: str) -> str:
-        """Normalize a model name for comparison."""
-        name = name.lower().removesuffix(":cloud").removesuffix("-cloud")
+        """Normalize a model name to canonical form for exact comparison."""
+        name = name.lower()
+        # Strip cloud and version suffixes
+        for suffix in (":cloud", "-cloud", ":latest"):
+            name = name.removesuffix(suffix)
         return name.replace(":", "-")
 
     norm_model = _normalize(model)
     for allowed_model in allowed:
         norm_allowed = _normalize(allowed_model)
-        if norm_model == norm_allowed or norm_allowed in norm_model or norm_model in norm_allowed:
+        if norm_model == norm_allowed:
             return True
     return False
 
@@ -501,10 +505,24 @@ def route_request(
             # ── Model Allowlist Gate ─────────────────────────────────
             if not is_model_allowed(selected_model, tier):
                 trace.append({"step": "allowlist_blocked", "model": selected_model, "tier": tier})
-                # Downshift to summarization model (always allowed)
-                selected_model = settings.summarization_model
-                selected_tier = "allowlist_fallback"
-                trace.append({"step": "allowlist_fallback", "model": selected_model})
+                # Downshift to summarization model — re-check it too
+                fallback_model = settings.summarization_model
+                if is_model_allowed(fallback_model, tier):
+                    selected_model = fallback_model
+                    selected_tier = "allowlist_fallback"
+                    trace.append({"step": "allowlist_fallback", "model": selected_model})
+                else:
+                    # Fallback also blocked — fail closed with clear error trace
+                    trace.append({"step": "allowlist_fallback_also_blocked", "model": fallback_model})
+                    # Pick the first model from the allowlist deterministically
+                    allowed_set = _load_allowed_models(tier)
+                    if allowed_set:
+                        selected_model = sorted(allowed_set)[0]
+                        selected_tier = "allowlist_deterministic"
+                        trace.append({"step": "allowlist_deterministic", "model": selected_model})
+                    else:
+                        # Empty allowlist = fail-open (keep current model)
+                        trace.append({"step": "allowlist_empty_failopen"})
 
             profile = AgentProfile(
                 model=selected_model,

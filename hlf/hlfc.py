@@ -501,9 +501,11 @@ class HLFTransformer(Transformer):
     # --- Infinite RAG: Memory Operations (⌂) ---
 
     def memory_stmt(self, items: list) -> dict[str, Any]:
-        entity_key = str(items[0])  # IDENT after entity=
-        entity_val = items[1]       # literal value
-        # Optional confidence parameter
+        # Grammar: [MEMORY] IDENT = literal [confidence=N] [content]
+        # items[0] = IDENT (entity key/scope), items[1] = literal (stored value)
+        entity = str(items[0])      # IDENT — the memory scope key
+        stored_value = items[1]     # literal — the primary content
+        # Optional confidence and additional content parameters
         confidence = None
         content = None
         for item in items[2:]:
@@ -511,23 +513,25 @@ class HLFTransformer(Transformer):
                 confidence = float(item)
             elif item is not None:
                 content = item
-        if content is None and confidence is None:
-            content = entity_val
-            entity_val = entity_key
+        # If no separate content param, the stored_value IS the content
+        if content is None:
+            content = stored_value
         conf_str = f" (confidence: {confidence})" if confidence else ""
-        content_str = str(content) if content else str(entity_val)
+        content_str = str(content)
         return {
             "tag": "MEMORY",
             "operator": "⌂",
-            "entity": str(entity_val),
+            "entity": entity,
             "confidence": confidence if confidence is not None else 0.5,
             "content": content,
-            "human_readable": f"Store memory: '{content_str}' for entity '{entity_val}'{conf_str}",
+            "human_readable": f"Store memory: '{content_str}' for entity '{entity}'{conf_str}",
         }
 
     def recall_stmt(self, items: list) -> dict[str, Any]:
-        entity_key = str(items[0])  # IDENT after entity=
-        entity_val = items[1]       # literal value
+        # Grammar: [RECALL] IDENT = literal [top_k=N]
+        # items[0] = IDENT (entity key/scope), items[1] = literal (filter/query)
+        entity = str(items[0])      # IDENT — the memory scope to recall from
+        _filter = items[1]          # literal — recall filter (logged but entity is the key)
         top_k = None
         for item in items[2:]:
             if isinstance(item, (int, float)):
@@ -535,9 +539,9 @@ class HLFTransformer(Transformer):
         return {
             "tag": "RECALL",
             "operator": "⌂?",
-            "entity": str(entity_val),
+            "entity": entity,
             "top_k": top_k if top_k is not None else 5,
-            "human_readable": f"Recall memories for entity '{entity_val}' (top_k={top_k or 5})",
+            "human_readable": f"Recall memories for entity '{entity}' (top_k={top_k or 5})",
         }
 
     # --- HLF v4: Macro Definitions (Σ [DEFINE]) ---

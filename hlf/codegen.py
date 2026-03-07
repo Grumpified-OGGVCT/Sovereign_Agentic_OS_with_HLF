@@ -105,13 +105,15 @@ class HLFCodeGenerator:
     def memory(self, entity: str, content: str, confidence: float = 0.5) -> "HLFCodeGenerator":
         """Add a [MEMORY] statement for Infinite RAG storage."""
         conf_part = f' confidence={confidence}' if confidence != 0.5 else ""
-        self._lines.append(f'[MEMORY] entity={_quote(entity)}{conf_part} {_quote(content)}')
+        # Grammar expects: [MEMORY] IDENT = literal ...
+        self._lines.append(f'[MEMORY] {entity} = {_quote(content)}{conf_part}')
         return self
 
     def recall(self, entity: str, top_k: int = 5) -> "HLFCodeGenerator":
         """Add a [RECALL] statement for Infinite RAG retrieval."""
         topk_part = f' top_k={top_k}' if top_k != 5 else ""
-        self._lines.append(f'[RECALL] entity={_quote(entity)}{topk_part}')
+        # Grammar expects: [RECALL] IDENT = literal ...
+        self._lines.append(f'[RECALL] {entity} = {_quote(entity)}{topk_part}')
         return self
 
     def assign(self, name: str, value: Any) -> "HLFCodeGenerator":
