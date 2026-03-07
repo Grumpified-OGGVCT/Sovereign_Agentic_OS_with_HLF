@@ -2,7 +2,12 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
-from hlf.hlfrun import HLFInterpreter
+import pytest
+
+from hlf.hlfrun import HLFInterpreter, HlfRuntimeError
+
+# All tests that invoke _exec_openclaw_tool need OPENCLAW_ENDPOINT set
+OPENCLAW_ENV = {"OPENCLAW_ENDPOINT": "http://test-openclaw:8000/api/tool"}
 
 
 def test_openclaw_opcode_dispatch():
@@ -13,7 +18,7 @@ def test_openclaw_opcode_dispatch():
         "args": ["arg1", "arg2"]
     }
 
-    with patch("httpx.post") as mock_post:
+    with patch.dict(os.environ, OPENCLAW_ENV), patch("httpx.post") as mock_post:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"status": "success", "tool": "openclaw_test_tool", "data": "real"}
@@ -40,7 +45,7 @@ def test_openclaw_dispatch_reachable():
         "args": ["x"],
     }
 
-    with patch("httpx.post") as mock_post:
+    with patch.dict(os.environ, OPENCLAW_ENV), patch("httpx.post") as mock_post:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"status": "success", "tool": "test_reachable"}
@@ -62,11 +67,27 @@ def test_openclaw_error_not_masked():
         "args": [],
     }
 
-    with patch("httpx.post", side_effect=httpx.ConnectError("Connection refused")):
+    with patch.dict(os.environ, OPENCLAW_ENV), \
+         patch("httpx.post", side_effect=httpx.ConnectError("Connection refused")):
         result = rt._exec_openclaw_tool(node)
 
         assert result["status"] == "error"
         assert "Connection refused" in result["error"]
+        # Copilot fix: consistent error shape includes tool and args
+        assert result["tool"] == "failing_tool"
+        assert result["args"] == []
+
+
+def test_openclaw_endpoint_required():
+    """Verify OPENCLAW_ENDPOINT must be set, otherwise HlfRuntimeError is raised."""
+    rt = HLFInterpreter(tier="hearth")
+    node = {"tool": "any_tool", "args": []}
+
+    with patch.dict(os.environ, {}, clear=False):
+        # Remove OPENCLAW_ENDPOINT if present
+        os.environ.pop("OPENCLAW_ENDPOINT", None)
+        with pytest.raises(HlfRuntimeError, match="OPENCLAW_ENDPOINT"):
+            rt._exec_openclaw_tool(node)
 
 
 def test_config_openclaw_exists():

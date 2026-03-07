@@ -639,9 +639,12 @@ class HLFInterpreter:
         import os
 
         import httpx
-        openclaw_url = os.environ.get(
-            "OPENCLAW_ENDPOINT", "http://127.0.0.1:8000/api/tool"
-        )
+        openclaw_url = os.environ.get("OPENCLAW_ENDPOINT")
+        if not openclaw_url:
+            raise HlfRuntimeError(
+                "OPENCLAW_ENDPOINT environment variable is not set; "
+                "cannot execute OPENCLAW_TOOL in this deployment."
+            )
         try:
             response = httpx.post(
                 openclaw_url,
@@ -651,7 +654,12 @@ class HLFInterpreter:
             if response.status_code == 200:
                 result = response.json()
             else:
-                result = {"status": "error", "message": f"HTTP {response.status_code}"}
+                result = {
+                    "status": "error",
+                    "tool": tool_name,
+                    "args": args,
+                    "error": f"HTTP {response.status_code}",
+                }
         except httpx.RequestError as e:
             result = {
                 "status": "error",

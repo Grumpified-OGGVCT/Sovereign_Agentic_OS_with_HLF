@@ -38,7 +38,7 @@ module.exports = {
     },
 
     'command-logger': async (context, next) => {
-      // Log every tool call to ALIGN Ledger
+      // Log every tool call to OpenClaw audit log
       const { tool, params, agentId } = context;
       const timestamp = new Date().toISOString();
 
@@ -53,7 +53,7 @@ module.exports = {
             fs.mkdirSync(logDir, { recursive: true });
         }
         fs.appendFileSync(AUDIT_LOG_PATH, logEntry, 'utf8');
-        console.log(`[ALIGN AUDIT] Tool call ${tool} by ${agentId} hashed as ${hash}`);
+        console.log(`[OPENCLAW AUDIT] Tool call ${tool} by ${agentId} hashed as ${hash}`);
       } catch (err) {
         console.error("Failed to append to OpenClaw audit log", err);
       }
@@ -100,9 +100,20 @@ module.exports = {
           const maxGas = parseInt(gasRange[1], 10);
 
           if (Number.isFinite(minGas) && Number.isFinite(maxGas)) {
-            if (gasBudget < minGas || gasBudget > maxGas) {
+            // Estimate per-tool gas cost from context or use strategy minimum
+            const gasCost = (context && context.gasCost) ? parseInt(context.gasCost, 10) : minGas;
+
+            // Validate tool cost is within strategy's allowed range
+            if (gasCost < minGas || gasCost > maxGas) {
               throw new Error(
-                `Gas budget ${gasBudget} is outside allowed range [${minGas}, ${maxGas}] for strategy ${strategy.id} and tool ${tool}`
+                `Tool ${tool} gas cost ${gasCost} is outside allowed range [${minGas}, ${maxGas}] for strategy ${strategy.id}`
+              );
+            }
+
+            // Validate remaining budget can cover the cost
+            if (gasCost > gasBudget) {
+              throw new Error(
+                `Gas exhausted for tool ${tool}. Cost: ${gasCost}, Budget: ${gasBudget}`
               );
             }
           }
