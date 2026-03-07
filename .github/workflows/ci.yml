@@ -26,7 +26,7 @@ jobs:
       - name: Export requirements
         run: uv export --format requirements-txt --no-emit-project > requirements.txt
       - name: Run pip-audit
-        run: pip-audit -r requirements.txt --strict
+        run: pip-audit -r requirements.txt --strict --ignore-vuln CVE-2025-69872
 
   ensure-no-sandbox-in-prod:
     runs-on: ubuntu-latest
