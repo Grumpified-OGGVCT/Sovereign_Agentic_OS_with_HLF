@@ -1,5 +1,5 @@
 {
-  "version": "0.3.0",
+  "version": "0.4.0",
   "token_map": {
     "->": ["cl100k", "sentencepiece", "qwen"],
     "Ω": ["cl100k", "sentencepiece", "qwen"],
@@ -9,6 +9,8 @@
     "⌘": ["cl100k", "sentencepiece", "qwen"],
     "∇": ["cl100k", "sentencepiece", "qwen"],
     "⨝": ["cl100k", "sentencepiece", "qwen"],
+    "⌂": ["cl100k", "sentencepiece", "qwen"],
+    "Σ": ["cl100k", "sentencepiece", "qwen"],
     "fallback_terminator": "END"
   },
   "glyphs": {
@@ -18,7 +20,8 @@
     "⩕": { "name": "Gas Metric", "enforces": "Maximum allowed recursive steps before OOM timeout" },
     "⌘": { "name": "Orchestrator Directive", "enforces": "High-level macro command overriding local Swarm queues" },
     "∇": { "name": "Anchor Drift", "enforces": "Signal that generated truth is violating KYA Provenance bounds" },
-    "⨝": { "name": "Matrix Consensus", "enforces": "Forces multi-agent verification sync before proceeding" }
+    "⨝": { "name": "Matrix Consensus", "enforces": "Forces multi-agent verification sync before proceeding" },
+    "⌂": { "name": "Memory Anchor", "enforces": "HLF-anchored memory store/recall via Infinite RAG" }
   },
   "tags": [
     { "name": "INTENT", "args": [{"name":"action","type":"string"}, {"name":"target","type":"path"}] },
@@ -36,6 +39,10 @@
     { "name": "RESULT", "args": [{"name":"code","type":"int"}, {"name":"message","type":"string"}], "terminator": true },
     { "name": "MODULE", "args": [{"name":"name","type":"identifier"}] },
     { "name": "IMPORT", "args": [{"name":"name","type":"identifier"}] },
-    { "name": "DATA", "args": [{"name":"id","type":"string"}] }
+    { "name": "DATA", "args": [{"name":"id","type":"string"}] },
+    { "name": "MEMORY", "args": [{"name":"entity","type":"string"}, {"name":"content","type":"any"}, {"name":"confidence","type":"any"}] },
+    { "name": "RECALL", "args": [{"name":"entity","type":"string"}, {"name":"top_k","type":"int"}] },
+    { "name": "DEFINE", "args": [{"name":"name","type":"string"}, {"name":"body","type":"any"}], "macro": true },
+    { "name": "CALL", "args": [{"name":"name","type":"string"}, {"name":"args","type":"any","repeat":true}] }
   ]
 }

@@ -39,6 +39,10 @@ _GRAMMAR = r"""
         | sync_stmt
         | struct_stmt
         | glyph_stmt
+        | memory_stmt
+        | recall_stmt
+        | define_stmt
+        | call_stmt
 
     // --- Existing statements (backward-compatible) ---
     tag_stmt: "[" TAG "]" arglist
@@ -100,9 +104,18 @@ _GRAMMAR = r"""
     struct_stmt: IDENT "≡" "{" struct_field ("," struct_field)* "}"
     struct_field: IDENT ":" TYPE_SYM
 
+    // --- Infinite RAG: Memory Operations (⌂) ---
+    memory_stmt: "[" "MEMORY" "]" IDENT "=" literal ("confidence" "=" NUMBER)? literal
+    recall_stmt: "[" "RECALL" "]" IDENT "=" literal ("top_k" "=" NUMBER)?
+
+    // --- HLF v4: Macro Definitions (Σ [DEFINE]) ---
+    define_stmt: "Σ" "[" "DEFINE" "]" STRING "=" "{" line+ "}"
+    call_stmt: "[" "CALL" "]" STRING arglist
+
     // --- Glyph-prefixed statements (⌘ Ж ∇ ⩕ ⨝ Δ) ---
     // Previously %ignore'd — now properly parsed as statement modifiers
     glyph_stmt: GLYPH_PREFIX tag_stmt
+              | GLYPH_PREFIX call_stmt
               | GLYPH_PREFIX glyph_stmt
     GLYPH_PREFIX: /[⌘Ж∇⩕⨝Δ~§]/
 
@@ -483,6 +496,72 @@ class HLFTransformer(Transformer):
             "name": name,
             "fields": fields,
             "human_readable": f"Define struct '{name}' with fields: {field_desc}",
+        }
+
+    # --- Infinite RAG: Memory Operations (⌂) ---
+
+    def memory_stmt(self, items: list) -> dict[str, Any]:
+        entity_key = str(items[0])  # IDENT after entity=
+        entity_val = items[1]       # literal value
+        # Optional confidence parameter
+        confidence = None
+        content = None
+        for item in items[2:]:
+            if isinstance(item, (int, float)):
+                confidence = float(item)
+            elif item is not None:
+                content = item
+        if content is None and confidence is None:
+            content = entity_val
+            entity_val = entity_key
+        conf_str = f" (confidence: {confidence})" if confidence else ""
+        content_str = str(content) if content else str(entity_val)
+        return {
+            "tag": "MEMORY",
+            "operator": "⌂",
+            "entity": str(entity_val),
+            "confidence": confidence if confidence is not None else 0.5,
+            "content": content,
+            "human_readable": f"Store memory: '{content_str}' for entity '{entity_val}'{conf_str}",
+        }
+
+    def recall_stmt(self, items: list) -> dict[str, Any]:
+        entity_key = str(items[0])  # IDENT after entity=
+        entity_val = items[1]       # literal value
+        top_k = None
+        for item in items[2:]:
+            if isinstance(item, (int, float)):
+                top_k = int(item)
+        return {
+            "tag": "RECALL",
+            "operator": "⌂?",
+            "entity": str(entity_val),
+            "top_k": top_k if top_k is not None else 5,
+            "human_readable": f"Recall memories for entity '{entity_val}' (top_k={top_k or 5})",
+        }
+
+    # --- HLF v4: Macro Definitions (Σ [DEFINE]) ---
+
+    def define_stmt(self, items: list) -> dict[str, Any]:
+        name = str(items[0]).strip('"')
+        body = [i for i in items[1:] if i is not None]
+        return {
+            "tag": "DEFINE",
+            "operator": "Σ",
+            "name": name,
+            "body": body,
+            "human_readable": f"Define macro '{name}' with {len(body)} statement(s)",
+        }
+
+    def call_stmt(self, items: list) -> dict[str, Any]:
+        name = str(items[0]).strip('"')
+        args = items[1] if len(items) > 1 else []
+        return {
+            "tag": "CALL",
+            "operator": "⌘",
+            "name": name,
+            "args": args if isinstance(args, list) else [args],
+            "human_readable": f"Call macro '{name}' with {len(args) if isinstance(args, list) else 1} argument(s)",
         }
 
     def struct_field(self, items: list) -> dict[str, str]:

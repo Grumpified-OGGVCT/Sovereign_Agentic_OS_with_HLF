@@ -1,5 +1,5 @@
 """
-Tests for the Eleven Thinking Hats engine and Dream Mode integration.
+Tests for the Fourteen Thinking Hats engine and Dream Mode integration.
 
 Tests:
   - Hat definition completeness
@@ -71,12 +71,16 @@ def _make_dream_db(path: Path) -> sqlite3.Connection:
 
 
 class TestHatDefinitions:
-    """Verify all 11 hats are fully defined."""
+    """Verify all 13 hats are fully defined (14 hat numbers, #13 skipped)."""
 
-    def test_all_eleven_hats_exist(self) -> None:
+    def test_all_hats_exist(self) -> None:
         from agents.core.hat_engine import HAT_DEFINITIONS
 
-        expected = {"red", "black", "white", "yellow", "green", "blue", "indigo", "cyan", "purple", "orange", "silver"}
+        expected = {
+            "red", "black", "white", "yellow", "green", "blue",
+            "indigo", "cyan", "purple", "orange", "silver",
+            "azure", "gold",
+        }
         assert set(HAT_DEFINITIONS.keys()) == expected
 
     def test_each_hat_has_required_fields(self) -> None:

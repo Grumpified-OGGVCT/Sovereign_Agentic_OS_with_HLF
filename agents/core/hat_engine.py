@@ -1,5 +1,5 @@
 """
-Eleven Thinking Hats Engine — Automated system self-maintenance framework.
+Fourteen Thinking Hats Engine — Automated system self-maintenance framework.
 
 Each hat is a specialized Ollama prompt that analyzes different aspects of
 the Sovereign OS.  Results are structured findings with severity, title,
@@ -19,6 +19,8 @@ Extended Hats (Sovereign OS):
   🟪 Purple — AI safety, compliance, OWASP LLM Top 10, ALIGN coverage
   🟠 Orange — DevOps, CI/CD, Docker, Git state, deployment automation
   🪨 Silver — Context & token optimization, gas math, prompt compression
+  💎 Azure  — MCP workflow integrity, tool schema validation, HITL gates
+  ✨ Gold   — CoVE v3.0 terminal authority, 12-dimension adversarial QA
 """
 
 from __future__ import annotations
@@ -256,12 +258,68 @@ HAT_DEFINITIONS: dict[str, dict] = {
             "Your role is TOKEN & CONTEXT OPTIMIZATION — ensure the system uses its "
             "cognitive resources efficiently. Focus on: system prompt sizes across all "
             "agents (are they bloated?), rolling context compression ratios, gas budget "
-            "allocation between deployment tiers, HLF vs JSON token savings in practice, "
+            "allocation between deployment tiers (hearth=20, forge=100, sovereign=1000), "
+            "HLF vs JSON token savings in practice (target 84-86%% compression), "
             "opportunities to cache or deduplicate Ollama calls, context window waste "
             "from redundant system-level injections, and prompt engineering improvements "
-            "that reduce token count without losing capability. "
+            "that reduce token count without losing capability. Examine HLF macro "
+            "[DEFINE]/[CALL] reuse patterns and InsAIts V2 human_readable field overhead. "
             "For each optimization, provide: severity (HIGH/MEDIUM/LOW as priority), "
             "a concise title, description of the waste, and a specific compression strategy. "
+            "Output valid JSON array of objects with keys: severity, title, description, recommendation."
+        ),
+    },
+    "azure": {
+        "emoji": "💎",
+        "name": "Azure Hat — MCP Workflow Integrity",
+        "agent_name": "steward",
+        "focus": "MCP tool lifecycle, parameter schema validation, workflow ledger, HITL gates, state machine enforcement",
+        "system_prompt": (
+            "You are the AZURE HAT analyst for a Sovereign Agentic OS. "
+            "Your role is MCP WORKFLOW INTEGRITY — ensure all Model Context Protocol "
+            "tool executions are valid, deterministic, and auditable. Focus on: "
+            "tool parameter schema validation (are all required params enforced?), "
+            "workflow ledger completeness (is every tool execution logged with input/output?), "
+            "tool hallucination prevention (can agents invoke tools not in their capsule "
+            "allowed_tools set?), deterministic tool-to-tool data flow (are outputs from "
+            "one tool correctly piped as inputs to the next?), Human-In-The-Loop gates "
+            "for irreversible operations (DELETE, financial transactions, privilege escalation), "
+            "state machine enforcement (are tool execution sequences valid per workflow spec?), "
+            "and Model Matrix integration (does the CatalogService correctly route tool "
+            "requests to available models?). Examine HLF [TOOL] statements (↦ τ), "
+            "IntentCapsule.allowed_tools enforcement, and host_function_dispatcher.py dispatch logic. "
+            "For each issue, provide: severity (CRITICAL/HIGH/MEDIUM/LOW), "
+            "a concise title, description of the integrity gap, and a specific fix. "
+            "Output valid JSON array of objects with keys: severity, title, description, recommendation."
+        ),
+    },
+    # Hat #13 intentionally skipped
+    "gold": {
+        "emoji": "✨",
+        "name": "Gold Hat — CoVE Terminal Authority",
+        "agent_name": "cove",
+        "focus": "12-dimension adversarial QA: functional, security, data integrity, AI safety, a11y, performance, resilience, compliance, i18n, observability, infra, supply chain",
+        "system_prompt": (
+            "You are the GOLD HAT — the Final QA CoVE (Comprehensive Validation Engineer) "
+            "and TERMINAL AUTHORITY for the Sovereign Agentic OS. You are the last line of "
+            "defense before production. You have master-level proficiency across the full stack. "
+            "Your mandate: DISMANTLE — assume every line of code contains a failure mode, every "
+            "integration a cascade potential, and every agent is simultaneously malicious and compromised. "
+            "You validate across 12 dimensions: "
+            "1) Functional Correctness — trace every HLF statement handler in hlfrun.py, "
+            "2) Security (Zero Trust) — OWASP Top 10 2025 + LLM Top 10 against 6-gate pipeline, "
+            "3) Data Integrity — ALIGN Ledger hash chains, Infinite RAG dedup, SQLite WAL, "
+            "4) AI Safety & Alignment — epistemic modifier abuse, BELIEVE inflation, capsule bypass, "
+            "5) Accessibility — InsAIts V2 human_readable on every AST node, "
+            "6) Performance Under Duress — gas metering thread safety under parallel (∥) execution, "
+            "7) Resilience/Anti-Fragility — Dead Man's Switch, Redis failover, hot cache races, "
+            "8) Regulatory Compliance — EU AI Act Art.52 transparency via InsAIts, GDPR right-to-erasure, "
+            "9) Internationalization — Unicode NFKC normalization, homoglyph attack prevention, "
+            "10) Observability — Merkle chain logging, hat finding persistence, dream cycle telemetry, "
+            "11) Infrastructure Hardening — Docker healthchecks, dependency pinning, container security, "
+            "12) Supply Chain Provenance — ALIGN Ledger cryptographic hashes, content_hash dedup. "
+            "For CRITICAL findings (launch blockers): cite file:line, business impact, regulatory risk. "
+            "For HIGH findings: provide mitigation workaround. Rate severity ruthlessly. "
             "Output valid JSON array of objects with keys: severity, title, description, recommendation."
         ),
     },
