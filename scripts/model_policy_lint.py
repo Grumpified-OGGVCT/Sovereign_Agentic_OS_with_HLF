@@ -39,6 +39,7 @@ SKIP_PATHS: set[str] = {
     "CONTRIBUTING.md",  # Policy documentation
     "scripts/model_policy_lint.py",  # This file
     "docs/Automated_Runner_Setup_Guide.md",  # Existing cloud provider docs
+    "docs/HLF_REFERENCE.md",  # Language reference — comparative model tables
     "Sovereign_OS_Master_Build_Plan.md",  # Legacy plan (read-only reference)
     "TODO.md",  # Task tracking (references completed work)
 }
