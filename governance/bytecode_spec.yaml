@@ -1,36 +1,278 @@
-version: "0.2.0"
-bytecode:
-  format: "hlf-ast-json"
-  encoding: "utf-8"
-  version_prefix: "HLF-v2"
-  terminator: "Ω"
-  max_nodes: 1000
-  gas_per_node: 1
-  node_types:
-    - tag: INTENT
-      arity: "2+"
-      immutable: false
-    - tag: CONSTRAINT
-      arity: "1+"
-      immutable: false
-    - tag: EXPECT
-      arity: "1"
-      immutable: false
-    - tag: ACTION
-      arity: "1+"
-      immutable: false
-    - tag: SET
-      arity: 2
-      immutable: true
-    - tag: FUNCTION
-      arity: "1+"
-      pure: true
-    - tag: RESULT
-      arity: 2
-      terminator: true
-    - tag: MODULE
-      arity: 1
-    - tag: IMPORT
-      arity: 1
-    - tag: DATA
-      arity: 1
+# governance/bytecode_spec.yaml
+# HLF Bytecode Specification v0.4.0
+# ----------------------------------
+# Defines the binary instruction set for the HLF stack-machine VM.
+# The compiler (hlfc --emit-bytecode) emits .hlb files using this spec.
+# The VM (hlfvm) executes .hlb files deterministically.
+#
+# Binary format:
+#   Bytes 0-3:   Magic header  [0x48, 0x4C, 0x46, 0x04]  = "HLF\x04"
+#   Bytes 4-5:   Version       [0x00, 0x04]                = v0.4
+#   Bytes 6-7:   Flags         [reserved, 0x00]
+#   Bytes 8-11:  Const pool offset (uint32 LE)
+#   Bytes 12-15: Code section offset (uint32 LE)
+#   Bytes 16-19: Code section length (uint32 LE)
+#   Bytes 20-23: Checksum (CRC32 of code section)
+#
+# Constant pool:
+#   uint16 count
+#   For each constant:
+#     uint8  type  (0=int, 1=float, 2=string, 3=bool)
+#     <type-dependent payload>
+#       int:    int64 LE
+#       float:  float64 LE (IEEE 754)
+#       string: uint16 length + UTF-8 bytes
+#       bool:   uint8 (0/1)
+#
+# Code section:
+#   Sequence of instructions, each:
+#     uint8  opcode
+#     uint16 operand (LE)  — meaning depends on opcode
+
+version: "0.4.0"
+magic: [0x48, 0x4C, 0x46, 0x04]
+header_size: 24
+
+opcodes:
+  # Stack operations
+  - code: 0x01
+    name: PUSH_CONST
+    operand: const_index
+    description: "Push constant pool[operand] onto stack"
+    gas: 1
+
+  - code: 0x02
+    name: POP
+    operand: none
+    description: "Discard top of stack"
+    gas: 1
+
+  - code: 0x03
+    name: DUP
+    operand: none
+    description: "Duplicate top of stack"
+    gas: 1
+
+  # Variable operations
+  - code: 0x10
+    name: STORE
+    operand: name_index
+    description: "Pop TOS, store in scope[const_pool[operand]]"
+    gas: 1
+
+  - code: 0x11
+    name: LOAD
+    operand: name_index
+    description: "Push scope[const_pool[operand]] onto stack"
+    gas: 1
+
+  - code: 0x12
+    name: STORE_IMMUT
+    operand: name_index
+    description: "Pop TOS, store as immutable in scope (SET semantics)"
+    gas: 1
+
+  # Arithmetic
+  - code: 0x20
+    name: ADD
+    operand: none
+    description: "Pop a, b; push a + b"
+    gas: 1
+
+  - code: 0x21
+    name: SUB
+    operand: none
+    description: "Pop a, b; push a - b"
+    gas: 1
+
+  - code: 0x22
+    name: MUL
+    operand: none
+    description: "Pop a, b; push a * b"
+    gas: 1
+
+  - code: 0x23
+    name: DIV
+    operand: none
+    description: "Pop a, b; push a / b"
+    gas: 1
+
+  - code: 0x24
+    name: MOD
+    operand: none
+    description: "Pop a, b; push a % b"
+    gas: 1
+
+  - code: 0x25
+    name: NEG
+    operand: none
+    description: "Pop a; push -a"
+    gas: 1
+
+  # Comparison
+  - code: 0x30
+    name: CMP_EQ
+    operand: none
+    description: "Pop a, b; push a == b"
+    gas: 1
+
+  - code: 0x31
+    name: CMP_NE
+    operand: none
+    description: "Pop a, b; push a != b"
+    gas: 1
+
+  - code: 0x32
+    name: CMP_LT
+    operand: none
+    description: "Pop a, b; push a < b"
+    gas: 1
+
+  - code: 0x33
+    name: CMP_LE
+    operand: none
+    description: "Pop a, b; push a <= b"
+    gas: 1
+
+  - code: 0x34
+    name: CMP_GT
+    operand: none
+    description: "Pop a, b; push a > b"
+    gas: 1
+
+  - code: 0x35
+    name: CMP_GE
+    operand: none
+    description: "Pop a, b; push a >= b"
+    gas: 1
+
+  # Logic
+  - code: 0x38
+    name: AND
+    operand: none
+    description: "Pop a, b; push a and b"
+    gas: 1
+
+  - code: 0x39
+    name: OR
+    operand: none
+    description: "Pop a, b; push a or b"
+    gas: 1
+
+  - code: 0x3A
+    name: NOT
+    operand: none
+    description: "Pop a; push not a"
+    gas: 1
+
+  # Control flow
+  - code: 0x40
+    name: JMP
+    operand: offset
+    description: "Unconditional jump to code[operand]"
+    gas: 1
+
+  - code: 0x41
+    name: JZ
+    operand: offset
+    description: "Pop TOS; jump to code[operand] if falsy"
+    gas: 1
+
+  - code: 0x42
+    name: JNZ
+    operand: offset
+    description: "Pop TOS; jump to code[operand] if truthy"
+    gas: 1
+
+  # Function/host calls
+  - code: 0x50
+    name: CALL_BUILTIN
+    operand: func_index
+    description: "Call built-in function by name (const_pool[operand]), args from stack"
+    gas: 2
+
+  - code: 0x51
+    name: CALL_HOST
+    operand: func_index
+    description: "Call host function by name (const_pool[operand]), args dict from stack"
+    gas: 5
+
+  - code: 0x52
+    name: CALL_TOOL
+    operand: func_index
+    description: "Call tool function (const_pool[operand])"
+    gas: 3
+
+  # HLF-specific
+  - code: 0x60
+    name: TAG
+    operand: tag_index
+    description: "Emit tag event (const_pool[operand] = tag name)"
+    gas: 1
+
+  - code: 0x61
+    name: INTENT
+    operand: const_index
+    description: "Record intent action + target from const pool"
+    gas: 1
+
+  - code: 0x62
+    name: RESULT
+    operand: none
+    description: "Pop message, pop code; set result and halt execution"
+    gas: 1
+
+  - code: 0x63
+    name: MEMORY_STORE
+    operand: const_index
+    description: "Store memory entity (Infinite RAG write)"
+    gas: 3
+
+  - code: 0x64
+    name: MEMORY_RECALL
+    operand: const_index
+    description: "Recall memory entity (Infinite RAG read)"
+    gas: 3
+
+  # System
+  - code: 0xFE
+    name: NOP
+    operand: none
+    description: "No operation"
+    gas: 0
+
+  - code: 0xFF
+    name: HALT
+    operand: none
+    description: "Terminate execution"
+    gas: 0
+
+# Node-type catalog (preserved from v0.2.0 for AST validation)
+node_types:
+  - tag: INTENT
+    arity: "2+"
+    immutable: false
+  - tag: CONSTRAINT
+    arity: "1+"
+    immutable: false
+  - tag: EXPECT
+    arity: "1"
+    immutable: false
+  - tag: ACTION
+    arity: "1+"
+    immutable: false
+  - tag: SET
+    arity: 2
+    immutable: true
+  - tag: FUNCTION
+    arity: "1+"
+    pure: true
+  - tag: RESULT
+    arity: 2
+    terminator: true
+  - tag: MODULE
+    arity: 1
+  - tag: IMPORT
+    arity: 1
+  - tag: DATA
+    arity: 1
