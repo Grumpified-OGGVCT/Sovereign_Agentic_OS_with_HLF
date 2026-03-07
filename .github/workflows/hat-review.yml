@@ -59,7 +59,7 @@ jobs:
       # Upload the review as an artifact for reference
       - name: Upload review artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: hat-review-pr${{ github.event.pull_request.number }}
           path: hat_review.md
