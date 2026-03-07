@@ -1,0 +1,9 @@
+[HLF-v3]
+Σ [DEFINE] "health_check" = {
+  [ACTION] ping "target"
+  [EXPECT] "response_code == 200"
+  [RESULT] code=0 message="healthy"
+}
+[CALL] "health_check" "api.internal"
+[RESULT] code=0 message="macros executed"
+Ω

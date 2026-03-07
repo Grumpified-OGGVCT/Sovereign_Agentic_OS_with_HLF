@@ -1,9 +1,24 @@
 """
-HLF Runtime Interpreter — Phase 3.1 Built-in Functions + Phase 5.1 Host Functions.
+HLF Runtime Interpreter — Full Execution Engine.
 
 Executes a compiled JSON AST (output of hlfc.compile()) against the registered
 built-in pure functions and the host-function backends defined in
 governance/host_functions.json.
+
+Supports ALL 13+ statement types:
+  - Tag stmts (INTENT, CONSTRAINT, EXPECT, etc.) — structural acknowledgement
+  - SET — immutable variable binding
+  - ASSIGN (←) — mutable variable assignment, supports math expressions
+  - FUNCTION — pure built-in function call
+  - ACTION — host function dispatch
+  - RESULT — error-code propagation + program termination
+  - CONDITIONAL (⊎ ⇒ ⇌) — if/then/else branching
+  - PARALLEL (∥) — concurrent task execution
+  - SYNC (⋈) — synchronization barrier
+  - STRUCT (≡) — struct type definition
+  - GLYPH_MODIFIED (⌘ Ж ∇ ⩕ ⨝ Δ ~ §) — modifier dispatch + inner execution
+  - TOOL (↦ τ) — host function routing
+  - IMPORT — module loading (delegated to runtime.py)
 
 Built-in pure functions (no I/O, deterministic):
   [FUNCTION] HASH sha256 <text>         → scope["HASH_RESULT"]
@@ -11,15 +26,6 @@ Built-in pure functions (no I/O, deterministic):
   [FUNCTION] BASE64_DECODE <text>       → scope["BASE64_DECODE_RESULT"]
   [FUNCTION] NOW                        → scope["NOW_RESULT"]  (ISO-8601 UTC)
   [FUNCTION] UUID                       → scope["UUID_RESULT"]
-
-Host functions (I/O — mediated via host_function_dispatcher):
-  [ACTION] READ <path>
-  [ACTION] WRITE <path> <data>
-  [ACTION] SPAWN <image>
-  [ACTION] SLEEP <ms>
-  [ACTION] HTTP_GET <url>
-  [ACTION] WEB_SEARCH <query>
-  [ACTION] OPENCLAW_SUMMARIZE <path>
 """
 
 from __future__ import annotations
@@ -27,11 +33,15 @@ from __future__ import annotations
 import base64
 import datetime
 import hashlib
+import logging
 import re
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
 from hlf.hlfc import HlfRuntimeError
+
+logger = logging.getLogger(__name__)
 
 # Regex for ${VAR} expansion at runtime (supplements compile-time Pass 2)
 _VAR_RE = re.compile(r"\$\{(\w+)\}")
@@ -80,6 +90,156 @@ _BUILTIN_FUNCTIONS: dict[str, Any] = {
 
 
 # --------------------------------------------------------------------------- #
+# Expression evaluator — math, comparisons, and logic
+# --------------------------------------------------------------------------- #
+
+
+def _eval_expr(node: Any, scope: dict[str, Any]) -> Any:
+    """Recursively evaluate an expression node from the HLF AST.
+
+    Handles:
+      - Literal values (int, float, str, bool)
+      - Variable references (strings that exist in scope)
+      - ${VAR} string expansion
+      - Math nodes: {"op": "MATH", "operator": "+", "left": ..., "right": ...}
+      - Comparison nodes: {"op": "COMPARE", "operator": "==", ...}
+      - Logic nodes: {"op": "AND"/"OR"/"NOT", ...}
+      - Pass-by-reference nodes: {"ref": "name", "operator": "&"}
+    """
+    if node is None:
+        return None
+
+    # Literal values pass through
+    if isinstance(node, (int, float, bool)):
+        return node
+
+    # String — expand ${VAR} refs from scope
+    if isinstance(node, str):
+        def _replace(m: re.Match) -> str:
+            return str(scope.get(m.group(1), m.group(0)))
+
+        expanded = _VAR_RE.sub(_replace, node)
+        # If it exactly matches a scope key, return the actual value (not stringified)
+        if expanded in scope:
+            return scope[expanded]
+        return expanded
+
+    # List — evaluate each element
+    if isinstance(node, list):
+        return [_eval_expr(item, scope) for item in node]
+
+    if not isinstance(node, dict):
+        return node
+
+    op = node.get("op", "")
+
+    # Pass-by-reference: dereference from scope
+    if "ref" in node and node.get("operator") == "&":
+        ref_name = node["ref"]
+        if ref_name in scope:
+            return scope[ref_name]
+        return node  # return as-is if not yet bound
+
+    # Math expression: +, -, *, /
+    if op == "MATH":
+        left = _eval_expr(node.get("left"), scope)
+        right = _eval_expr(node.get("right"), scope)
+        operator = node.get("operator", "+")
+        # Coerce to numeric
+        left = _to_number(left)
+        right = _to_number(right)
+        if operator == "+":
+            return left + right
+        elif operator == "-":
+            return left - right
+        elif operator == "*":
+            return left * right
+        elif operator == "/":
+            if right == 0:
+                raise HlfRuntimeError("Division by zero")
+            return left / right
+        else:
+            raise HlfRuntimeError(f"Unknown math operator: {operator}")
+
+    # Comparison: ==, !=, >, <, >=, <=
+    if op == "COMPARE":
+        left = _eval_expr(node.get("left"), scope)
+        right = _eval_expr(node.get("right"), scope)
+        operator = node.get("operator", "==")
+        if operator == "==":
+            return left == right
+        elif operator == "!=":
+            return left != right
+        elif operator == ">":
+            return _to_number(left) > _to_number(right)
+        elif operator == "<":
+            return _to_number(left) < _to_number(right)
+        elif operator == ">=":
+            return _to_number(left) >= _to_number(right)
+        elif operator == "<=":
+            return _to_number(left) <= _to_number(right)
+        else:
+            raise HlfRuntimeError(f"Unknown comparison operator: {operator}")
+
+    # Logic: AND (∩), OR (∪)
+    if op == "AND":
+        left = _eval_expr(node.get("left"), scope)
+        right = _eval_expr(node.get("right"), scope)
+        return bool(left) and bool(right)
+
+    if op == "OR":
+        left = _eval_expr(node.get("left"), scope)
+        right = _eval_expr(node.get("right"), scope)
+        return bool(left) or bool(right)
+
+    # Logic: NOT (¬)
+    if op == "NOT":
+        operand = _eval_expr(node.get("operand"), scope)
+        return not bool(operand)
+
+    # If it has a "tag", it's a sub-statement node — return as-is for execution
+    if "tag" in node:
+        return node
+
+    # Fallback — return as-is
+    return node
+
+
+def _to_number(value: Any) -> int | float:
+    """Coerce a value to a number for math operations."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError:
+            try:
+                return float(value)
+            except ValueError:
+                raise HlfRuntimeError(f"Cannot coerce '{value}' to number")
+    if isinstance(value, bool):
+        return int(value)
+    raise HlfRuntimeError(f"Cannot coerce {type(value).__name__} to number")
+
+
+# --------------------------------------------------------------------------- #
+# Glyph modifier semantics
+# --------------------------------------------------------------------------- #
+
+# Glyph modifiers and their semantic effects on execution
+_GLYPH_SEMANTICS: dict[str, dict[str, Any]] = {
+    "EXECUTE": {"glyph": "⌘", "priority": "high", "description": "Orchestrator directive — high-priority execution"},
+    "CONSTRAINT": {"glyph": "Ж", "priority": "normal", "description": "Reasoning blocker — constraint enforcement"},
+    "PARAMETER": {"glyph": "∇", "priority": "normal", "description": "Parameter/gradient binding"},
+    "PRIORITY": {"glyph": "⩕", "priority": "critical", "description": "Gas metric — priority override"},
+    "JOIN": {"glyph": "⨝", "priority": "normal", "description": "Matrix consensus — multi-agent sync"},
+    "DELTA": {"glyph": "Δ", "priority": "normal", "description": "State diff — delta-only output"},
+    "TILDE": {"glyph": "~", "priority": "normal", "description": "Aesthetic modifier"},
+    "SECTION": {"glyph": "§", "priority": "normal", "description": "Expression section"},
+}
+
+
+# --------------------------------------------------------------------------- #
 # Runtime interpreter
 # --------------------------------------------------------------------------- #
 
@@ -87,6 +247,9 @@ _BUILTIN_FUNCTIONS: dict[str, Any] = {
 class HLFInterpreter:
     """
     Walks a compiled HLF AST node-by-node and executes each statement.
+
+    Supports all 13+ statement types including conditionals, parallel execution,
+    sync barriers, struct definitions, assignment, glyph modifiers, and tool dispatch.
 
     :param scope:    Pre-seeded variable bindings (SET values from compile Pass 1
                      are already expanded by hlfc.compile(); the runtime scope is
@@ -108,6 +271,18 @@ class HLFInterpreter:
         self._result_code: int | None = None
         self._result_message: str = ""
         self._result_value: Any = None
+        # Struct type registry: name → {fields: [...]}
+        self._structs: dict[str, dict[str, Any]] = {}
+        # Macro registry: name → {body: [ast_nodes]}
+        self._macros: dict[str, list[dict]] = {}
+        # Parallel task results: task_name → result
+        self._parallel_results: dict[str, Any] = {}
+        # Glyph modifier stack for nested glyph tracking
+        self._active_glyphs: list[str] = []
+        # Memory engine (optional — inject for Infinite RAG integration)
+        self._memory_engine: Any = None
+        # Execution trace for debugging
+        self._trace: list[dict[str, Any]] = []
 
     def execute(self, ast: dict) -> dict:
         """
@@ -119,6 +294,9 @@ class HLFInterpreter:
                 "scope":    dict,  # final variable bindings
                 "gas_used": int,
                 "result":   Any,   # last ACTION/FUNCTION return value
+                "structs":  dict,  # registered struct types
+                "parallel_results": dict,  # parallel task outputs
+                "trace":    list,  # execution trace
             }
         """
         program = ast.get("program", [])
@@ -138,28 +316,92 @@ class HLFInterpreter:
             "scope": dict(self.scope),
             "gas_used": self.gas_used,
             "result": self._result_value,
+            "structs": dict(self._structs),
+            "macros": list(self._macros.keys()),
+            "parallel_results": dict(self._parallel_results),
+            "trace": list(self._trace),
         }
 
     # ------------------------------------------------------------------ #
     # Node dispatchers
     # ------------------------------------------------------------------ #
 
-    def _execute_node(self, node: dict) -> None:
+    def _execute_node(self, node: dict) -> Any:
+        """Dispatch execution based on the node's tag."""
         tag = node.get("tag", "")
+        result = None
+
         if tag == "FUNCTION":
-            self._exec_function(node)
+            result = self._exec_function(node)
         elif tag == "ACTION":
-            self._exec_action(node)
+            result = self._exec_action(node)
         elif tag == "SET":
-            # Runtime SET evaluation (compile Pass 2 already expanded ${VAR}
-            # references, but we still track the binding for runtime introspection)
-            self.scope[node.get("name", "")] = self._expand(node.get("value", ""))
+            self._exec_set(node)
+        elif tag == "ASSIGN":
+            self._exec_assign(node)
         elif tag == "RESULT":
             self._exec_result(node)
-        # INTENT, CONSTRAINT, EXPECT, MODULE, IMPORT: structural/declarative —
-        # they carry no side-effects at runtime; the interpreter acknowledges them.
+        elif tag == "CONDITIONAL":
+            result = self._exec_conditional(node)
+        elif tag == "PARALLEL":
+            result = self._exec_parallel(node)
+        elif tag == "SYNC":
+            result = self._exec_sync(node)
+        elif tag == "STRUCT":
+            self._exec_struct(node)
+        elif tag == "GLYPH_MODIFIED":
+            result = self._exec_glyph_modified(node)
+        elif tag == "TOOL":
+            result = self._exec_tool(node)
+        elif tag == "IMPORT":
+            self._exec_import(node)
+        elif tag == "MEMORY":
+            result = self._exec_memory(node)
+        elif tag == "RECALL":
+            result = self._exec_recall(node)
+        elif tag == "DEFINE":
+            self._exec_define(node)
+        elif tag == "CALL":
+            result = self._exec_call(node)
+        elif tag in (
+            "INTENT", "CONSTRAINT", "EXPECT", "OBSERVATION",
+            "THOUGHT", "PLAN", "DELEGATE", "VOTE", "ASSERT",
+            "MODULE", "DATA", "EPISTEMIC",
+        ):
+            # Structural/declarative tags — log and continue
+            self._trace.append({
+                "tag": tag,
+                "human_readable": node.get("human_readable", ""),
+                "action": "acknowledged",
+            })
+        else:
+            # Unknown tag — log warning but don't crash
+            logger.warning(f"HLF Runtime: unrecognized tag '{tag}', skipping")
+            self._trace.append({"tag": tag, "action": "skipped_unknown"})
 
-    def _exec_function(self, node: dict) -> None:
+        return result
+
+    # ------------------------------------------------------------------ #
+    # Statement executors
+    # ------------------------------------------------------------------ #
+
+    def _exec_set(self, node: dict) -> None:
+        """Execute SET — immutable variable binding."""
+        name = node.get("name", "")
+        value = _eval_expr(node.get("value", ""), self.scope)
+        self.scope[name] = value
+        self._trace.append({"tag": "SET", "name": name, "value": value})
+
+    def _exec_assign(self, node: dict) -> None:
+        """Execute ASSIGN (←) — mutable variable assignment with expression evaluation."""
+        name = node.get("name", "")
+        raw_value = node.get("value")
+        value = _eval_expr(raw_value, self.scope)
+        self.scope[name] = value
+        self._trace.append({"tag": "ASSIGN", "name": name, "value": value, "operator": "←"})
+
+    def _exec_function(self, node: dict) -> Any:
+        """Execute FUNCTION — pure built-in function call."""
         name = (node.get("name") or "").upper()
         args = self._flatten_args(node.get("args", []))
         fn = _BUILTIN_FUNCTIONS.get(name)
@@ -169,30 +411,259 @@ class HLFInterpreter:
         # Store as ${NAME_RESULT} so subsequent tags can reference it
         self.scope[f"{name}_RESULT"] = result
         self._result_value = result
+        self._trace.append({"tag": "FUNCTION", "name": name, "result": result})
+        return result
 
-    def _exec_action(self, node: dict) -> None:
+    def _exec_action(self, node: dict) -> Any:
+        """Execute ACTION — host function dispatch."""
         args = self._flatten_args(node.get("args", []))
         if not args:
             raise HlfRuntimeError("[ACTION] requires at least one argument (verb)")
         verb = str(args[0]).upper()
         rest = args[1:]
-        from agents.core.host_function_dispatcher import dispatch
-
-        result = dispatch(verb, rest, self.tier)
+        try:
+            from agents.core.host_function_dispatcher import dispatch
+            result = dispatch(verb, rest, self.tier)
+        except ImportError:
+            # Fallback: log the action without dispatch (for standalone use)
+            result = {"action": verb, "args": rest, "status": "dispatch_unavailable"}
         self.scope[f"{verb}_RESULT"] = result
         self._result_value = result
+        self._trace.append({"tag": "ACTION", "verb": verb, "result": result})
+        return result
 
     def _exec_result(self, node: dict) -> None:
-        code = 0
-        message = "ok"
-        for arg in node.get("args", []):
-            if isinstance(arg, dict):
-                if "code" in arg:
-                    code = int(arg["code"])
-                if "message" in arg:
-                    message = str(arg["message"])
-        self._result_code = code
-        self._result_message = message
+        """Execute RESULT — set result code/message and terminate execution."""
+        code = node.get("code", 0)
+        message = node.get("message", "ok")
+
+        # Handle args-based RESULT format
+        if code == 0 and message == "ok":
+            for arg in node.get("args", []):
+                if isinstance(arg, dict):
+                    if "code" in arg:
+                        code = int(arg["code"])
+                    if "message" in arg:
+                        message = str(arg["message"])
+
+        self._result_code = int(code)
+        self._result_message = str(message)
+        self._trace.append({"tag": "RESULT", "code": code, "message": message})
+
+    def _exec_conditional(self, node: dict) -> Any:
+        """Execute CONDITIONAL (⊎ ⇒ ⇌) — evaluate condition and branch."""
+        condition = node.get("condition")
+        then_branch = node.get("then")
+        else_branch = node.get("else")
+
+        # Evaluate the condition expression
+        condition_result = _eval_expr(condition, self.scope)
+
+        self._trace.append({
+            "tag": "CONDITIONAL",
+            "condition_result": bool(condition_result),
+            "operator": "⊎ ⇒ ⇌",
+        })
+
+        if condition_result:
+            if then_branch:
+                self.gas_used += 1
+                return self._execute_node(then_branch)
+        else:
+            if else_branch:
+                self.gas_used += 1
+                return self._execute_node(else_branch)
+
+        return None
+
+    def _exec_parallel(self, node: dict) -> list[Any]:
+        """Execute PARALLEL (∥) — run tasks concurrently."""
+        tasks = node.get("tasks", [])
+        results = []
+
+        self._trace.append({
+            "tag": "PARALLEL",
+            "task_count": len(tasks),
+            "operator": "∥",
+        })
+
+        if not tasks:
+            return results
+
+        def _run_task(task_node: dict) -> Any:
+            """Execute a single task in the parallel set."""
+            # Each task gets a copy of scope (isolation)
+            sub = HLFInterpreter(
+                scope=dict(self.scope),
+                tier=self.tier,
+                max_gas=self.max_gas - self.gas_used,
+            )
+            sub_result = sub.execute({"program": [task_node]})
+            return sub_result
+
+        # Use ThreadPoolExecutor for parallel execution
+        with ThreadPoolExecutor(max_workers=min(len(tasks), 8)) as executor:
+            futures = {executor.submit(_run_task, task): i for i, task in enumerate(tasks)}
+            for future in as_completed(futures):
+                idx = futures[future]
+                try:
+                    task_result = future.result()
+                    results.append(task_result)
+                    # Track gas from sub-interpreters
+                    self.gas_used += task_result.get("gas_used", 0)
+                    # Store result by task tag/name if available
+                    task_tag = tasks[idx].get("tag", f"task_{idx}")
+                    task_name = tasks[idx].get("args", [task_tag])[0] if tasks[idx].get("args") else task_tag
+                    self._parallel_results[str(task_name)] = task_result
+                except Exception as e:
+                    results.append({"error": str(e), "task_index": idx})
+
+        self._result_value = results
+        return results
+
+    def _exec_sync(self, node: dict) -> Any:
+        """Execute SYNC (⋈) — wait for referenced parallel tasks, then execute action."""
+        refs = node.get("refs", [])
+        action = node.get("action")
+
+        self._trace.append({
+            "tag": "SYNC",
+            "refs": refs,
+            "operator": "⋈",
+        })
+
+        # Check that all referenced tasks have completed
+        missing = [ref for ref in refs if ref not in self._parallel_results]
+        if missing:
+            # Refs not found — they may reference future parallel tasks or
+            # are symbolic references. Log as warning, continue with action.
+            logger.warning(f"SYNC: refs not found in parallel results: {missing}")
+
+        # Merge all referenced task scopes into current scope
+        for ref in refs:
+            if ref in self._parallel_results:
+                task_result = self._parallel_results[ref]
+                if isinstance(task_result, dict) and "scope" in task_result:
+                    # Prefix with ref name to avoid collisions
+                    for key, value in task_result["scope"].items():
+                        self.scope[f"{ref}.{key}"] = value
+
+        # Execute the continuation action
+        if action:
+            self.gas_used += 1
+            return self._execute_node(action)
+
+        return None
+
+    def _exec_struct(self, node: dict) -> None:
+        """Execute STRUCT (≡) — register struct type definition."""
+        name = node.get("name", "")
+        fields = node.get("fields", [])
+
+        self._structs[name] = {
+            "fields": fields,
+            "field_names": [f.get("name", "") for f in fields],
+            "field_types": {f.get("name", ""): f.get("type_name", "Any") for f in fields},
+        }
+
+        self._trace.append({
+            "tag": "STRUCT",
+            "name": name,
+            "fields": [f.get("name", "") for f in fields],
+            "operator": "≡",
+        })
+
+    def _exec_glyph_modified(self, node: dict) -> Any:
+        """Execute GLYPH_MODIFIED — apply modifier semantics, then execute inner statement."""
+        glyph = node.get("glyph", "")
+        glyph_name = node.get("glyph_name", "")
+        inner = node.get("inner")
+
+        self._active_glyphs.append(glyph_name)
+
+        self._trace.append({
+            "tag": "GLYPH_MODIFIED",
+            "glyph": glyph,
+            "glyph_name": glyph_name,
+            "action": "modifier_applied",
+        })
+
+        # Apply glyph-specific semantics
+        semantics = _GLYPH_SEMANTICS.get(glyph_name, {})
+
+        # PRIORITY (⩕) — override gas budget if specified
+        if glyph_name == "PRIORITY":
+            # Priority tasks get a gas bonus
+            self.max_gas = max(self.max_gas, self.max_gas + 5)
+
+        # CONSTRAINT (Ж) — enforce constraint on inner execution
+        # (Constraint enforcement is declarative — logged, inner still executes)
+
+        # JOIN (⨝) — mark that consensus is required
+        if glyph_name == "JOIN":
+            self.scope["_consensus_required"] = True
+
+        # DELTA (Δ) — mark delta-only mode
+        if glyph_name == "DELTA":
+            self.scope["_delta_mode"] = True
+
+        # Execute inner statement (may itself be another GLYPH_MODIFIED for nesting)
+        result = None
+        if inner:
+            self.gas_used += 1
+            result = self._execute_node(inner)
+
+        self._active_glyphs.pop()
+        return result
+
+    def _exec_tool(self, node: dict) -> Any:
+        """Execute TOOL (↦ τ) — dispatch to host function registry."""
+        tool_name = node.get("tool", "")
+        args = node.get("args", [])
+        type_annotation = node.get("type_annotation")
+
+        self._trace.append({
+            "tag": "TOOL",
+            "tool": tool_name,
+            "args": args,
+            "operator": "↦ τ",
+        })
+
+        # Try to dispatch via runtime.py HostFunctionRegistry first
+        try:
+            from hlf.runtime import HostFunctionRegistry
+            registry = HostFunctionRegistry.from_json()
+            result_obj = registry.dispatch(
+                tool_name,
+                {"args": args},
+                tier=self.tier,
+            )
+            result = result_obj.value if hasattr(result_obj, 'value') else result_obj
+        except ImportError:
+            # Fallback: try legacy dispatcher
+            try:
+                from agents.core.host_function_dispatcher import dispatch
+                result = dispatch(tool_name, args, self.tier)
+            except ImportError:
+                result = {"tool": tool_name, "args": args, "status": "dispatch_unavailable"}
+
+        self.scope[f"{tool_name}_RESULT"] = result
+        self._result_value = result
+        return result
+
+    def _exec_import(self, node: dict) -> None:
+        """Execute IMPORT — delegate to runtime.py ModuleLoader if available."""
+        module_name = node.get("name", "")
+
+        self._trace.append({
+            "tag": "IMPORT",
+            "module": module_name,
+            "action": "import_requested",
+        })
+
+        # Module loading is handled by HLFRuntime in runtime.py which
+        # wraps this interpreter. If running standalone, log and continue.
+        logger.info(f"IMPORT requested: {module_name} (handled by HLFRuntime)")
 
     # ------------------------------------------------------------------ #
     # Helpers
@@ -203,9 +674,14 @@ class HLFInterpreter:
         result = []
         for arg in args:
             if isinstance(arg, dict):
-                # kv_pair dict — extract values
-                for v in arg.values():
-                    result.append(self._expand(v))
+                # Pass-by-reference
+                if "ref" in arg and arg.get("operator") == "&":
+                    ref_name = arg["ref"]
+                    result.append(self.scope.get(ref_name, arg))
+                else:
+                    # kv_pair dict — extract values
+                    for v in arg.values():
+                        result.append(self._expand(v))
             else:
                 result.append(self._expand(arg))
         return result
@@ -223,6 +699,148 @@ class HLFInterpreter:
         if isinstance(value, dict):
             return {k: self._expand(v) for k, v in value.items()}
         return value
+
+    # ------------------------------------------------------------------ #
+    # Memory operations (Infinite RAG integration)
+    # ------------------------------------------------------------------ #
+
+    def _exec_memory(self, node: dict) -> None:
+        """Execute MEMORY — store an HLF-anchored memory node.
+
+        If a memory engine is injected (_memory_engine), delegates to it.
+        Otherwise stores in scope as MEMORY_<entity>.
+        """
+        entity = self._expand(node.get("entity", ""))
+        content = self._expand(node.get("content", ""))
+        confidence = node.get("confidence", 0.5)
+
+        # Store in scope for immediate access
+        mem_key = f"MEMORY_{entity}"
+        existing = self.scope.get(mem_key, [])
+        if not isinstance(existing, list):
+            existing = [existing]
+        existing.append({"content": content, "confidence": confidence})
+        self.scope[mem_key] = existing
+
+        # Delegate to Infinite RAG engine if available
+        if self._memory_engine is not None:
+            try:
+                from hlf.memory_node import HLFMemoryNode
+                mem_node = HLFMemoryNode.from_ast(
+                    ast=node,
+                    entity_id=entity,
+                    agent=self.scope.get("_agent", "runtime"),
+                    confidence=confidence,
+                    source=str(content),
+                )
+                self._memory_engine.store(mem_node)
+            except Exception as e:
+                logger.warning(f"MEMORY store to engine failed: {e}")
+
+        self._trace.append({
+            "tag": "MEMORY", "entity": entity,
+            "confidence": confidence, "action": "stored",
+        })
+
+    def _exec_recall(self, node: dict) -> list:
+        """Execute RECALL — retrieve memories for an entity.
+
+        Returns list of memory dicts stored in scope under RECALL_<entity>.
+        """
+        entity = self._expand(node.get("entity", ""))
+        top_k = node.get("top_k", 5)
+        results = []
+
+        # Try Infinite RAG engine first
+        if self._memory_engine is not None:
+            try:
+                nodes = self._memory_engine.retrieve(entity, top_k=top_k)
+                results = [{"content": n.hlf_source or str(n.hlf_ast), "confidence": n.confidence} for n in nodes]
+            except Exception as e:
+                logger.warning(f"RECALL from engine failed: {e}")
+
+        # Fallback: check scope
+        if not results:
+            mem_key = f"MEMORY_{entity}"
+            stored = self.scope.get(mem_key, [])
+            if isinstance(stored, list):
+                results = stored[:top_k]
+            elif stored:
+                results = [stored]
+
+        # Store recall results in scope
+        self.scope[f"RECALL_{entity}"] = results
+        self._result_value = results
+
+        self._trace.append({
+            "tag": "RECALL", "entity": entity,
+            "top_k": top_k, "found": len(results),
+        })
+        return results
+
+    # ------------------------------------------------------------------ #
+    # Macro system (Σ [DEFINE] / ⌘ [CALL])
+    # ------------------------------------------------------------------ #
+
+    def _exec_define(self, node: dict) -> None:
+        """Execute DEFINE — register a macro in the macro registry."""
+        name = node.get("name", "")
+        body = node.get("body", [])
+        self._macros[name] = body
+        self._trace.append({
+            "tag": "DEFINE", "name": name,
+            "statements": len(body), "action": "registered",
+        })
+
+    def _exec_call(self, node: dict) -> Any:
+        """Execute CALL — expand and execute a previously-defined macro.
+
+        Positional arguments ($1, $2, ...) are substituted into the
+        macro body before execution.
+        """
+        name = node.get("name", "")
+        args = self._flatten_args(node.get("args", []))
+
+        if name not in self._macros:
+            raise HlfRuntimeError(f"CALL: macro '{name}' not defined")
+
+        macro_body = self._macros[name]
+        result = None
+
+        # Execute each statement in the macro body
+        for stmt in macro_body:
+            if stmt is None:
+                continue
+            # Substitute positional $1, $2, etc.
+            expanded_stmt = self._substitute_params(stmt, args)
+            if self.gas_used >= self.max_gas:
+                raise HlfRuntimeError(f"Gas limit exceeded in macro '{name}': {self.gas_used}/{self.max_gas}")
+            self.gas_used += 1
+            result = self._execute_node(expanded_stmt)
+            if self._result_code is not None:
+                break
+
+        self._trace.append({
+            "tag": "CALL", "name": name,
+            "args_count": len(args), "action": "executed",
+        })
+        return result
+
+    def _substitute_params(self, node: Any, args: list) -> Any:
+        """Recursively substitute $1, $2, ... in a node with actual args."""
+        if node is None:
+            return None
+        if isinstance(node, str):
+            import re as _re
+            def _replace_param(m: _re.Match) -> str:
+                idx = int(m.group(1)) - 1
+                return str(args[idx]) if idx < len(args) else m.group(0)
+            return _re.sub(r'\$(\d+)', _replace_param, node)
+        if isinstance(node, list):
+            return [self._substitute_params(item, args) for item in node]
+        if isinstance(node, dict):
+            return {k: self._substitute_params(v, args) for k, v in node.items()}
+        return node
 
 
 # --------------------------------------------------------------------------- #

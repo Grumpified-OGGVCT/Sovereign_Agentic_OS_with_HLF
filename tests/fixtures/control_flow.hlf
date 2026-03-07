@@ -1,0 +1,6 @@
+[HLF-v3]
+[SET] threshold=100
+⊎ threshold > 50 ⇒ [ACTION] scale "up" factor=2
+∥ [[INTENT] deploy "service-a", [INTENT] deploy "service-b", [INTENT] deploy "service-c"]
+⋈ [deploy_a, deploy_b, deploy_c] → [RESULT] code=0 message="all services deployed"
+Ω

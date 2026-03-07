@@ -1,0 +1,11 @@
+[HLF-v3]
+⌘ [INTENT] orchestrate "swarm_task"
+Ж [CONSTRAINT] max_tokens=4096 tier="forge"
+∇ [OBSERVATION] data="cluster metrics received"
+⩕ [PLAN] priority=1 step="verify" step="deploy" step="validate"
+⨝ [VOTE] consensus="majority" quorum=5
+Δ [ACTION] diff "config_v1" "config_v2"
+[MEMORY] system_state = "stable" confidence=0.99 "All services nominal"
+[RECALL] system_state = "stable" top_k=1
+[RESULT] code=0 message="all glyphs exercised"
+Ω

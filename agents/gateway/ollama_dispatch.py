@@ -223,6 +223,7 @@ class OllamaDispatcher:
         timeout: float = _DEFAULT_TIMEOUT,
         stream_timeout: float = _STREAM_TIMEOUT,
         fallback_model: str = "qwen:7b",
+        strategy: str = "",
     ):
         self.ollama_host = ollama_host.rstrip("/")
         self.ollama_secondary = ollama_secondary.rstrip("/") if ollama_secondary else ""
@@ -230,6 +231,25 @@ class OllamaDispatcher:
         self.timeout = timeout
         self.stream_timeout = stream_timeout
         self.fallback_model = fallback_model
+        self.strategy = strategy or os.environ.get("OLLAMA_LOAD_STRATEGY", "failover")
+        self._rr_counter = 0
+
+    def _get_ordered_hosts(self) -> list[str]:
+        """Return host list ordered by strategy: failover, round_robin, or primary_only."""
+        primary = self.ollama_host
+        if not self.ollama_secondary:
+            return [primary]
+
+        secondary = self.ollama_secondary
+        if self.strategy == "round_robin":
+            self._rr_counter += 1
+            if self._rr_counter % 2 == 0:
+                return [primary, secondary]
+            return [secondary, primary]
+        elif self.strategy == "primary_only":
+            return [primary]
+        # default: failover (primary first, secondary if primary fails)
+        return [primary, secondary]
 
     # ── Core Generate ─────────────────────────────────────────────────
 
@@ -287,10 +307,8 @@ class OllamaDispatcher:
         if req.max_tokens != 4096:
             payload.setdefault("options", {})["num_predict"] = req.max_tokens
 
-        # Try primary, then secondary Ollama host
-        hosts = [self.ollama_host]
-        if self.ollama_secondary:
-            hosts.append(self.ollama_secondary)
+        # Try hosts in strategy-determined order
+        hosts = self._get_ordered_hosts()
 
         last_exc: Exception | None = None
         for host in hosts:
