@@ -10,6 +10,24 @@ permissions:
   contents: read
 
 jobs:
+  vulnerability-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        run: pip install uv
+      - name: Install pip-audit
+        run: pip install pip-audit
+      - name: Export requirements
+        run: uv export --format requirements-txt --no-emit-project > requirements.txt
+      - name: Run pip-audit
+        run: pip-audit -r requirements.txt --strict --ignore-vuln CVE-2025-69872
+
   ensure-no-sandbox-in-prod:
     runs-on: ubuntu-latest
     permissions:
