@@ -1,0 +1,77 @@
+<svg width="1200" height="520" viewBox="0 0 1200 520" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">HLF execution storyboard</title>
+  <desc id="desc">A four-panel storyboard of how one intent is translated, governed, executed, and remembered inside the Sovereign Agentic OS with HLF.</desc>
+  <defs>
+    <linearGradient id="panelBg" x1="0" y1="0" x2="1200" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#101826"/>
+      <stop offset="1" stop-color="#0D1117"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+    <style>
+      .title { font: 700 32px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #F0F6FC; }
+      .subtitle { font: 500 15px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #8B949E; }
+      .cardTitle { font: 700 20px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #F0F6FC; }
+      .step { font: 700 13px 'JetBrains Mono', monospace; fill: #58A6FF; letter-spacing: 0.8px; }
+      .body { font: 500 13px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #C9D1D9; }
+      .accent { font: 600 13px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #8B949E; }
+    </style>
+  </defs>
+
+  <rect x="20" y="20" width="1160" height="480" rx="28" fill="url(#panelBg)" stroke="#30363D" stroke-width="2"/>
+  <text x="54" y="78" class="title">One intent, four lenses</text>
+  <text x="54" y="106" class="subtitle">This storyboard turns the repo’s core runtime into a visual sequence that is easy to reason about in the README and the live demo.</text>
+
+  <g transform="translate(48 150)" filter="url(#shadow)">
+    <rect width="258" height="292" rx="24" fill="#151E2D" stroke="#58A6FF"/>
+    <text x="24" y="42" class="step">SLIDE 01</text>
+    <text x="24" y="76" class="cardTitle">Intent is authored</text>
+    <text x="24" y="112" class="body">A person or agent submits natural language or raw HLF through the Gateway Bus.</text>
+    <text x="24" y="146" class="body">The system’s job is not to “guess,” but to normalize that request into typed intent.</text>
+    <rect x="24" y="186" width="210" height="72" rx="16" fill="#0D1117" stroke="#30363D"/>
+    <text x="42" y="214" class="accent">Input surfaces</text>
+    <text x="42" y="238" class="body">• FastAPI intent endpoint</text>
+    <text x="42" y="258" class="body">• README + docs examples</text>
+  </g>
+
+  <g transform="translate(332 150)" filter="url(#shadow)">
+    <rect width="258" height="292" rx="24" fill="#201A31" stroke="#BC8CFF"/>
+    <text x="24" y="42" class="step">SLIDE 02</text>
+    <text x="24" y="76" class="cardTitle">Intent is compiled</text>
+    <text x="24" y="112" class="body">`validate_hlf()` performs the first structural screen, then the HLF compiler emits a transparent AST.</text>
+    <text x="24" y="146" class="body">The formatter and linter keep syntax canonical and resource usage measurable.</text>
+    <rect x="24" y="186" width="210" height="72" rx="16" fill="#0D1117" stroke="#30363D"/>
+    <text x="42" y="214" class="accent">Compiler surfaces</text>
+    <text x="42" y="238" class="body">• Lark LALR(1) grammar</text>
+    <text x="42" y="258" class="body">• Human-readable AST nodes</text>
+  </g>
+
+  <g transform="translate(616 150)" filter="url(#shadow)">
+    <rect width="258" height="292" rx="24" fill="#222014" stroke="#D29922"/>
+    <text x="24" y="42" class="step">SLIDE 03</text>
+    <text x="24" y="76" class="cardTitle">Intent is governed</text>
+    <text x="24" y="112" class="body">ALIGN rules, gas budgets, nonce replay protection, and rate limits stop unsafe requests before they can run.</text>
+    <text x="24" y="146" class="body">Only requests that survive the deterministic gates reach a model or host function.</text>
+    <rect x="24" y="186" width="210" height="72" rx="16" fill="#0D1117" stroke="#30363D"/>
+    <text x="42" y="214" class="accent">Control surfaces</text>
+    <text x="42" y="238" class="body">• ALIGN Ledger enforcement</text>
+    <text x="42" y="258" class="body">• Gas + nonce + rate checks</text>
+  </g>
+
+  <g transform="translate(900 150)" filter="url(#shadow)">
+    <rect width="252" height="292" rx="24" fill="#152419" stroke="#3FB950"/>
+    <text x="24" y="42" class="step">SLIDE 04</text>
+    <text x="24" y="76" class="cardTitle">Intent becomes memory</text>
+    <text x="24" y="112" class="body">Execution is logged through ALS, memory can be persisted across hot, warm, and cold tiers, and Dream State can later compress the learning.</text>
+    <text x="24" y="146" class="body">This closes the loop between runtime action, observability, and future recall.</text>
+    <rect x="24" y="186" width="204" height="72" rx="16" fill="#0D1117" stroke="#30363D"/>
+    <text x="42" y="214" class="accent">Persistence surfaces</text>
+    <text x="42" y="238" class="body">• ALS + Merkle traces</text>
+    <text x="42" y="258" class="body">• Redis / SQLite / archive</text>
+  </g>
+
+  <path d="M306 296H328" stroke="#58A6FF" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 8"/>
+  <path d="M590 296H612" stroke="#BC8CFF" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 8"/>
+  <path d="M874 296H896" stroke="#D29922" stroke-width="4" stroke-linecap="round" stroke-dasharray="8 8"/>
+</svg>

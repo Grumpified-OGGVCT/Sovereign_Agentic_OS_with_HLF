@@ -15,6 +15,36 @@ A **Spec-Driven Development (SDD)** project for a Sovereign Agentic OS with a cu
 
 ---
 
+## 🧭 Visual Field Guide
+
+<p align="center">
+  <img src="docs/sovereign_visual_brief.svg" alt="Visual brief of the Sovereign Agentic OS architecture, deterministic gate path, and operating envelopes" width="100%">
+</p>
+
+<p align="center">
+  <img src="docs/hlf_execution_storyboard.svg" alt="Four-panel storyboard showing how one intent is authored, compiled, governed, and remembered" width="100%">
+</p>
+
+These new graphics are designed to give a fast but accurate orientation before you dive into the deeper sections below:
+
+- **System lens** — the full stack from ACFS confinement up to observability and transparency.
+- **Execution lens** — how one intent moves through compilation, governance, execution, and memory.
+- **Operator lens** — the three deployment tiers and three memory tiers that define the runtime envelope.
+
+### Existing repo media, now folded into the visual story
+
+This refresh also leans on the repository’s existing architecture media so the README stays consistent with the diagrams already maintained in `docs/`. The most useful legacy pieces were the broad stack maps, the router/governance flows, and the memory comparison graphic:
+
+| System architecture | Router flow | Jules governance |
+|---|---|---|
+| [<img src="docs/system_architecture.png" alt="System architecture overview" width="100%">](docs/system_architecture.png) | [<img src="docs/registry_router_flow.png" alt="Registry router flow" width="100%">](docs/registry_router_flow.png) | [<img src="docs/jules_governance_pipeline.png" alt="Jules governance pipeline" width="100%">](docs/jules_governance_pipeline.png) |
+
+| Jules flow | Jules architecture | Infinite RAG comparison |\r\n|---|---|---|\r\n| [<img src="docs/jules_flow.png" alt="Jules flow overview" width="100%">](docs/jules_flow.png) | [<img src="docs/jules_architecture.png" alt="Jules orchestrator architecture" width="100%">](docs/jules_architecture.png) | [<img src="docs/infinite_rag_comparison.png" alt="Infinite RAG comparison" width="100%">](docs/infinite_rag_comparison.png) |
+
+<sub>Click any panel above to open the original in-repo file.</sub>
+
+---
+
 ## ⚠️ Why You Should NEVER Run AI Agents Naked on Your System
 
 > **Every AI coding agent running today — Copilot, Claude Code, Cursor, Aider, Jules, Antigravity — operates with essentially unlimited access to your filesystem, network, and shell.** There is no sandbox. No audit trail. No kill switch. You are one hallucinated `rm -rf /` away from total system destruction.

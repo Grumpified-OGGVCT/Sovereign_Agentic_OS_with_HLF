@@ -117,6 +117,150 @@
             font-size: 1.2rem;
         }
 
+        /* ── Visual Briefing ── */
+        .visual-brief {
+            margin: 1.5rem auto 0;
+            max-width: 1200px;
+            padding: 0 1.5rem;
+        }
+        .visual-brief-shell {
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            overflow: hidden;
+            background: var(--bg-secondary);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.18);
+        }
+        .visual-brief-header {
+            padding: 1rem 1.2rem;
+            border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, rgba(88, 166, 255, 0.08), rgba(188, 140, 255, 0.08));
+        }
+        .visual-brief-header h2 {
+            font-size: 1.05rem;
+            margin-bottom: 0.25rem;
+        }
+        .visual-brief-header p {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            max-width: 760px;
+        }
+        .visual-brief-grid {
+            display: grid;
+            grid-template-columns: 1.1fr 0.9fr;
+            gap: 1rem;
+            padding: 1rem;
+        }
+        .visual-card {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(22, 27, 34, 0.95), rgba(13, 17, 23, 0.96));
+        }
+        .visual-card img {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        .visual-card-body {
+            padding: 1rem 1.1rem 1.1rem;
+        }
+        .visual-card-body h3 {
+            font-size: 0.95rem;
+            margin-bottom: 0.35rem;
+        }
+        .visual-card-body p {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.9rem;
+        }
+        .slide-stack {
+            display: grid;
+            gap: 0.7rem;
+        }
+        .slide-card {
+            padding: 0.85rem 0.9rem;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--bg-tertiary);
+        }
+        .slide-kicker {
+            font-size: 0.68rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-weight: 700;
+            margin-bottom: 0.35rem;
+        }
+        .slide-kicker.blue { color: var(--accent-blue); }
+        .slide-kicker.purple { color: var(--accent-purple); }
+        .slide-kicker.orange { color: var(--accent-orange); }
+        .slide-kicker.green { color: var(--accent-green); }
+        .slide-card h4 {
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+        .slide-card p {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.55rem;
+        }
+        .mini-pills {
+            display: flex;
+            gap: 0.35rem;
+            flex-wrap: wrap;
+        }
+        .mini-pill {
+            padding: 0.16rem 0.48rem;
+            border-radius: 999px;
+            border: 1px solid rgba(88, 166, 255, 0.22);
+            background: rgba(88, 166, 255, 0.07);
+            color: var(--text-primary);
+            font-size: 0.68rem;
+            font-weight: 600;
+        }
+        .visual-storyboard {
+            padding: 0 1rem 1rem;
+        }
+        .media-wall {
+            padding: 0 1rem 1rem;
+        }
+        .media-wall-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 1rem;
+        }
+        .media-wall-card {
+            height: 100%;
+        }
+        .media-thumb {
+            display: block;
+            width: 100%;
+            height: auto;
+            border-bottom: 1px solid var(--border);
+        }
+        .media-meta {
+            padding: 0.9rem 1rem 1rem;
+        }
+        .media-meta h4 {
+            font-size: 0.88rem;
+            margin-bottom: 0.25rem;
+        }
+        .media-meta p {
+            font-size: 0.76rem;
+            color: var(--text-secondary);
+            margin: 0;
+        }
+        .media-link {
+            display: inline-block;
+            margin-top: 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+        .media-link:hover {
+            text-decoration: underline;
+        }
+
         /* ── Main Container ── */
         .container {
             max-width: 1000px;
@@ -739,6 +883,10 @@
             .dashboard-grid { grid-template-columns: 1fr; }
             .tier-row { flex-direction: column; }
         }
+        @media (max-width: 1024px) {
+            .visual-brief-grid { grid-template-columns: 1fr; }
+            .media-wall-grid { grid-template-columns: 1fr; }
+        }
     </style>
 </head>
 <body>
@@ -771,6 +919,161 @@
     <span class="pipeline-arrow">→</span>
     <div class="pipeline-step" id="step-decode">💬 NLP Output</div>
 </div>
+
+<!-- ══ VISUAL BRIEFING ══ -->
+<section class="visual-brief" aria-labelledby="visual-brief-title">
+    <div class="visual-brief-shell">
+        <div class="visual-brief-header">
+            <h2 id="visual-brief-title">🧭 Codebase field guide — index, architecture, flow, and memory</h2>
+            <p>
+                This visual layer distills the full repository scan into an at-a-glance briefing:
+                what the major layers are, how an intent moves through them, and where governance,
+                memory, and runtime boundaries show up in the stack.
+            </p>
+        </div>
+        <div class="visual-brief-grid">
+            <article class="visual-card">
+                <img src="sovereign_visual_brief.svg" alt="Infographic showing the seven-layer architecture, guarded intent flight path, deployment tiers, and memory tiers">
+                <div class="visual-card-body">
+                    <h3>System infographic</h3>
+                    <p>
+                        A single-screen briefing for the repo’s layered architecture: ACFS confinement at the base,
+                        HLF logic and governance in the middle, and observability plus memory on the upper tiers.
+                    </p>
+                    <a class="media-link" href="sovereign_visual_brief.svg">Open source SVG →</a>
+                </div>
+            </article>
+            <article class="visual-card">
+                <div class="visual-card-body">
+                    <h3>Slide deck — what the repo reveals after a full scan</h3>
+                    <p>
+                        Four slide-style summaries map the major discovery passes: overview, architecture, flow analysis,
+                        and deep-dive surfaces that are easy to miss on a first read.
+                    </p>
+                    <div class="slide-stack">
+                        <div class="slide-card">
+                            <div class="slide-kicker blue">slide 01 · overview sprint</div>
+                            <h4>Seven layers, one operating system</h4>
+                            <p>The repo resolves into a clear ladder: ACFS → identity → bus → HLF → registry → governance → observability.</p>
+                            <div class="mini-pills">
+                                <span class="mini-pill">ACFS</span>
+                                <span class="mini-pill">HLF</span>
+                                <span class="mini-pill">ALIGN</span>
+                            </div>
+                        </div>
+                        <div class="slide-card">
+                            <div class="slide-kicker purple">slide 02 · architecture sprint</div>
+                            <h4>Bus, router, executor, memory</h4>
+                            <p>The runtime spine is the Gateway Bus feeding the MoMA Router, isolated execution workers, and persistent memory tiers.</p>
+                            <div class="mini-pills">
+                                <span class="mini-pill">Gateway</span>
+                                <span class="mini-pill">Router</span>
+                                <span class="mini-pill">Memory</span>
+                            </div>
+                        </div>
+                        <div class="slide-card">
+                            <div class="slide-kicker orange">slide 03 · flow analysis</div>
+                            <h4>Deterministic gates before power</h4>
+                            <p>Validation, compile, ALIGN, gas, and replay checks form the guardrail chain that makes execution observable and controllable.</p>
+                            <div class="mini-pills">
+                                <span class="mini-pill">compile</span>
+                                <span class="mini-pill">gas</span>
+                                <span class="mini-pill">nonce</span>
+                            </div>
+                        </div>
+                        <div class="slide-card">
+                            <div class="slide-kicker green">slide 04 · deep-dive discovery</div>
+                            <h4>Hidden leverage lives in memory and observability</h4>
+                            <p>Dream State, ALS Merkle logs, and hot/warm/cold memory make the system more than a router: it becomes a governed learning substrate.</p>
+                            <div class="mini-pills">
+                                <span class="mini-pill">Dream State</span>
+                                <span class="mini-pill">ALS</span>
+                                <span class="mini-pill">RAG tiers</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </div>
+        <div class="visual-storyboard">
+            <article class="visual-card">
+                <img src="hlf_execution_storyboard.svg" alt="Storyboard showing how one intent is authored, compiled, governed, and remembered across four stages">
+                <div class="visual-card-body">
+                    <h3>Execution storyboard</h3>
+                    <p>
+                        A cinematic strip for the live demo: authored intent, compiler pass, governance envelope,
+                        then audit + memory persistence. It turns the stack’s control flow into something a reader can absorb in seconds.
+                    </p>
+                    <a class="media-link" href="hlf_execution_storyboard.svg">Open source SVG →</a>
+                </div>
+            </article>
+        </div>
+        <div class="media-wall">
+            <article class="visual-card">
+                <div class="visual-card-body">
+                    <h3>Existing repo media — reused, not ignored</h3>
+                    <p>
+                        I reviewed the older media set and brought back the pieces that still do the most work for readers:
+                        architecture, routing, governance, Jules orchestration, and the Infinite RAG comparison.
+                    </p>
+                </div>
+                <div class="media-wall-grid">
+                    <div class="visual-card media-wall-card">
+                        <img class="media-thumb" src="system_architecture.png" alt="Existing system architecture diagram from the repository">
+                        <div class="media-meta">
+                            <h4>System architecture</h4>
+                            <p>The broader stack map already used in the docs, now surfaced directly in the demo flow.</p>
+                            <a class="media-link" href="system_architecture.png">Open original file →</a>
+                        </div>
+                    </div>
+                    <div class="visual-card media-wall-card">
+                        <img class="media-thumb" src="registry_router_flow.png" alt="Existing registry router flow diagram from the repository">
+                        <div class="media-meta">
+                            <h4>Registry router flow</h4>
+                            <p>The current routing blueprint that complements the new visual briefing cards.</p>
+                            <a class="media-link" href="registry_router_flow.png">Open original file →</a>
+                        </div>
+                    </div>
+                    <div class="visual-card media-wall-card">
+                        <img class="media-thumb" src="jules_governance_pipeline.png" alt="Existing Jules governance pipeline diagram from the repository">
+                        <div class="media-meta">
+                            <h4>Jules governance pipeline</h4>
+                            <p>The repo’s existing governance visual, now displayed alongside the new field-guide storyboard.</p>
+                            <a class="media-link" href="jules_governance_pipeline.png">Open original file →</a>
+                        </div>
+                    </div>
+                    <div class="visual-card media-wall-card">
+                        <img class="media-thumb" src="jules_flow.png" alt="Existing Jules flow diagram from the repository">
+                        <div class="media-meta">
+                            <h4>Jules flow</h4>
+                            <p>A still-relevant execution view that helps connect the governance pipeline to day-to-day agent motion.</p>
+                            <a class="media-link" href="jules_flow.png">Open original file →</a>
+                        </div>
+                    </div>
+                    <div class="visual-card media-wall-card">
+                        <img class="media-thumb" src="infinite_rag_comparison.png" alt="Existing Infinite RAG comparison graphic from the repository">
+                        <div class="media-meta">
+                            <h4>Infinite RAG comparison</h4>
+                            <p>An existing memory graphic that remains useful because the demo already teaches HLF and memory side by side.</p>
+                            <a class="media-link" href="infinite_rag_comparison.png">Open original file →</a>
+                        </div>
+                    </div>
+                    <div class="visual-card media-wall-card">
+                        <img class="media-thumb" src="jules_architecture.png" alt="Existing Jules orchestrator architecture diagram from the repository">
+                        <div class="media-meta">
+                            <h4>Jules architecture</h4>
+                            <p>Hub-and-spoke view of the Jules orchestrator connecting governance, grammar, pipeline, and dream-cycle modules.</p>
+                            <a class="media-link" href="jules_architecture.png">Open original file →</a>
+                        </div>
+                    </div>
+                </div>
+            </article>
+        </div>
+        <div style="padding: 0 1rem 1rem; text-align: center;">
+            <a class="media-link" href="hlf_explainer.html" style="font-size: 0.88rem;">📖 Read the full HLF deep-dive explainer →</a>
+        </div>
+    </div>
+</section>
 
 <!-- ══ MAIN CONTAINER ══ -->
 <div class="container">
