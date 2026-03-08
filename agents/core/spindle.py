@@ -218,10 +218,69 @@ class SpindleExecutor:
     Nodes run in topological order. If any node's execute_fn raises
     an exception, all previously completed nodes run their compensate_fn
     in reverse order.
+
+    Supports context propagation:
+      - interrupt(node_id) sends an interrupt signal to a running node
+      - propagate_context(updates) merges new context into the shared dict
+      - Optionally publishes events to a SpindleEventBus
     """
 
-    def __init__(self, dag: SpindleDAG) -> None:
+    def __init__(self, dag: SpindleDAG, event_bus: Any | None = None) -> None:
         self.dag = dag
+        self._event_bus = event_bus
+        self._interrupted_nodes: set[str] = set()
+        self._interrupt_reasons: dict[str, str] = {}
+
+    def interrupt(self, node_id: str, reason: str = "external") -> None:
+        """Signal a running node to interrupt.
+
+        The node's execute_fn should check context['_interrupted']
+        at safe yield points and pause/abort if True.
+
+        Args:
+            node_id: The node to interrupt.
+            reason: Why the interrupt was issued.
+        """
+        self._interrupted_nodes.add(node_id)
+        self._interrupt_reasons[node_id] = reason
+        logger.info(f"Spindle: interrupt signal sent to '{node_id}': {reason}")
+
+    def propagate_context(
+        self,
+        context: dict[str, Any],
+        updates: dict[str, Any],
+        affected_nodes: list[str] | None = None,
+    ) -> list[str]:
+        """Merge new context into the shared dict and mark nodes for re-check.
+
+        This implements Intent's 'Context Propagation Wave' — when a spec
+        changes mid-execution, the new context is injected and affected
+        nodes are interrupted.
+
+        Args:
+            context: The shared mutable context dict.
+            updates: New key-value pairs to merge.
+            affected_nodes: If provided, interrupt these specific nodes.
+
+        Returns:
+            List of node_ids that were interrupted.
+        """
+        context.update(updates)
+        context["_context_version"] = context.get("_context_version", 0) + 1
+
+        interrupted = []
+        if affected_nodes:
+            for nid in affected_nodes:
+                self.interrupt(nid, reason="context_propagation")
+                interrupted.append(nid)
+
+        self._log_align("SPINDLE_CONTEXT_PROPAGATED", {
+            "updates": list(updates.keys()),
+            "version": context["_context_version"],
+            "interrupted_nodes": interrupted,
+        })
+
+        return interrupted
 
     def run(self, context: dict[str, Any] | None = None) -> SpindleResult:
         """Execute the full DAG with Saga compensation.
@@ -246,6 +305,16 @@ class SpindleExecutor:
         for node_id in order:
             node = self.dag.get_node(node_id)
 
+            # Check if node was interrupted before starting
+            if node_id in self._interrupted_nodes:
+                node.status = NodeStatus.SKIPPED
+                reason = self._interrupt_reasons.get(node_id, "unknown")
+                self._log_align("SPINDLE_NODE_INTERRUPTED", {
+                    "node_id": node_id,
+                    "reason": reason,
+                })
+                continue
+
             # Check if all dependencies completed
             deps_satisfied = all(
                 self.dag.get_node(dep).status == NodeStatus.COMPLETED
@@ -259,10 +328,27 @@ class SpindleExecutor:
             node.status = NodeStatus.RUNNING
             node_start = time.time()
 
+            # Inject interrupt flag into context for cooperative checking
+            context["_interrupted"] = node_id in self._interrupted_nodes
+            context["_current_node"] = node_id
+
             self._log_align("SPINDLE_NODE_START", {
                 "node_id": node_id,
                 "agent_id": node.agent_id or "unassigned",
             })
+
+            # Publish to event bus if available
+            if self._event_bus:
+                try:
+                    from agents.core.event_bus import EventType, SpindleEvent
+                    self._event_bus.publish(SpindleEvent(
+                        event_type=EventType.NODE_STARTED,
+                        source=node_id,
+                        payload={"agent_id": node.agent_id or "unassigned"},
+                    ))
+                except ImportError:
+                    # Event bus integration is optional
+                    logger.debug("Event bus not available; skipping event publish")
 
             try:
                 if node.execute_fn:

@@ -21,6 +21,8 @@ Invocation patterns:
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 import logging
 import os
@@ -287,6 +289,99 @@ class SDDRealignmentEvent:
     change_description: str
     affected_nodes: list[str] = field(default_factory=list)
     timestamp: float = field(default_factory=time.time)
+
+
+@dataclass
+class ValidationToken:
+    """Cryptographic gate token for SDD MERGE phase.
+
+    Issued by the VERIFY phase when all checks pass. The MERGE
+    phase requires a valid token before proceeding. The token
+    contains an HMAC signature over the session state to prevent
+    tampering.
+
+    Attributes:
+        session_id: ID of the session this token validates.
+        spec_hash: SHA-256 hash of the spec at verification time.
+        tests_passed: Whether all tests passed.
+        lint_clean: Whether linting is clean.
+        cove_approved: Whether CoVE adversarial review approved.
+        issued_at: Timestamp of issuance.
+        signature: HMAC-SHA256 of the token contents.
+    """
+
+    session_id: str
+    spec_hash: str
+    tests_passed: bool
+    lint_clean: bool
+    cove_approved: bool
+    issued_at: float = field(default_factory=time.time)
+    signature: str = ""
+
+    _TOKEN_SECRET = b"instinct-sovereign-os-validation-key"
+
+    def sign(self) -> None:
+        """Compute HMAC signature over the token contents."""
+        payload = (
+            f"{self.session_id}:{self.spec_hash}:"
+            f"{self.tests_passed}:{self.lint_clean}:"
+            f"{self.cove_approved}:{self.issued_at}"
+        )
+        self.signature = hmac.new(
+            self._TOKEN_SECRET,
+            payload.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+
+    def verify(self) -> bool:
+        """Verify the HMAC signature is valid."""
+        if not self.signature:
+            return False
+        payload = (
+            f"{self.session_id}:{self.spec_hash}:"
+            f"{self.tests_passed}:{self.lint_clean}:"
+            f"{self.cove_approved}:{self.issued_at}"
+        )
+        expected = hmac.new(
+            self._TOKEN_SECRET,
+            payload.encode(),
+            hashlib.sha256,
+        ).hexdigest()
+        return hmac.compare_digest(self.signature, expected)
+
+    def is_valid(self) -> bool:
+        """Check if the token is valid (signed + all checks passed)."""
+        return (
+            self.verify()
+            and self.tests_passed
+            and self.lint_clean
+            and self.cove_approved
+        )
+
+    def to_dict(self) -> dict:
+        """Serialize for persistence."""
+        return {
+            "session_id": self.session_id,
+            "spec_hash": self.spec_hash,
+            "tests_passed": self.tests_passed,
+            "lint_clean": self.lint_clean,
+            "cove_approved": self.cove_approved,
+            "issued_at": self.issued_at,
+            "signature": self.signature,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> ValidationToken:
+        """Deserialize from persistence."""
+        return cls(
+            session_id=data["session_id"],
+            spec_hash=data["spec_hash"],
+            tests_passed=data["tests_passed"],
+            lint_clean=data["lint_clean"],
+            cove_approved=data["cove_approved"],
+            issued_at=data.get("issued_at", time.time()),
+            signature=data.get("signature", ""),
+        )
 
 
 class SDDSessionStore:
