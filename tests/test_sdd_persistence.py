@@ -104,13 +104,15 @@ class TestSDDSessionStore:
         session = SDDSession(topic="temporary")
         store.save(session)
 
-        assert store.delete(session.session_id) is True
+        deleted = store.delete(session.session_id)
+        assert deleted is True
         assert store.load(session.session_id) is None
 
     def test_delete_nonexistent_returns_false(self) -> None:
         """Deleting a nonexistent session returns False."""
         store = self._make_store()
-        assert store.delete("ghost") is False
+        deleted = store.delete("ghost")
+        assert deleted is False
 
     def test_resume_from_verify_phase(self) -> None:
         """Session saved at VERIFY can be loaded and advanced to MERGE."""

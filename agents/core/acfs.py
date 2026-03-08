@@ -331,7 +331,11 @@ class ACFSWorktreeManager:
                     regions = self._parse_diff_regions(diff)
                     detail[f"regions_{label}"] = regions
                 except Exception:
-                    pass
+                    # Diff collection may fail for binary files or shallow clones
+                    logger.debug(
+                        "Failed to collect diff for %s in worktree %s",
+                        filepath, label,
+                    )
 
             # If diff regions don't overlap, it's auto-resolvable
             if detail["regions_a"] and detail["regions_b"]:
@@ -471,7 +475,8 @@ class ACFSWorktreeManager:
                         count = 1
                     regions.append((start, start + count - 1))
                 except (IndexError, ValueError):
-                    pass
+                    # Skip malformed hunk headers in diff output
+                    logger.debug("Skipping malformed hunk header: %s", line)
         return regions
 
     @staticmethod

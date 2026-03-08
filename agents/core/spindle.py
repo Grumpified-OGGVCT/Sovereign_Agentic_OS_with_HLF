@@ -347,7 +347,8 @@ class SpindleExecutor:
                         payload={"agent_id": node.agent_id or "unassigned"},
                     ))
                 except ImportError:
-                    pass
+                    # Event bus integration is optional
+                    logger.debug("Event bus not available; skipping event publish")
 
             try:
                 if node.execute_fn:

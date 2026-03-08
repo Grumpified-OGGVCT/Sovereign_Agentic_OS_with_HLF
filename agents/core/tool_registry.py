@@ -315,4 +315,5 @@ class ToolRegistry:
             als = ALSLogger()
             als.log(event, data)
         except ImportError:
-            pass
+            # ALIGN ledger is optional; skip logging if not installed
+            logger.debug("ALSLogger not available; skipping ALIGN logging for %s", event)

@@ -468,7 +468,8 @@ class AgentSandbox:
             als = ALSLogger()
             als.log("SANDBOX_ACTION", entry)
         except ImportError:
-            pass
+            # ALIGN ledger is optional; skip logging if not installed
+            logger.debug("ALSLogger not available; skipping ALIGN logging")
 
     def _register_sandbox_tools(self) -> None:
         """Register scoped tool implementations into the registry."""
@@ -519,7 +520,7 @@ class AgentSandbox:
                 tool_id="git.status",
                 category=ToolCategory.GIT,
                 description="Get git status of the worktree",
-                execute_fn=lambda: self.git_status(),
+                execute_fn=self.git_status,
                 required_permission=ToolPermission.READ,
             ),
             ToolDefinition(

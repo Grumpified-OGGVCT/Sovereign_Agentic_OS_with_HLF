@@ -291,8 +291,11 @@ class SpindleToolBridge:
                 source=f"tool_bridge:{payload.get('node_id', 'unknown')}",
                 payload=payload,
             ))
-        except (ImportError, Exception):
-            pass
+        except ImportError:
+            # Event bus integration is optional
+            logger.debug("Event bus not available; skipping event publish")
+        except Exception:
+            logger.exception("Failed to publish event %s", event_type)
 
     def _log_align(self, event: str, data: dict) -> None:
         """Log to ALIGN ledger."""
@@ -301,4 +304,5 @@ class SpindleToolBridge:
             als = ALSLogger()
             als.log(event, data)
         except ImportError:
-            pass
+            # ALIGN ledger is optional; skip logging if not installed
+            logger.debug("ALSLogger not available; skipping ALIGN logging for %s", event)
