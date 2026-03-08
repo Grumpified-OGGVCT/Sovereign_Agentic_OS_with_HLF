@@ -54,6 +54,25 @@ class HLFMemoryNode:
     parent_hash: str | None = None
     last_accessed: float = field(default_factory=time.time)
     created_at: float = field(default_factory=time.time)
+    # Enterprise: TTL auto-expiry (None = no expiry)
+    ttl_seconds: float | None = None
+    # Enterprise: tagging metadata for filtered retrieval
+    tags: set[str] = field(default_factory=set)
+
+    @property
+    def is_expired(self) -> bool:
+        """Check if this node has expired based on TTL."""
+        if self.ttl_seconds is None:
+            return False
+        return (time.time() - self.created_at) > self.ttl_seconds
+
+    def add_tags(self, *new_tags: str) -> None:
+        """Add tags to this memory node."""
+        self.tags.update(new_tags)
+
+    def remove_tags(self, *old_tags: str) -> None:
+        """Remove tags from this memory node."""
+        self.tags -= set(old_tags)
 
     @classmethod
     def from_hlf_source(
@@ -157,6 +176,8 @@ class HLFMemoryNode:
             "parent_hash": self.parent_hash,
             "last_accessed": self.last_accessed,
             "created_at": self.created_at,
+            "ttl_seconds": self.ttl_seconds,
+            "tags": sorted(self.tags),
         }
 
     @classmethod
@@ -175,6 +196,8 @@ class HLFMemoryNode:
             parent_hash=data.get("parent_hash"),
             last_accessed=data.get("last_accessed", time.time()),
             created_at=data.get("created_at", time.time()),
+            ttl_seconds=data.get("ttl_seconds"),
+            tags=set(data.get("tags", [])),
         )
 
     def __repr__(self) -> str:

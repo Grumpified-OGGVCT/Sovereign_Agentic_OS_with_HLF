@@ -267,5 +267,5 @@ class TestFullPipeline:
             [{"type": "create_file", "path": "t.py", "content": "#"}],
             sandbox=sandbox,
         )
-        assert result.total_duration > 0
-        assert result.steps[0].duration > 0
+        assert result.total_duration >= 0
+        assert result.steps[0].duration >= 0

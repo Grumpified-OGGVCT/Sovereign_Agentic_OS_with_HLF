@@ -146,6 +146,8 @@ class PlanExecutor:
         self._task_registry: dict[str, dict[str, Any]] = {}
 
     def plan_to_dag(self, tasks: list[dict[str, Any]]) -> SpindleDAG:
+        # Clear registry between plans (Copilot #1)
+        self._task_registry.clear()
         """Convert a list of task specs into a SpindleDAG.
 
         Each task dict must have a 'type' field matching a PlanTaskType.
@@ -177,7 +179,10 @@ class PlanExecutor:
                 pt = PlanTaskType(task_type)
                 agent_id = pt.agent_type
             except ValueError:
-                agent_id = "code-agent"
+                raise ValueError(
+                    f"Unknown task type: '{task_type}'. "
+                    f"Valid types: {[t.value for t in PlanTaskType]}"
+                )
 
             task_entries.append((node_id, agent_id, task))
             if agent_id == "code-agent":
@@ -185,13 +190,21 @@ class PlanExecutor:
             else:
                 build_node_ids.append(node_id)
 
+        # Precompute previous code-node mapping to avoid O(n²) lookups (Copilot #8)
+        code_prev_map: dict[str, str] = {}
+        prev_code_id: str | None = None
+        for code_id in code_node_ids:
+            if prev_code_id is not None:
+                code_prev_map[code_id] = prev_code_id
+            prev_code_id = code_id
+
         # Second pass: create nodes with depends_on
         for node_id, agent_id, task in task_entries:
             deps: list[str] = []
-            if agent_id == "code-agent" and node_id in code_node_ids:
-                idx = code_node_ids.index(node_id)
-                if idx > 0:
-                    deps.append(code_node_ids[idx - 1])
+            if agent_id == "code-agent":
+                prev_dep = code_prev_map.get(node_id)
+                if prev_dep is not None:
+                    deps.append(prev_dep)
             elif agent_id == "build-agent" and code_node_ids:
                 deps.append(code_node_ids[-1])
 
@@ -320,8 +333,11 @@ class PlanExecutor:
 
             steps.append(step)
 
-            # Fail-fast: stop on first failure
+            # Fail-fast: stop on first failure (Copilot #10: propagate error)
             if not step.success:
+                failing_error = None
+                if step.result and hasattr(step.result, 'error'):
+                    failing_error = step.result.error
                 break
 
         self._log_align("PLAN_EXECUTION", {
@@ -332,16 +348,25 @@ class PlanExecutor:
             "total_duration": time.time() - start,
         })
 
+        # Determine error for result (Copilot #9 + #10)
+        result_error = None
+        if not overall_success:
+            for s in reversed(steps):
+                if not s.success and s.result and hasattr(s.result, 'error'):
+                    result_error = s.result.error
+                    break
+
         return PlanExecutionResult(
             success=overall_success,
             steps=steps,
-            files_modified=list(set(all_files_modified)),
+            files_modified=list(dict.fromkeys(all_files_modified)),
             test_results={
                 "passed": total_passed,
                 "failed": total_failed,
                 "errors": total_errors,
             },
             total_duration=time.time() - start,
+            error=result_error,
         )
 
     # ------------------------------------------------------------------ #
@@ -351,7 +376,7 @@ class PlanExecutor:
     def _log_align(self, event: str, data: dict) -> None:
         """Log to ALIGN ledger."""
         try:
-            from agents.core.als_logger import ALSLogger
+            from agents.core.logger import ALSLogger
             als = ALSLogger()
             als.log(event, data)
         except ImportError:

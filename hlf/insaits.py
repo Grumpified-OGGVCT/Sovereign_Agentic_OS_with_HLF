@@ -27,14 +27,23 @@ from pathlib import Path
 from typing import Any
 
 
+from hlf.hlfc import _pass0_normalize
+
+
 def decompile(ast: dict) -> str:
     """Decompile a full HLF AST into human-readable English prose.
 
     Walks the program array and expands each node's human_readable field
     into a structured, indented document.
+
+    Enterprise: applies homoglyph normalization to the prose output
+    to prevent visual spoofing in audit logs.
     """
     lines = list(decompile_live(ast))
-    return "\n".join(lines)
+    # Normalize the final prose against homoglyph attacks
+    raw = "\n".join(lines)
+    normalized, _ = _pass0_normalize(raw)
+    return normalized
 
 
 def decompile_live(ast: dict) -> Generator[str, None, None]:

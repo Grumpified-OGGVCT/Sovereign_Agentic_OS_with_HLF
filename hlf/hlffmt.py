@@ -15,7 +15,7 @@ from hlf.hlfc import compile as hlfc_compile
 def format_hlf(source: str) -> str:
     """Return canonical HLF representation of *source*."""
     ast = hlfc_compile(source)
-    lines: list[str] = ["[HLF-v2]"]
+    lines: list[str] = ["[HLF-v3]"]
     for node in ast.get("program", []):
         if node is None:
             continue

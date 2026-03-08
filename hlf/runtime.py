@@ -623,6 +623,32 @@ class HLFRuntime:
                     self._result.message = str(e)
                     return self._finalize()
 
+            # ── Handle ASSERT (Gold Hat verification gate) ────────────────
+            if tag == "ASSERT":
+                args = node.get("args", [])
+                condition = args[0] if args else None
+                error_msg = args[1] if len(args) > 1 else "Assertion failed"
+                if not condition:
+                    self._result.code = 1
+                    self._result.message = f"[ASSERT] {error_msg}"
+                    self._result.output.append(node)
+                    return self._finalize()
+
+            # ── Handle RETURN (value propagation) ─────────────────────────
+            if tag == "RETURN":
+                args = node.get("args", [])
+                value = args[0] if args else None
+                self.env["_RETURN_VALUE"] = value
+                self._result.code = 0
+                self._result.message = f"Return: {value}"
+                self._result.output.append(node)
+                return self._finalize()
+
+            # ── Handle WHILE (Blue Hat process flow) ──────────────────────
+            if tag == "WHILE":
+                self._result.output.append(node)
+                continue  # Acknowledged; block execution is pending
+
             # ── Record all other statements as output ────────────────────
             self._result.output.append(node)
 

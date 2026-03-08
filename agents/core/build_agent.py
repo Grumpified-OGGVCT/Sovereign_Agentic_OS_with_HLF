@@ -8,7 +8,7 @@ structured output to provide actionable build results.
 Task types:
   - run_tests: Execute pytest and parse pass/fail/error counts
   - run_lint: Execute ruff and parse violations
-  - validate_imports: Check that all imports resolve
+  - validate_imports: Analyze imports and flag disallowed or deep relative imports
   - check_syntax: AST-parse a file to catch syntax errors
 
 Usage::
@@ -178,7 +178,7 @@ class BuildAgent:
             extra_args: Additional pytest arguments (default: "")
         """
         test_path = task.get("test_path", "tests/")
-        extra_args = task.get("extra_args", "-v --tb=short")
+        extra_args = task.get("extra_args", "-v")
 
         tool_result = sandbox.run_tests(test_path, extra_args)
         output = tool_result.output or ""
@@ -192,6 +192,7 @@ class BuildAgent:
             failed=failed,
             errors=errors,
             output=output,
+            error=tool_result.error if not tool_result.success else None,
             metadata={
                 "test_path": test_path,
                 "exit_code": tool_result.metadata.get("exit_code", -1),
@@ -221,6 +222,7 @@ class BuildAgent:
             errors=len(violations),
             warnings=violations[:10],  # Cap at 10 warnings
             output=output,
+            error=tool_result.error if not is_clean else None,
             metadata={"paths": paths, "violation_count": len(violations)},
         )
 
@@ -402,7 +404,7 @@ class BuildAgent:
     def _log_align(self, event: str, data: dict) -> None:
         """Log to ALIGN ledger."""
         try:
-            from agents.core.als_logger import ALSLogger
+            from agents.core.logger import ALSLogger
             als = ALSLogger()
             als.log(event, data)
         except ImportError:
