@@ -1,9 +1,9 @@
 # Sovereign Agentic OS with HLF
 
 > 🟢 **Development Status — Updated Mar 7, 2026**
-> Full Antigravity, Jules, and GitHub Copilot integration. HLF v0.4 Bytecode VM operational.
+> Full Antigravity, Jules, and GitHub Copilot integration. HLF v0.4 Bytecode VM + Instinct spec-driven execution operational.
 >
-> **✅ Working**: 14-Hat Aegis-Nexus Engine (19 named cloud agents), HLF v0.4 Bytecode VM (compiler + stack-machine + disassembler), Gateway Bus + ALIGN, Dream Mode (23/23), C-SOC GUI (dark mode), Ollama Matrix, **573+ passing tests**, Jules 10-step daily pipeline with anti-reductionist mandate, MCP Server auto-launch, **Infinite RAG Memory Matrix** (SQLite WAL + MCP bridge + Dream State + bytecode-level RAG opcodes), **[Project Janus](https://github.com/Grumpified-OGGVCT/Project_Janus)** (sovereign archival intelligence — 4-model Infinite RAG pipeline, full-site Markdown cloner, LanceDB knowledge graph, Code-Awareness Service, Ollama-native MCP tool loop), HLF metrics & benchmark infrastructure, OpenClaw orchestration plugin (PR pending).
+> **✅ Working**: 14-Hat Aegis-Nexus Engine (19 named cloud agents), HLF v0.4 Bytecode VM (compiler + stack-machine + disassembler), **Instinct Living Spec Opcodes** (SPEC_DEFINE/GATE/UPDATE/SEAL — deterministic spec lifecycle), **SDD Lifecycle Enforcement** (Specify→Plan→Execute→Verify→Merge with CoVE gating), **ACFS Worktree Isolation** (parallel agent execution via Git worktrees), Gateway Bus + ALIGN, Dream Mode (23/23), C-SOC GUI (dark mode), Ollama Matrix, **627+ passing tests**, Jules 10-step daily pipeline with anti-reductionist mandate, MCP Server auto-launch, **Infinite RAG Memory Matrix** (SQLite WAL + MCP bridge + Dream State + bytecode-level RAG opcodes), **[Project Janus](https://github.com/Grumpified-OGGVCT/Project_Janus)** (sovereign archival intelligence — 4-model Infinite RAG pipeline, full-site Markdown cloner, LanceDB knowledge graph, Code-Awareness Service, Ollama-native MCP tool loop), HLF metrics & benchmark infrastructure, OpenClaw orchestration plugin (PR pending).
 > **🛠️ In Progress**: Aegis-Nexus operational wiring (Sentinel/Scribe/Arbiter agents scaffolded), HLF Tool Forge host functions, vector embeddings (sqlite-vec), Redis active context tiering, fractal summarization, GUI Cognitive SOC dashboard.
 > **⏸️ Paused**: Pure cloud-only orchestrations, LOLLMS integration (stretch goal).
 >
@@ -279,7 +279,9 @@ HLF and the Infinite RAG are designed to amplify each other:
 
 The Sovereign Agentic OS represents a paradigm shift in AI autonomy:
 - **14-Hat Aegis-Nexus Engine**: Our 14-hat autonomous audit cycle (19 named cloud agents across Architecture, Language, Security, Backend, Data, UX, and Meta layers) ensures your agents never hallucinate into privilege escalation or memory leaks. Key agents include Sentinel (defense-in-depth), Scribe (token auditor), Arbiter (decision adjudicator), Steward (MCP integrity), CoVE (terminal validation), and Weaver (recursive self-improvement).
-- **HLF v0.4 Bytecode VM**: A complete compiler → bytecode → stack-machine execution pipeline. HLF programs compile to binary `.hlb` format with SHA-256 checksums, gas metering, and a full disassembler for debugging. Supports 30+ opcodes including PUSH, STORE, LOAD, CALL_HOST, CALL_TOOL, MEMORY_STORE/RECALL, and OPENCLAW_TOOL.
+- **HLF v0.4 Bytecode VM**: A complete compiler → bytecode → stack-machine execution pipeline. HLF programs compile to binary `.hlb` format with SHA-256 checksums, gas metering, and a full disassembler for debugging. Supports 34+ opcodes including PUSH, STORE, LOAD, CALL_HOST, CALL_TOOL, MEMORY_STORE/RECALL, OPENCLAW_TOOL, and the **Instinct Living Spec suite** (SPEC_DEFINE, SPEC_GATE, SPEC_UPDATE, SPEC_SEAL).
+- **Instinct SDD Lifecycle**: Every crew mission enforces the deterministic **Specify → Plan → Execute → Verify → Merge** lifecycle. Phase skips and backward transitions are blocked unless explicitly overridden. CoVE adversarially gates the Verify→Merge transition — if verification fails, the mission halts before any changes are merged.
+- **ACFS Worktree Isolation**: Agents execute in physically isolated Git worktrees, preventing file conflicts in parallel swarm operations. Shadow commits include ALIGN-Merkle hashes for forensic tracing. Stale worktrees are auto-cleaned after configurable thresholds.
 - **MoMA Dynamic Routing**: Intelligent "Downshifting" means you never pay for a Frontier-tier model when a local small-language model (SLM) can do the same task for free.
 - **Glass-Box Transparency**: The C-SOC dashboard allows you to see every "thought" and "action" in real-time—no secret LLM decision-making.
 - **Anti-Reductionist Mandate**: 9 non-negotiable mandates enforced across all agents — never simplify, never reduce, never delete to make something "work." The correct response to difficulty is understanding, not removal. Formalized in `config/personas/_shared_mandates.md`.
@@ -296,6 +298,8 @@ The Sovereign Agentic OS represents a paradigm shift in AI autonomy:
 - **Rate limiting** — 50 RPM token bucket via Redis.
 - **Gas Budget** — AST node count limits strictly enforced per deployment tier.
 - **ACFS Confinement** — Directory permission enforcement at the kernel level.
+- **ACFS Worktree Isolation** — Git worktree-based agent sandboxing with Merkle-hashed shadow commits.
+- **Living Spec Enforcement** — SPEC_GATE opcodes halt execution on constraint violations, SPEC_SEAL locks specs with SHA-256 checksums.
 
 ---
 
@@ -453,7 +457,7 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 | Backend | Ollama + OpenRouter |
 | ML Optimization | DSPy |
 | Parser | Lark LALR(1) |
-| Bytecode VM | Custom stack-machine with 30+ opcodes, SHA-256 checksums, gas metering |
+| Bytecode VM | Custom stack-machine with 34+ opcodes, SHA-256 checksums, gas metering |
 | Package Manager | uv |
 | Hat Engine | 14-Hat Aegis-Nexus (19 named cloud agents) |
 | Autonomous Agent | Google Jules (10-step daily pipeline + anti-reductionist mandate) |
@@ -465,7 +469,7 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 | Installation Tests | 65 deep verification tests |
 | Auto-Update | git-based with GUI approval flow |
 | HLF Test Fixtures | 7 domain-specific `.hlf` files |
-| Total Tests | **573+** (pytest collected) |
+| Total Tests | **627+** (pytest collected) |
 | Benchmarking | tiktoken cl100k_base compression analysis |
 | CI Pipeline | ruff lint + model_policy_lint + HLF token lint + pytest |
 | Live Demo | [GitHub Pages](https://grumpified-oggvct.github.io/Sovereign_Agentic_OS_with_HLF/) |
