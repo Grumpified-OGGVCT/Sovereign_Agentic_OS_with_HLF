@@ -483,6 +483,159 @@ class InfiniteRAGEngine:
         }
 
     # ------------------------------------------------------------------ #
+    # Dependency Graph & Blast Radius
+    # ------------------------------------------------------------------ #
+
+    def init_dependency_graph(self) -> None:
+        """Create the entity_dependencies table for blast radius tracking.
+
+        Call this after init_schema() to enable blast_radius_query().
+        """
+        conn = self._get_conn()
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS entity_dependencies (
+                source_entity TEXT NOT NULL,
+                target_entity TEXT NOT NULL,
+                relationship TEXT NOT NULL DEFAULT 'depends_on',
+                weight REAL NOT NULL DEFAULT 1.0,
+                created_at REAL NOT NULL,
+                PRIMARY KEY (source_entity, target_entity, relationship)
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_dep_source
+                ON entity_dependencies(source_entity);
+            CREATE INDEX IF NOT EXISTS idx_dep_target
+                ON entity_dependencies(target_entity);
+        """)
+        conn.commit()
+
+    def link_entities(
+        self,
+        source: str,
+        target: str,
+        relationship: str = "depends_on",
+        weight: float = 1.0,
+    ) -> None:
+        """Record a dependency between two entities.
+
+        Args:
+            source: The entity that depends on the target.
+            target: The entity being depended upon.
+            relationship: Type of relationship (depends_on, imports, calls, etc.)
+            weight: Strength of the dependency (0.0-1.0).
+        """
+        conn = self._get_conn()
+        conn.execute(
+            """INSERT OR REPLACE INTO entity_dependencies
+               (source_entity, target_entity, relationship, weight, created_at)
+               VALUES (?, ?, ?, ?, ?)""",
+            (source, target, relationship, weight, time.time()),
+        )
+        conn.commit()
+
+    def get_linked(self, entity_id: str, direction: str = "both") -> list[dict]:
+        """Get entities linked to the given entity.
+
+        Args:
+            entity_id: The entity to query links for.
+            direction: 'outgoing' (depends on), 'incoming' (depended upon), or 'both'.
+
+        Returns:
+            List of dicts with entity info and relationship type.
+        """
+        conn = self._get_conn()
+        results = []
+
+        if direction in ("outgoing", "both"):
+            rows = conn.execute(
+                """SELECT target_entity, relationship, weight
+                   FROM entity_dependencies
+                   WHERE source_entity = ?""",
+                (entity_id,),
+            ).fetchall()
+            for r in rows:
+                results.append({
+                    "entity_id": r["target_entity"],
+                    "relationship": r["relationship"],
+                    "weight": r["weight"],
+                    "direction": "outgoing",
+                })
+
+        if direction in ("incoming", "both"):
+            rows = conn.execute(
+                """SELECT source_entity, relationship, weight
+                   FROM entity_dependencies
+                   WHERE target_entity = ?""",
+                (entity_id,),
+            ).fetchall()
+            for r in rows:
+                results.append({
+                    "entity_id": r["source_entity"],
+                    "relationship": r["relationship"],
+                    "weight": r["weight"],
+                    "direction": "incoming",
+                })
+
+        return results
+
+    def blast_radius_query(
+        self,
+        changed_entity: str,
+        max_depth: int = 3,
+        min_confidence: float = 0.0,
+    ) -> list[HLFMemoryNode]:
+        """Precision retrieval — returns only nodes affected by a change.
+
+        Traverses the dependency graph outward from the changed entity
+        up to max_depth hops, collecting all memory nodes that could
+        be impacted. This is the "blast radius" of a change.
+
+        Args:
+            changed_entity: The entity that changed.
+            max_depth: Maximum hops to traverse (prevents runaway on dense graphs).
+            min_confidence: Minimum confidence threshold for returned nodes.
+
+        Returns:
+            Deduplicated list of HLFMemoryNodes in the blast radius.
+        """
+        # BFS to find all affected entities
+        visited: set[str] = set()
+        queue: list[tuple[str, int]] = [(changed_entity, 0)]
+        affected_entities: set[str] = {changed_entity}
+
+        while queue:
+            entity, depth = queue.pop(0)
+            if entity in visited:
+                continue
+            visited.add(entity)
+
+            if depth >= max_depth:
+                continue
+
+            # Get entities that depend on this one (incoming = who will break)
+            linked = self.get_linked(entity, direction="incoming")
+            for link in linked:
+                dep_entity = link["entity_id"]
+                if dep_entity not in visited:
+                    affected_entities.add(dep_entity)
+                    queue.append((dep_entity, depth + 1))
+
+        # Retrieve memory nodes for all affected entities
+        all_nodes: list[HLFMemoryNode] = []
+        seen_ids: set[str] = set()
+
+        for eid in affected_entities:
+            nodes = self.retrieve(eid, top_k=50, min_confidence=min_confidence)
+            for node in nodes:
+                if node.node_id not in seen_ids:
+                    all_nodes.append(node)
+                    seen_ids.add(node.node_id)
+
+        # Sort by confidence descending
+        all_nodes.sort(key=lambda n: n.confidence, reverse=True)
+        return all_nodes
+
+    # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
 
