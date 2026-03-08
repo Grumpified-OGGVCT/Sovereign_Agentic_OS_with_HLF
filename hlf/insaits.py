@@ -131,6 +131,11 @@ def _decompile_node(
         args = node.get("args", [])
         yield f"{indent}{prefix}Execute tool '{tool}' with {len(args)} argument(s)"
 
+    elif tag == "OPENCLAW_TOOL":
+        tool = node.get("tool", "?")
+        args = node.get("args", [])
+        yield f"{indent}{prefix}Invoke OpenClaw tool '{tool}' with {len(args)} argument(s)"
+
     elif tag == "FUNCTION":
         name = node.get("name", "?")
         yield f"{indent}{prefix}Call function '{name}'"
@@ -279,6 +284,7 @@ _OPCODE_PROSE: dict[str, str] = {
     "CALL_BUILTIN": "Call built-in function",
     "CALL_HOST": "Dispatch host action",
     "CALL_TOOL": "Execute tool",
+    "OPENCLAW_TOOL": "Invoke OpenClaw tool",
     "TAG": "Declare",
     "INTENT": "Intent —",
     "RESULT": "Return result",

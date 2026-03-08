@@ -443,3 +443,90 @@ class TestACFSManifest:
         manifest = yaml.safe_load(manifest_path.read_text())
         paths = [d["path"] for d in manifest.get("directories", [])]
         assert "/data/tool_forge" in paths
+
+
+# --------------------------------------------------------------------------- #
+# ALIGN ledger entries (Issue #15 gap closure)
+# --------------------------------------------------------------------------- #
+
+
+class TestALIGNLedgerEntries:
+    def test_forge_writes_align_entry(self, forge_dir: Path, safe_tool_code: str) -> None:
+        """Successful forge_tool logs TOOL_FORGE_REGISTERED via ALSLogger."""
+        from agents.core.tool_forge import forge_tool
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code), \
+             patch("agents.core.tool_forge._logger") as mock_logger:
+            result = forge_tool("add two numbers together", loop_count=3)
+
+        assert result != {}
+        mock_logger.log.assert_called_with(
+            "TOOL_FORGE_REGISTERED",
+            {"name": result["name"], "sha256": result["sha256"], "task": "add two numbers together"},
+        )
+
+    def test_import_writes_align_entry(self, forge_dir: Path, safe_tool_code: str) -> None:
+        """Successful import_tool logs TOOL_FORGE_IMPORTED via ALSLogger."""
+        from agents.core.tool_forge import import_tool
+
+        sha256 = hashlib.sha256(safe_tool_code.encode()).hexdigest()
+        bundle = {
+            "name": "tool_imported_test",
+            "code": safe_tool_code,
+            "sha256": sha256,
+        }
+        with patch("agents.core.tool_forge._logger") as mock_logger:
+            result = import_tool(bundle)
+
+        assert result != {}
+        mock_logger.log.assert_called_with(
+            "TOOL_FORGE_IMPORTED",
+            {"name": "tool_imported_test", "sha256": sha256},
+        )
+
+
+# --------------------------------------------------------------------------- #
+# Strategy C sandbox metadata (Issue #15 gap closure)
+# --------------------------------------------------------------------------- #
+
+
+class TestStrategyCMetadata:
+    def test_metadata_includes_sandbox_strategy(self, forge_dir: Path, safe_tool_code: str) -> None:
+        """Forged tools include Strategy C sandbox config in metadata."""
+        from agents.core.tool_forge import forge_tool
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code):
+            result = forge_tool("add two numbers together", loop_count=3)
+
+        assert result["sandbox_strategy"] == "strategy-c"
+        assert result["sandbox_limits"]["memory"] == "256M"
+        assert result["sandbox_limits"]["pids_limit"] == 50
+        assert result["sandbox_limits"]["network"] == "none"
+
+
+# --------------------------------------------------------------------------- #
+# InsAIts OPENCLAW_TOOL decompilation (Issue #15 gap closure)
+# --------------------------------------------------------------------------- #
+
+
+class TestInsAItsOpenClawTool:
+    def test_insaits_openclaw_tool_decompile(self) -> None:
+        """InsAIts decompiles OPENCLAW_TOOL nodes into human-readable prose."""
+        from hlf.insaits import decompile
+
+        ast = {
+            "version": "0.4.0",
+            "compiler": "hlfc",
+            "program": [
+                {
+                    "tag": "OPENCLAW_TOOL",
+                    "tool": "OPENCLAW_SUMMARIZE",
+                    "args": ["/data/report.pdf"],
+                    "human_readable": "Invoke OpenClaw summarize on report",
+                },
+            ],
+        }
+        prose = decompile(ast)
+        assert "Invoke OpenClaw tool 'OPENCLAW_SUMMARIZE'" in prose
+        assert "1 argument(s)" in prose
+

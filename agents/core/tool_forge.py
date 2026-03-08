@@ -15,7 +15,10 @@ from typing import Any
 
 import requests
 
+from agents.core.logger import ALSLogger
 from agents.gateway.sentinel_gate import LLMJudge
+
+_logger = ALSLogger(agent_role="tool-forge", goal_id="forge")
 
 _registered_tools: dict[str, Any] = {}
 _task_loop_counter: dict[str, int] = {}
@@ -198,6 +201,8 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
         "version": "1.0.0",
         "approved": True,
         "human_readable": f"Auto-generated tool '{tool_name}' for task: {task_description}",
+        "sandbox_strategy": "strategy-c",
+        "sandbox_limits": {"memory": "256M", "pids_limit": 50, "network": "none"},
     }
 
     _registered_tools[tool_name] = tool_meta
@@ -205,6 +210,12 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
     # Persist to disk
     storage_dir = _get_storage_dir()
     (storage_dir / f"{tool_name}.json").write_text(json.dumps(tool_meta))
+
+    # ALIGN ledger entry for tool registration
+    _logger.log(
+        "TOOL_FORGE_REGISTERED",
+        {"name": tool_name, "sha256": sha256, "task": task_description},
+    )
 
     return tool_meta
 
@@ -248,6 +259,12 @@ def import_tool(bundle: dict[str, Any]) -> dict[str, Any]:
     # Persist to disk
     storage_dir = _get_storage_dir()
     (storage_dir / f"{name}.json").write_text(json.dumps(bundle))
+
+    # ALIGN ledger entry for tool import
+    _logger.log(
+        "TOOL_FORGE_IMPORTED",
+        {"name": name, "sha256": sha256},
+    )
 
     return bundle
 
