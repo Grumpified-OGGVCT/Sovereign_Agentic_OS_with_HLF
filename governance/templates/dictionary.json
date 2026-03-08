@@ -43,6 +43,10 @@
     { "name": "MEMORY", "args": [{"name":"entity","type":"string"}, {"name":"content","type":"any"}, {"name":"confidence","type":"any"}] },
     { "name": "RECALL", "args": [{"name":"entity","type":"string"}, {"name":"top_k","type":"int"}] },
     { "name": "DEFINE", "args": [{"name":"name","type":"string"}, {"name":"body","type":"any"}], "macro": true },
-    { "name": "CALL", "args": [{"name":"name","type":"string"}, {"name":"args","type":"any","repeat":true}] }
+    { "name": "CALL", "args": [{"name":"name","type":"string"}, {"name":"args","type":"any","repeat":true}] },
+    { "name": "WHILE", "args": [{"name":"condition","type":"string"}, {"name":"body","type":"any","repeat":true}] },
+    { "name": "TRY", "args": [{"name":"body","type":"any","repeat":true}] },
+    { "name": "CATCH", "args": [{"name":"handler","type":"any","repeat":true}] },
+    { "name": "RETURN", "args": [{"name":"value","type":"any"}] }
   ]
 }

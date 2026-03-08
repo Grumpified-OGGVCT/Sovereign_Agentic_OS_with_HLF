@@ -10,6 +10,7 @@ import argparse
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,127 @@ class HlfSyntaxError(ValueError):
 
 class HlfRuntimeError(RuntimeError):
     """Raised when HLF execution encounters a runtime fault."""
+
+
+# ------------------------------------------------------------------ #
+# Enterprise Security: Homoglyph Normalization
+# ------------------------------------------------------------------ #
+
+# HLF grammar characters that MUST be preserved through normalization.
+# These are Unicode code points used as operators, type symbols, and glyphs
+# in the HLF language specification — they are NOT confusables.
+_HLF_PROTECTED: frozenset[str] = frozenset({
+    # Type symbols (RFC 9005 §2.3)
+    "\u2115",  # ℕ — Number type
+    "\U0001D54A",  # 𝕊 — String type
+    "\U0001D539",  # 𝔹 — Boolean type
+    "\U0001D541",  # 𝕁 — JSON type
+    "\U0001D538",  # 𝔸 — Any type
+    # Operators
+    "\u21A6",  # ↦ — Tool execution
+    "\u03C4",  # τ — Tool marker (Greek tau, but HLF syntax)
+    "\u228E",  # ⊎ — Conditional
+    "\u21D2",  # ⇒ — Then
+    "\u21CC",  # ⇌ — Else
+    "\u00AC",  # ¬ — Negation
+    "\u2229",  # ∩ — Intersection (AND)
+    "\u222A",  # ∪ — Union (OR)
+    "\u2190",  # ← — Assignment
+    "\u2225",  # ∥ — Parallel execution
+    "\u22C8",  # ⋈ — Sync barrier
+    "\u2261",  # ≡ — Struct definition
+    "\u2318",  # ⌘ — Execute glyph
+    "\u0416",  # Ж — Constraint glyph
+    "\u2207",  # ∇ — Parameter glyph
+    "\u2A55",  # ⩕ — Priority glyph
+    "\u2A1D",  # ⨝ — Join glyph
+    "\u0394",  # Δ — Delta glyph
+    "\u03A9",  # Ω — Terminator
+    "\u03A3",  # Σ — Define macro
+    "\u2302",  # ⌂ — Memory operator
+    "\u03C1",  # ρ — Epistemic modifier
+})
+
+# Common confusables: Cyrillic, Greek, Fullwidth → Latin
+# Based on Unicode Consortium TR39 confusables.txt
+# NOTE: Greek τ excluded — it is an HLF operator (tool marker)
+_CONFUSABLES: dict[str, str] = {
+    # --- Cyrillic → Latin ---
+    "\u0430": "a",  # Cyrillic а → Latin a
+    "\u043e": "o",  # Cyrillic о → Latin o
+    "\u0435": "e",  # Cyrillic е → Latin e
+    "\u0441": "c",  # Cyrillic с → Latin c
+    "\u0440": "p",  # Cyrillic р → Latin p
+    "\u0443": "y",  # Cyrillic у → Latin y
+    "\u0445": "x",  # Cyrillic х → Latin x
+    "\u043d": "h",  # Cyrillic н → Latin h (visual)
+    "\u0456": "i",  # Ukrainian і → Latin i
+    "\u0458": "j",  # Cyrillic ј → Latin j
+    "\u0455": "s",  # Cyrillic ѕ → Latin s
+    "\u0432": "b",  # Cyrillic в → Latin b (visual)
+    # --- Greek → Latin (excluding HLF operators) ---
+    "\u03b1": "a",  # Greek α → Latin a
+    "\u03bf": "o",  # Greek ο → Latin o
+    "\u03b5": "e",  # Greek ε → Latin e (visual)
+    "\u03bd": "v",  # Greek ν → Latin v (visual)
+    "\u03ba": "k",  # Greek κ → Latin k (visual)
+    # --- Fullwidth → Latin ---
+    "\uff41": "a",  # Fullwidth ａ → Latin a
+    "\uff42": "b",  # Fullwidth ｂ → Latin b
+    "\uff43": "c",  # Fullwidth ｃ → Latin c
+    "\uff4f": "o",  # Fullwidth ｏ → Latin o
+    "\uff53": "s",  # Fullwidth ｓ → Latin s
+    "\uff45": "e",  # Fullwidth ｅ → Latin e
+}
+
+
+def _pass0_normalize(source: str) -> tuple[str, list[dict[str, str]]]:
+    """NFKC-normalize source while preserving HLF operator glyphs.
+
+    HLF uses mathematical Unicode characters (ℕ, 𝕊, 𝔹, etc.) as type
+    symbols and Greek letters (τ, ρ) as operators. Standard NFKC would
+    collapse these to plain ASCII, breaking the grammar. This function
+    saves protected HLF characters, normalizes everything else, then
+    restores the HLF characters to their original positions.
+
+    Returns:
+        Tuple of (normalized_source, [list of confusable replacements]).
+    """
+    # Step 1: Save HLF-protected characters before NFKC
+    chars = list(source)
+    protected_positions: dict[int, str] = {}
+    for i, ch in enumerate(chars):
+        if ch in _HLF_PROTECTED:
+            protected_positions[i] = ch
+            chars[i] = f"\x00"  # placeholder
+
+    # Step 2: NFKC-normalize the non-protected text
+    intermediate = "".join(chars)
+    normalized = unicodedata.normalize("NFKC", intermediate)
+
+    # Step 3: Restore protected characters
+    chars = list(normalized)
+    for pos, original in protected_positions.items():
+        if pos < len(chars):
+            chars[pos] = original
+
+    # Step 4: Replace known confusable characters (skip protected)
+    replacements: list[dict[str, str]] = []
+    for i, ch in enumerate(chars):
+        if ch in _HLF_PROTECTED:
+            continue  # never replace HLF operators
+        if ch in _CONFUSABLES:
+            latin = _CONFUSABLES[ch]
+            replacements.append({
+                "position": str(i),
+                "original": ch,
+                "replaced_with": latin,
+                "codepoint": f"U+{ord(ch):04X}",
+            })
+            chars[i] = latin
+
+    result = "".join(chars)
+    return result, replacements
 
 
 _GRAMMAR = r"""
@@ -58,8 +180,8 @@ _GRAMMAR = r"""
     import_stmt: "[" "IMPORT" "]" IDENT
 
     // --- RFC 9005: Tool Execution (↦ τ) ---
-    tool_stmt: "↦" "τ" "(" DOTTED_IDENT ")" type_ann? arglist
-    DOTTED_IDENT: /[A-Za-z_][A-Za-z0-9_.]+/
+    tool_stmt: "↦" "τ" "(" tool_name ")" type_ann? arglist
+    tool_name: IDENT ("." IDENT)*
 
     // --- RFC 9005: Conditional Logic (⊎ ⇒ ⇌) ---
     cond_stmt: "⊎" cond_expr "⇒" line ("⇌" line)?
@@ -75,17 +197,33 @@ _GRAMMAR = r"""
                 | comparison
                 | math_expr
 
-    // --- RFC 9005: Math Expressions ---
+    // --- RFC 9005: Math Expressions (full operator precedence) ---
+    // Precedence (low → high): comparison → add/sub → mul/div/mod/floordiv → power → unary → atom
     comparison: math_expr COMP_OP math_expr
     COMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
     math_expr: math_term ((PLUS | MINUS) math_term)*
-    math_term: math_factor ((STAR | SLASH) math_factor)*
-    math_factor: literal
+    math_term: math_power ((STAR | SLASH | PERCENT | DSLASH) math_power)*
+    math_power: math_unary (POWER math_power)?
+    math_unary: MINUS math_unary -> math_neg
+              | math_factor
+    math_factor: func_call
+               | member_access
+               | literal
                | "(" math_expr ")"
+
+    // --- Function calls in expressions: abs(x), min(a, b) ---
+    func_call: IDENT "(" (math_expr ("," math_expr)*)? ")"
+
+    // --- Member access: node.confidence, point.x ---
+    member_access: IDENT ("." IDENT)+
+
     PLUS: "+"
     MINUS: "-"
     STAR: "*"
     SLASH: "/"
+    PERCENT: "%"
+    DSLASH: "//"
+    POWER: "**"
 
     // --- RFC 9005: Assignment (←) ---
     assign_stmt: IDENT type_ann? "←" assign_rhs
@@ -136,11 +274,15 @@ _GRAMMAR = r"""
     literal: STRING
            | NUMBER
            | BOOL
+           | list_literal
            | PATH
            | VAR_REF
            | IDENT
 
-    TAG: /[A-Z_]+/
+    // --- White Hat: List/Collection Literals ---
+    list_literal: "⟦" (literal ("," literal)*)? "⟧"
+
+    TAG.-1: /[A-Z_]+/
     IDENT: /[A-Za-z_][A-Za-z0-9_]*/
     PATH: /\/[^\s]*/
     STRING: /\"([^\"\\\\]|\\\\.)*\"/
@@ -149,10 +291,14 @@ _GRAMMAR = r"""
     VAR_REF: /\$\{[A-Za-z_][A-Za-z0-9_]*\}/
     TERMINATOR: /\u03a9|\bOmega\b/
 
+    // --- Comments (single-line) ---
+    COMMENT: /#[^\n]*/
+
     %ignore /\r?\n/
     %ignore " "+
     %ignore /\[HLF-v\d+\]/
     %ignore /\[HLF-v[^\]]*\]/
+    %ignore COMMENT
 """
 
 _parser = Lark(_GRAMMAR, parser="lalr", start="start")
@@ -283,9 +429,10 @@ class HLFTransformer(Transformer):
     # --- RFC 9005: Tool Execution (↦ τ) ---
 
     def tool_stmt(self, items: list) -> dict[str, Any]:
-        tool_name = str(items[0])
+        # items[0] = tool_name (str), remaining = optional type_ann + arglist
+        tool = items[0]  # tool_name transformer returns a string
         type_ann = None
-        args = []
+        args: list = []
         for item in items[1:]:
             if isinstance(item, dict) and "type" in item:
                 type_ann = item
@@ -294,15 +441,15 @@ class HLFTransformer(Transformer):
         return {
             "tag": "TOOL",
             "operator": "↦ τ",
-            "tool": tool_name,
+            "tool": tool,
             "type_annotation": type_ann,
             "args": args,
-            "human_readable": (
-                f"Execute tool '{tool_name}'"
-                + (f" returning {type_ann['type']}" if type_ann else "")
-                + (f" with {len(args)} argument(s)" if args else "")
-            ),
+            "human_readable": f"Execute tool '{tool}' with {len(args)} argument(s)",
         }
+
+    def tool_name(self, items: list) -> str:
+        """Join dotted identifiers: ['file', 'read'] → 'file.read'."""
+        return ".".join(str(i) for i in items)
 
     def DOTTED_IDENT(self, token: Token) -> str:
         return str(token)
@@ -413,6 +560,33 @@ class HLFTransformer(Transformer):
             }
             i += 2
         return result
+
+    def math_power(self, items: list) -> Any:
+        """Right-associative exponentiation: a ** b ** c → a ** (b ** c)."""
+        if len(items) == 1:
+            return items[0]
+        base = items[0]
+        exponent = items[2] if len(items) > 2 else items[1]
+        return {
+            "op": "MATH",
+            "operator": "**",
+            "left": base,
+            "right": exponent,
+            "human_readable": f"{_hr(base)} ** {_hr(exponent)}",
+        }
+
+    def math_neg(self, items: list) -> Any:
+        """Unary negation: -expr."""
+        operand = items[0]
+        return {
+            "op": "UNARY_NEG",
+            "operator": "-",
+            "operand": operand,
+            "human_readable": f"-{_hr(operand)}",
+        }
+
+    def math_unary(self, items: list) -> Any:
+        return items[0] if items else None
 
     def math_factor(self, items: list) -> Any:
         return items[0] if items else None
@@ -625,6 +799,97 @@ class HLFTransformer(Transformer):
             "tag": "SPEC_SEAL",
             "human_readable": "Seal spec — no further updates allowed",
         }
+
+    # --- Blue Hat: Loop Constructs ---
+
+    def while_stmt(self, items: list) -> dict[str, Any]:
+        condition = items[0]
+        body = [i for i in items[1:] if i is not None]
+        cond_desc = condition.get("human_readable", str(condition)) if isinstance(condition, dict) else str(condition)
+        return {
+            "tag": "WHILE",
+            "condition": condition,
+            "body": body,
+            "human_readable": f"While {cond_desc}: execute {len(body)} statement(s)",
+        }
+
+    # --- Black Hat: Error Handling ---
+
+    def try_stmt(self, items: list) -> dict[str, Any]:
+        # Split items into try_body and catch_body at the boundary
+        try_body: list = []
+        catch_body: list = []
+        in_catch = False
+        for item in items:
+            if item is None:
+                continue
+            # Simple heuristic: items before catch marker go to try, after to catch
+            # Since grammar ensures order, first half is try, second half is catch
+            if not in_catch:
+                try_body.append(item)
+            else:
+                catch_body.append(item)
+        # If we can't split evenly, put half in each
+        if not catch_body and len(try_body) > 1:
+            mid = len(try_body) // 2
+            catch_body = try_body[mid:]
+            try_body = try_body[:mid]
+        return {
+            "tag": "TRY_CATCH",
+            "try_body": try_body,
+            "catch_body": catch_body,
+            "human_readable": f"Try {len(try_body)} statement(s), catch with {len(catch_body)} handler(s)",
+        }
+
+    # --- Gold Hat: Assertion/Verification ---
+
+    def assert_stmt(self, items: list) -> dict[str, Any]:
+        condition = items[0]
+        cond_desc = condition.get("human_readable", str(condition)) if isinstance(condition, dict) else str(condition)
+        return {
+            "tag": "ASSERT",
+            "condition": condition,
+            "human_readable": f"Assert: {cond_desc}",
+        }
+
+    # --- Return values ---
+
+    def return_stmt(self, items: list) -> dict[str, Any]:
+        value = items[0] if items else None
+        return {
+            "tag": "RETURN",
+            "value": value,
+            "human_readable": f"Return {_hr(value)}",
+        }
+
+    # --- Function calls in expressions ---
+
+    def func_call(self, items: list) -> dict[str, Any]:
+        name = str(items[0])
+        args = [i for i in items[1:] if i is not None]
+        return {
+            "op": "FUNC_CALL",
+            "name": name,
+            "args": args,
+            "human_readable": f"{name}({', '.join(_hr(a) for a in args)})",
+        }
+
+    # --- Member access in expressions ---
+
+    def member_access(self, items: list) -> Any:
+        parts = [str(i) for i in items]
+        full_path = ".".join(parts)
+        return {
+            "op": "MEMBER_ACCESS",
+            "object": parts[0],
+            "path": parts[1:],
+            "human_readable": full_path,
+        }
+
+    # --- White Hat: List literals ---
+
+    def list_literal(self, items: list) -> list:
+        return [i for i in items if i is not None]
 
     # --- Glyph-prefixed statements ---
 
@@ -1004,6 +1269,15 @@ def compile(source: str, *, align_strict: bool = True) -> dict[str, Any]:  # noq
         HlfAlignViolation: If any AST content violates an ALIGN rule
             (only when align_strict=True).
     """
+    # Pass 0 — Homoglyph normalization (enterprise security)
+    source, homoglyph_replacements = _pass0_normalize(source)
+    if homoglyph_replacements:
+        import logging as _log
+        _log.getLogger(__name__).warning(
+            f"Homoglyph defense: normalized {len(homoglyph_replacements)} "
+            f"confusable character(s) in HLF source"
+        )
+
     try:
         tree = _parser.parse(source)
     except LarkError as exc:
@@ -1035,6 +1309,10 @@ def compile(source: str, *, align_strict: bool = True) -> dict[str, Any]:  # noq
     if _DICT_TAGS:
         result["dictionary_enforced"] = True
         result["dictionary_version"] = _DICT_VERSION
+
+    # Record homoglyph normalization metadata
+    if homoglyph_replacements:
+        result["homoglyph_normalizations"] = homoglyph_replacements
 
     return result
 

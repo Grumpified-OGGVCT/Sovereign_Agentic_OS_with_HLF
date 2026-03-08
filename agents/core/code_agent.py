@@ -25,6 +25,7 @@ Usage::
 from __future__ import annotations
 
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Any
@@ -180,14 +181,24 @@ class CodeAgent:
                 error="create_file requires 'path' field",
             )
 
-        # Check if file already exists
-        existing = sandbox.read_file(path)
-        if existing.success:
-            return TaskResult(
-                success=False,
-                error=f"File already exists: {path}. "
-                      "Use 'modify_file' to update it.",
-            )
+        # Check if file already exists (Copilot: use existence check, not read)
+        worktree = getattr(sandbox, 'worktree', None)
+        if worktree:
+            full_path = os.path.join(str(worktree), path)
+            if os.path.exists(full_path):
+                return TaskResult(
+                    success=False,
+                    error=f"File already exists: {path}. "
+                          "Use 'modify_file' to update it.",
+                )
+        else:
+            existing = sandbox.read_file(path)
+            if existing.success:
+                return TaskResult(
+                    success=False,
+                    error=f"File already exists: {path}. "
+                          "Use 'modify_file' to update it.",
+                )
 
         write_result = sandbox.write_file(path, content)
         if not write_result.success:
@@ -420,7 +431,7 @@ class CodeAgent:
     def _log_align(self, event: str, data: dict) -> None:
         """Log to ALIGN ledger."""
         try:
-            from agents.core.als_logger import ALSLogger
+            from agents.core.logger import ALSLogger
             als = ALSLogger()
             als.log(event, data)
         except ImportError:
