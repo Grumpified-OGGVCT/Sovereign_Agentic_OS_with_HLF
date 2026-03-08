@@ -636,6 +636,126 @@ class InfiniteRAGEngine:
         return all_nodes
 
     # ------------------------------------------------------------------ #
+    # Context Compression — Selective Pruning for Token Budgets
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def prune_to_signature(node: HLFMemoryNode) -> dict:
+        """Reduce a memory node to its interface/signature only.
+
+        Returns a lightweight dict containing just entity, confidence,
+        and a truncated source (first line or type signature).
+        """
+        source_lines = node.hlf_source.strip().splitlines()
+        signature = source_lines[0] if source_lines else node.entity_id
+        return {
+            "node_id": node.node_id,
+            "entity_id": node.entity_id,
+            "signature": signature,
+            "confidence": node.confidence,
+            "token_estimate": len(signature.split()),
+        }
+
+    def get_context_bundle(
+        self,
+        focus_entities: list[str],
+        budget_tokens: int = 4096,
+        full_depth: int = 1,
+        signature_depth: int = 2,
+    ) -> dict:
+        """Build a token-budgeted context bundle with priority-based pruning.
+
+        Implements Intent's "Selective Pruning" — keeps full content for
+        entities close to the focus, signatures for mid-range, and just
+        names for distant entities.
+
+        Priority levels:
+          - Depth 0 (focus entities): Full HLF source
+          - Depth 1..full_depth: Full source
+          - Depth full_depth+1..signature_depth: Signature only
+          - Beyond signature_depth: Entity name only
+
+        Args:
+            focus_entities: The entities currently being worked on.
+            budget_tokens: Maximum approximate token budget.
+            full_depth: Max depth for full source inclusion.
+            signature_depth: Max depth for signature inclusion.
+
+        Returns:
+            Dict with 'full', 'signatures', 'names', and 'token_estimate'.
+        """
+        full_nodes: list[dict] = []
+        sig_nodes: list[dict] = []
+        name_only: list[str] = []
+        tokens_used = 0
+
+        # BFS from focus entities through dependency graph
+        visited: set[str] = set()
+        queue: list[tuple[str, int]] = [(e, 0) for e in focus_entities]
+
+        while queue and tokens_used < budget_tokens:
+            entity, depth = queue.pop(0)
+            if entity in visited:
+                continue
+            visited.add(entity)
+
+            nodes = self.retrieve(entity, top_k=10, min_confidence=0.0)
+
+            if depth <= full_depth:
+                # Full source
+                for node in nodes:
+                    est = len(node.hlf_source.split())
+                    if tokens_used + est > budget_tokens:
+                        # Switch to signature for remaining
+                        sig = self.prune_to_signature(node)
+                        sig_nodes.append(sig)
+                        tokens_used += sig["token_estimate"]
+                    else:
+                        full_nodes.append({
+                            "node_id": node.node_id,
+                            "entity_id": node.entity_id,
+                            "hlf_source": node.hlf_source,
+                            "confidence": node.confidence,
+                            "token_estimate": est,
+                        })
+                        tokens_used += est
+
+            elif depth <= signature_depth:
+                # Signature only
+                for node in nodes:
+                    sig = self.prune_to_signature(node)
+                    if tokens_used + sig["token_estimate"] > budget_tokens:
+                        name_only.append(entity)
+                        break
+                    sig_nodes.append(sig)
+                    tokens_used += sig["token_estimate"]
+
+            else:
+                # Name only
+                name_only.append(entity)
+                tokens_used += 1  # minimal
+
+            # Traverse dependencies
+            if depth < signature_depth + 1:
+                try:
+                    linked = self.get_linked(entity, direction="both")
+                    for link in linked:
+                        dep = link["entity_id"]
+                        if dep not in visited:
+                            queue.append((dep, depth + 1))
+                except Exception:
+                    pass  # no dependency graph initialized
+
+        return {
+            "full": full_nodes,
+            "signatures": sig_nodes,
+            "names": list(set(name_only)),
+            "token_estimate": tokens_used,
+            "budget_tokens": budget_tokens,
+            "entities_covered": len(visited),
+        }
+
+    # ------------------------------------------------------------------ #
     # Internal helpers
     # ------------------------------------------------------------------ #
 
