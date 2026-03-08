@@ -116,6 +116,11 @@ def _tool_forge(args: list) -> str:
     if not result:
         return "FORGE_TOOL_REJECTED: Security gates or LLM judge failed"
 
+    _logger.log(
+        "TOOL_FORGE_INVOKED",
+        {"task": str(args[0]), "tool": result["name"], "sha256": result["sha256"]},
+    )
+
     return json.dumps(
         {"name": result["name"], "sha256": result["sha256"], "human_readable": result.get("human_readable", "")}
     )
