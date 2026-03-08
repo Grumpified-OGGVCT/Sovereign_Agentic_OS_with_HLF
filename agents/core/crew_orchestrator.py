@@ -26,6 +26,7 @@ import logging
 import os
 import sqlite3
 import time
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -147,12 +148,14 @@ class SDDSession:
         responses: Accumulated persona responses across all phases
         sealed: Whether the mission has been completed (MERGE phase reached)
     """
+    session_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     phase: SDDPhase = SDDPhase.SPECIFY
     topic: str = ""
     spec: dict | None = None
     task_dag: list[dict] = field(default_factory=list)
     verification_report: dict | None = None
     phase_history: list[dict] = field(default_factory=list)
+    realignment_events: list[dict] = field(default_factory=list)
     responses: list[PersonaResponse] = field(default_factory=list)
     sealed: bool = False
 
@@ -191,18 +194,240 @@ class SDDSession:
         if target == SDDPhase.MERGE:
             self.sealed = True
 
+    def realign(self, event: SDDRealignmentEvent) -> None:
+        """Record a re-alignment event and log to ALIGN ledger.
+
+        Re-alignment events occur when an agent discovers a change
+        during execution that requires updating the spec (e.g.,
+        deprecated API, missing endpoint, new constraint).
+        """
+        if self.sealed:
+            raise ValueError("Cannot realign a sealed session")
+
+        self.realignment_events.append({
+            "triggered_by": event.triggered_by,
+            "change_type": event.change_type,
+            "change_description": event.change_description,
+            "affected_nodes": event.affected_nodes,
+            "timestamp": event.timestamp,
+        })
+
+        # Update spec with re-alignment data
+        if self.spec is not None:
+            self.spec.setdefault("_realignments", []).append({
+                "by": event.triggered_by,
+                "type": event.change_type,
+                "desc": event.change_description,
+                "ts": event.timestamp,
+            })
+
+        self.phase_history.append({
+            "from": self.phase.name,
+            "to": self.phase.name,
+            "timestamp": event.timestamp,
+            "notes": f"REALIGNMENT: {event.change_type} — {event.change_description}",
+            "override": False,
+        })
+
+        _sdd_log_transition(
+            self.topic, self.phase.name, self.phase.name,
+            f"realignment: {event.change_type}",
+        )
+
     def to_dict(self) -> dict:
         """Serialize the session for persistence or transport."""
         return {
+            "session_id": self.session_id,
             "phase": self.phase.name,
             "topic": self.topic,
             "spec": self.spec,
             "task_dag": self.task_dag,
             "verification_report": self.verification_report,
             "phase_history": self.phase_history,
+            "realignment_events": self.realignment_events,
             "sealed": self.sealed,
             "response_count": len(self.responses),
         }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> SDDSession:
+        """Deserialize a session from a persisted dict."""
+        session = cls(
+            session_id=data.get("session_id", uuid.uuid4().hex[:12]),
+            phase=SDDPhase[data["phase"]],
+            topic=data.get("topic", ""),
+            spec=data.get("spec"),
+            task_dag=data.get("task_dag", []),
+            verification_report=data.get("verification_report"),
+            phase_history=data.get("phase_history", []),
+            realignment_events=data.get("realignment_events", []),
+            sealed=data.get("sealed", False),
+        )
+        return session
+
+
+@dataclass
+class SDDRealignmentEvent:
+    """A mid-mission spec re-alignment event.
+
+    Triggered when an agent discovers something that requires
+    updating the Living Spec (deprecated library, missing API,
+    new constraint discovered during execution).
+
+    Attributes:
+        triggered_by: Agent or persona that triggered the event.
+        change_type: Category of change (e.g., 'deprecated_api',
+                     'missing_endpoint', 'new_constraint').
+        change_description: Human-readable description of the change.
+        affected_nodes: List of DAG node_ids affected by this change.
+        timestamp: When the re-alignment was triggered.
+    """
+    triggered_by: str
+    change_type: str
+    change_description: str
+    affected_nodes: list[str] = field(default_factory=list)
+    timestamp: float = field(default_factory=time.time)
+
+
+class SDDSessionStore:
+    """SQLite-backed persistence for SDD sessions.
+
+    Allows missions to survive process restarts by saving session
+    state to a local database. Auto-saves after each phase transition.
+
+    Usage::
+
+        store = SDDSessionStore(db_path="sdd_sessions.db")
+        store.init_schema()
+
+        session = SDDSession(topic="auth upgrade")
+        store.save(session)
+
+        # Later or after restart:
+        restored = store.load(session.session_id)
+        active = store.list_active()
+    """
+
+    def __init__(self, db_path: str | Path = ":memory:") -> None:
+        self.db_path = str(db_path)
+        self._conn: sqlite3.Connection | None = None
+
+    def _get_conn(self) -> sqlite3.Connection:
+        """Get or create SQLite connection."""
+        if self._conn is None:
+            self._conn = sqlite3.connect(self.db_path)
+            self._conn.execute("PRAGMA journal_mode=WAL")
+            self._conn.row_factory = sqlite3.Row
+        return self._conn
+
+    def init_schema(self) -> None:
+        """Create the sdd_sessions table."""
+        conn = self._get_conn()
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS sdd_sessions (
+                session_id TEXT PRIMARY KEY,
+                topic TEXT NOT NULL,
+                phase TEXT NOT NULL,
+                sealed INTEGER NOT NULL DEFAULT 0,
+                session_json TEXT NOT NULL,
+                created_at REAL NOT NULL,
+                updated_at REAL NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_sdd_sealed
+                ON sdd_sessions(sealed)
+        """)
+        conn.commit()
+
+    def save(self, session: SDDSession) -> None:
+        """Save or update an SDD session."""
+        conn = self._get_conn()
+        now = time.time()
+        session_json = json.dumps(session.to_dict(), sort_keys=True)
+
+        conn.execute("""
+            INSERT INTO sdd_sessions
+                (session_id, topic, phase, sealed, session_json, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(session_id) DO UPDATE SET
+                phase = excluded.phase,
+                sealed = excluded.sealed,
+                session_json = excluded.session_json,
+                updated_at = excluded.updated_at
+        """, (
+            session.session_id, session.topic, session.phase.name,
+            1 if session.sealed else 0, session_json, now, now,
+        ))
+        conn.commit()
+
+    def load(self, session_id: str) -> SDDSession | None:
+        """Load a session by ID. Returns None if not found."""
+        conn = self._get_conn()
+        row = conn.execute(
+            "SELECT session_json FROM sdd_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+
+        if not row:
+            return None
+
+        data = json.loads(row["session_json"])
+        return SDDSession.from_dict(data)
+
+    def list_active(self) -> list[dict]:
+        """List all unsealed (active) sessions."""
+        conn = self._get_conn()
+        rows = conn.execute(
+            """SELECT session_id, topic, phase, updated_at
+               FROM sdd_sessions
+               WHERE sealed = 0
+               ORDER BY updated_at DESC""",
+        ).fetchall()
+        return [
+            {
+                "session_id": r["session_id"],
+                "topic": r["topic"],
+                "phase": r["phase"],
+                "updated_at": r["updated_at"],
+            }
+            for r in rows
+        ]
+
+    def list_all(self) -> list[dict]:
+        """List all sessions (active and sealed)."""
+        conn = self._get_conn()
+        rows = conn.execute(
+            """SELECT session_id, topic, phase, sealed, updated_at
+               FROM sdd_sessions
+               ORDER BY updated_at DESC""",
+        ).fetchall()
+        return [
+            {
+                "session_id": r["session_id"],
+                "topic": r["topic"],
+                "phase": r["phase"],
+                "sealed": bool(r["sealed"]),
+                "updated_at": r["updated_at"],
+            }
+            for r in rows
+        ]
+
+    def delete(self, session_id: str) -> bool:
+        """Delete a session. Returns True if found and deleted."""
+        conn = self._get_conn()
+        result = conn.execute(
+            "DELETE FROM sdd_sessions WHERE session_id = ?",
+            (session_id,),
+        )
+        conn.commit()
+        return result.rowcount > 0
+
+    def close(self) -> None:
+        """Close the database connection."""
+        if self._conn:
+            self._conn.close()
+            self._conn = None
 
 
 # ---------------------------------------------------------------------------
