@@ -5,11 +5,18 @@ directories:
   - { path: "/data/cold_archive", permissions: "700" }
   - { path: "/data/quarantine_dumps", permissions: "700" }
   - { path: "/data/tool_forge", permissions: "700" }
+  - { path: "/data/worktrees", permissions: "700" }
   - { path: "/governance", permissions: "555" }
   - { path: "/agents", permissions: "555" }
   - { path: "/security", permissions: "555" }
+worktree_isolation:
+  max_concurrent: 8
+  auto_cleanup_hours: 24
+  base_dir: "/data/worktrees"
+  align_logging: true
 modules:
   hello_world: "711c9a755897e8187567e5958d89ee70cd40726931fcff638923723bb455eec7"
+  acfs: ""
 active_sha256_checksums:
   bootstrap_all_in_one.sh: ""
   security/seccomp.json: ""
