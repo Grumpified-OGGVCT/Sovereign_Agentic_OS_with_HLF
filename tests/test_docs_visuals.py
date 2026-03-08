@@ -30,6 +30,7 @@ def test_readme_and_demo_reference_all_visuals() -> None:
     assert "](docs/jules_governance_pipeline.png)" in readme
     assert "](docs/jules_flow.png)" in readme
     assert "](docs/infinite_rag_comparison.png)" in readme
+    assert "](docs/jules_architecture.png)" in readme
     assert 'id="visual-brief-title"' in demo
     assert 'src="sovereign_visual_brief.svg"' in demo
     assert 'src="hlf_execution_storyboard.svg"' in demo
@@ -38,6 +39,7 @@ def test_readme_and_demo_reference_all_visuals() -> None:
     assert 'src="jules_governance_pipeline.png"' in demo
     assert 'src="jules_flow.png"' in demo
     assert 'src="infinite_rag_comparison.png"' in demo
+    assert 'src="jules_architecture.png"' in demo
     assert 'href="sovereign_visual_brief.svg"' in demo
     assert 'href="hlf_execution_storyboard.svg"' in demo
     assert 'href="system_architecture.png"' in demo
@@ -45,3 +47,5 @@ def test_readme_and_demo_reference_all_visuals() -> None:
     assert 'href="jules_governance_pipeline.png"' in demo
     assert 'href="jules_flow.png"' in demo
     assert 'href="infinite_rag_comparison.png"' in demo
+    assert 'href="jules_architecture.png"' in demo
+    assert 'href="hlf_explainer.html"' in demo
