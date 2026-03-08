@@ -283,6 +283,9 @@ class HLFInterpreter:
         self._memory_engine: Any = None
         # Execution trace for debugging
         self._trace: list[dict[str, Any]] = []
+        # Living Spec registry (Instinct integration)
+        self._spec_registry: dict[str, dict[str, Any]] = {}
+        self._spec_sealed: bool = False
 
     def execute(self, ast: dict) -> dict:
         """
@@ -320,6 +323,8 @@ class HLFInterpreter:
             "macros": list(self._macros.keys()),
             "parallel_results": dict(self._parallel_results),
             "trace": list(self._trace),
+            "spec_registry": dict(self._spec_registry),
+            "spec_sealed": self._spec_sealed,
         }
 
     # ------------------------------------------------------------------ #
@@ -376,6 +381,14 @@ class HLFInterpreter:
                 "human_readable": node.get("human_readable", ""),
                 "action": "acknowledged",
             })
+        elif tag == "SPEC_DEFINE":
+            self._exec_spec_define(node)
+        elif tag == "SPEC_GATE":
+            self._exec_spec_gate(node)
+        elif tag == "SPEC_UPDATE":
+            self._exec_spec_update(node)
+        elif tag == "SPEC_SEAL":
+            self._exec_spec_seal(node)
         else:
             # Unknown tag — log warning but don't crash
             logger.warning(f"HLF Runtime: unrecognized tag '{tag}', skipping")
@@ -896,6 +909,111 @@ class HLFInterpreter:
         if isinstance(node, dict):
             return {k: self._substitute_params(v, args) for k, v in node.items()}
         return node
+
+    # ------------------------------------------------------------------ #
+    # Living Spec lifecycle (Instinct integration)
+    # ------------------------------------------------------------------ #
+
+    def _exec_spec_define(self, node: dict) -> None:
+        """Execute SPEC_DEFINE — register a Living Spec section with constraints."""
+        if self._spec_sealed:
+            raise HlfRuntimeError("SPEC_DEFINE: spec is sealed — no further modifications allowed")
+        section = node.get("section", "")
+        constraints = node.get("constraints", [])
+        # Accept args as constraints if constraints is empty (tag_stmt fallback)
+        if not constraints:
+            args = node.get("args", [])
+            constraints = args[1:] if len(args) > 1 else args
+            if not section and args:
+                section = str(args[0])
+        self._spec_registry[section] = {
+            "constraints": constraints,
+            "updates": [],
+            "status": "active",
+        }
+        self._trace.append({
+            "tag": "SPEC_DEFINE", "section": section,
+            "constraints": len(constraints), "action": "registered",
+        })
+
+    def _exec_spec_gate(self, node: dict) -> None:
+        """Execute SPEC_GATE — assert a spec constraint; halt if violated."""
+        condition = node.get("condition")
+        if condition is None:
+            # Fallback: check args for simple gate
+            args = node.get("args", [])
+            if args:
+                condition = args[0]
+        result = _eval_expr(condition, self.scope)
+        self._trace.append({
+            "tag": "SPEC_GATE",
+            "condition_result": bool(result),
+            "action": "asserted",
+        })
+        if not result:
+            raise HlfRuntimeError(
+                f"SPEC_GATE violation: condition evaluated to {result!r}"
+            )
+
+    def _exec_spec_update(self, node: dict) -> None:
+        """Execute SPEC_UPDATE — record a spec mutation + ALIGN ledger entry."""
+        if self._spec_sealed:
+            raise HlfRuntimeError("SPEC_UPDATE: spec is sealed — no further modifications allowed")
+        section = node.get("section", "")
+        updates = node.get("updates", [])
+        # Accept args as updates if updates is empty (tag_stmt fallback)
+        if not updates:
+            args = node.get("args", [])
+            updates = args[1:] if len(args) > 1 else args
+            if not section and args:
+                section = str(args[0])
+        # Record the update in the registry
+        entry = self._spec_registry.get(section)
+        if entry is None:
+            # Auto-register if section doesn't exist yet
+            entry = {"constraints": [], "updates": [], "status": "active"}
+            self._spec_registry[section] = entry
+        entry["updates"].append(updates)
+        # Try to log to ALIGN ledger
+        try:
+            from agents.core.als_logger import ALSLogger
+            als = ALSLogger()
+            als.log("SPEC_UPDATED", {
+                "section": section,
+                "updates": updates,
+            })
+        except ImportError:
+            pass  # Standalone mode — no ALIGN ledger available
+        self._trace.append({
+            "tag": "SPEC_UPDATE", "section": section,
+            "update_count": len(updates), "action": "recorded",
+        })
+
+    def _exec_spec_seal(self, node: dict) -> None:
+        """Execute SPEC_SEAL — lock spec, compute SHA-256 checksum."""
+        if self._spec_sealed:
+            raise HlfRuntimeError("SPEC_SEAL: spec is already sealed")
+        self._spec_sealed = True
+        # Compute deterministic checksum of the spec registry
+        import json as _json
+        canonical = _json.dumps(self._spec_registry, sort_keys=True, default=str)
+        checksum = hashlib.sha256(canonical.encode()).hexdigest()
+        self.scope["SPEC_CHECKSUM"] = checksum
+        # Try to log to ALIGN ledger
+        try:
+            from agents.core.als_logger import ALSLogger
+            als = ALSLogger()
+            als.log("SPEC_SEALED", {
+                "sections": list(self._spec_registry.keys()),
+                "checksum": checksum,
+            })
+        except ImportError:
+            pass  # Standalone mode
+        self._trace.append({
+            "tag": "SPEC_SEAL", "checksum": checksum,
+            "sections": list(self._spec_registry.keys()),
+            "action": "sealed",
+        })
 
 
 # --------------------------------------------------------------------------- #

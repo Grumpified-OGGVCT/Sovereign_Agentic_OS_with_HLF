@@ -44,6 +44,10 @@ _GRAMMAR = r"""
         | recall_stmt
         | define_stmt
         | call_stmt
+        | spec_stmt
+        | spec_gate_stmt
+        | spec_update_stmt
+        | spec_seal_stmt
 
     // --- Existing statements (backward-compatible) ---
     tag_stmt: "[" TAG "]" arglist
@@ -112,6 +116,12 @@ _GRAMMAR = r"""
     // --- HLF v4: Macro Definitions (Σ [DEFINE]) ---
     define_stmt: "Σ" "[" "DEFINE" "]" STRING "=" "{" line+ "}"
     call_stmt: "[" "CALL" "]" STRING arglist
+
+    // --- Instinct: Living Spec Lifecycle ---
+    spec_stmt: "[" "SPEC_DEFINE" "]" STRING arglist
+    spec_gate_stmt: "[" "SPEC_GATE" "]" cond_expr
+    spec_update_stmt: "[" "SPEC_UPDATE" "]" STRING arglist
+    spec_seal_stmt: "[" "SPEC_SEAL" "]"
 
     // --- Glyph-prefixed statements (⌘ Ж ∇ ⩕ ⨝ Δ) ---
     // Previously %ignore'd — now properly parsed as statement modifiers
@@ -576,6 +586,44 @@ class HLFTransformer(Transformer):
             "name": name,
             "type": type_sym,
             "type_name": self._TYPE_NAMES.get(type_sym, type_sym),
+        }
+
+    # --- Instinct: Living Spec Lifecycle ---
+
+    def spec_stmt(self, items: list) -> dict[str, Any]:
+        section = str(items[0]).strip('"')
+        constraints = items[1] if len(items) > 1 else []
+        constraint_count = len(constraints) if isinstance(constraints, list) else 1
+        return {
+            "tag": "SPEC_DEFINE",
+            "section": section,
+            "constraints": constraints if isinstance(constraints, list) else [constraints],
+            "human_readable": f"Define spec section '{section}' with {constraint_count} constraint(s)",
+        }
+
+    def spec_gate_stmt(self, items: list) -> dict[str, Any]:
+        condition = items[0]
+        cond_desc = condition.get("human_readable", str(condition)) if isinstance(condition, dict) else str(condition)
+        return {
+            "tag": "SPEC_GATE",
+            "condition": condition,
+            "human_readable": f"Spec gate: assert {cond_desc}",
+        }
+
+    def spec_update_stmt(self, items: list) -> dict[str, Any]:
+        section = str(items[0]).strip('"')
+        updates = items[1] if len(items) > 1 else []
+        return {
+            "tag": "SPEC_UPDATE",
+            "section": section,
+            "updates": updates if isinstance(updates, list) else [updates],
+            "human_readable": f"Update spec section '{section}'",
+        }
+
+    def spec_seal_stmt(self, items: list) -> dict[str, Any]:
+        return {
+            "tag": "SPEC_SEAL",
+            "human_readable": "Seal spec — no further updates allowed",
         }
 
     # --- Glyph-prefixed statements ---

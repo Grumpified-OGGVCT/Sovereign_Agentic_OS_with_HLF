@@ -187,6 +187,25 @@ def _decompile_node(
         mod_name = name or (args[0] if args else "?")
         yield f"{indent}{prefix}Declare module '{mod_name}'"
 
+    elif tag == "SPEC_DEFINE":
+        section = node.get("section", "?")
+        constraints = node.get("constraints", [])
+        yield f"{indent}{prefix}Define spec section '{section}' with {len(constraints)} constraint(s)"
+        for c in constraints:
+            yield f"{indent}    • {c}"
+
+    elif tag == "SPEC_GATE":
+        cond = node.get("condition", {})
+        yield f"{indent}{prefix}Spec gate: ASSERT {_describe_expr(cond)}"
+
+    elif tag == "SPEC_UPDATE":
+        section = node.get("section", "?")
+        updates = node.get("updates", [])
+        yield f"{indent}{prefix}Update spec section '{section}' ({len(updates)} change(s))"
+
+    elif tag == "SPEC_SEAL":
+        yield f"{indent}{prefix}SEAL spec — no further updates allowed (SHA-256 checksum emitted)"
+
     elif hr:
         # Fallback: use the human_readable field directly
         yield f"{indent}{prefix}{hr}"
@@ -290,6 +309,10 @@ _OPCODE_PROSE: dict[str, str] = {
     "RESULT": "Return result",
     "MEMORY_STORE": "Store memory for entity",
     "MEMORY_RECALL": "Recall memories for entity",
+    "SPEC_DEFINE": "Define spec section",
+    "SPEC_GATE": "Assert spec constraint",
+    "SPEC_UPDATE": "Update spec section",
+    "SPEC_SEAL": "Seal spec (locked)",
     "NOP": "No operation",
     "HALT": "Program terminates",
 }
