@@ -11,6 +11,9 @@ const AUDIT_LOG_PATH = BASE_DIR
 const STRATEGIES_PATH = BASE_DIR
   ? path.join(BASE_DIR, 'governance', 'openclaw_strategies.yaml')
   : path.join(__dirname, '..', '..', 'governance', 'openclaw_strategies.yaml');
+const HOST_FUNCTIONS_PATH = BASE_DIR
+  ? path.join(BASE_DIR, 'governance', 'host_functions.json')
+  : path.join(__dirname, '..', '..', 'governance', 'host_functions.json');
 
 // Load strategies to validate
 let strategies = {};
@@ -19,6 +22,15 @@ try {
   strategies = yaml.load(fileContents);
 } catch (e) {
   console.log("Could not load openclaw_strategies.yaml:", e);
+}
+
+// Load host functions to look up per-tool gas costs
+let hostFunctions = [];
+try {
+  const hfContents = fs.readFileSync(HOST_FUNCTIONS_PATH, 'utf8');
+  hostFunctions = JSON.parse(hfContents).functions || [];
+} catch (e) {
+  console.warn("Could not load host_functions.json — gas cost validation will be skipped:", e);
 }
 
 module.exports = {
@@ -88,32 +100,38 @@ module.exports = {
           }
         }
 
-        // Gas budget checks using requirements.gas_range
+        // Validate the tool's gas cost (from host_functions.json) against gas_range
         const gasRangeEntry = Array.isArray(requirements)
           ? requirements.find((r) => r && r.gas_range)
           : null;
         const gasRange = gasRangeEntry ? gasRangeEntry.gas_range : null;
-        const gasBudget = parseInt(process.env.GAS_BUDGET || '1000', 10);
 
         if (Array.isArray(gasRange) && gasRange.length === 2) {
           const minGas = parseInt(gasRange[0], 10);
           const maxGas = parseInt(gasRange[1], 10);
 
-          if (Number.isFinite(minGas) && Number.isFinite(maxGas)) {
-            // Estimate per-tool gas cost from context or use strategy minimum
-            const gasCost = (context && context.gasCost) ? parseInt(context.gasCost, 10) : minGas;
+          // Look up the tool's declared gas cost from host_functions.json
+          // Tool names in host_functions.json are uppercase (e.g. OPENCLAW_SUMMARIZE)
+          const toolUpper = tool ? tool.toUpperCase() : '';
+          const hostFn = hostFunctions.find((f) => f && f.name === toolUpper);
+          // Use gas !== undefined so a gas value of 0 is treated as a valid cost
+          const toolGasCost = (hostFn && hostFn.gas !== undefined) ? hostFn.gas : null;
 
-            // Validate tool cost is within strategy's allowed range
-            if (gasCost < minGas || gasCost > maxGas) {
+          if (toolGasCost === null) {
+            // Tool not declared in host_functions.json — warn and skip
+            console.warn(`[GAS-RANGE] Tool ${tool} not found in host_functions.json; skipping gas cost validation.`);
+          } else if (Number.isFinite(minGas) && Number.isFinite(maxGas)) {
+            if (toolGasCost < minGas || toolGasCost > maxGas) {
               throw new Error(
-                `Tool ${tool} gas cost ${gasCost} is outside allowed range [${minGas}, ${maxGas}] for strategy ${strategy.id}`
+                `Tool ${tool} has gas cost ${toolGasCost} which is outside the allowed range [${minGas}, ${maxGas}] for strategy ${strategy.id}`
               );
             }
 
-            // Validate remaining budget can cover the cost
-            if (gasCost > gasBudget) {
+            // Also verify remaining budget can cover the cost
+            const gasBudget = parseInt(process.env.GAS_BUDGET || '1000', 10);
+            if (toolGasCost > gasBudget) {
               throw new Error(
-                `Gas exhausted for tool ${tool}. Cost: ${gasCost}, Budget: ${gasBudget}`
+                `Gas exhausted for tool ${tool}. Cost: ${toolGasCost}, Budget: ${gasBudget}`
               );
             }
           }
