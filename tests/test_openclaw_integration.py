@@ -2,7 +2,12 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
-from hlf.hlfrun import HLFInterpreter
+import pytest
+
+from hlf.hlfrun import HLFInterpreter, HlfRuntimeError
+
+# All tests that invoke _exec_openclaw_tool need OPENCLAW_ENDPOINT set
+OPENCLAW_ENV = {"OPENCLAW_ENDPOINT": "http://test-openclaw:8000/api/tool"}
 
 
 def test_openclaw_opcode_dispatch():
@@ -13,7 +18,7 @@ def test_openclaw_opcode_dispatch():
         "args": ["arg1", "arg2"]
     }
 
-    with patch("httpx.post") as mock_post:
+    with patch.dict(os.environ, OPENCLAW_ENV), patch("httpx.post") as mock_post:
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"status": "success", "tool": "openclaw_test_tool", "data": "real"}
@@ -30,6 +35,61 @@ def test_openclaw_opcode_dispatch():
         assert rt._trace[0]["tag"] == "OPENCLAW_TOOL"
         assert rt._trace[0]["tool"] == "openclaw_test_tool"
 
+
+def test_openclaw_dispatch_reachable():
+    """Verify that _execute_node routes OPENCLAW_TOOL tag to _exec_openclaw_tool."""
+    rt = HLFInterpreter(tier="hearth", max_gas=10)
+    node = {
+        "tag": "OPENCLAW_TOOL",
+        "tool": "test_reachable",
+        "args": ["x"],
+    }
+
+    with patch.dict(os.environ, OPENCLAW_ENV), patch("httpx.post") as mock_post:
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "success", "tool": "test_reachable"}
+        mock_post.return_value = mock_resp
+
+        result = rt._execute_node(node)
+
+        assert result["status"] == "success"
+        assert rt.scope["test_reachable_RESULT"] == result
+
+
+def test_openclaw_error_not_masked():
+    """Verify that connection errors return error status, not fake success."""
+    import httpx
+
+    rt = HLFInterpreter(tier="hearth")
+    node = {
+        "tool": "failing_tool",
+        "args": [],
+    }
+
+    with patch.dict(os.environ, OPENCLAW_ENV), \
+         patch("httpx.post", side_effect=httpx.ConnectError("Connection refused")):
+        result = rt._exec_openclaw_tool(node)
+
+        assert result["status"] == "error"
+        assert "Connection refused" in result["error"]
+        # Copilot fix: consistent error shape includes tool and args
+        assert result["tool"] == "failing_tool"
+        assert result["args"] == []
+
+
+def test_openclaw_endpoint_required():
+    """Verify OPENCLAW_ENDPOINT must be set, otherwise HlfRuntimeError is raised."""
+    rt = HLFInterpreter(tier="hearth")
+    node = {"tool": "any_tool", "args": []}
+
+    with patch.dict(os.environ, {}, clear=False):
+        # Remove OPENCLAW_ENDPOINT if present
+        os.environ.pop("OPENCLAW_ENDPOINT", None)
+        with pytest.raises(HlfRuntimeError, match="OPENCLAW_ENDPOINT"):
+            rt._exec_openclaw_tool(node)
+
+
 def test_config_openclaw_exists():
     """Verify the hardened config baseline exists and has correct deny list."""
     assert os.path.exists("config/openclaw/openclaw.json")
@@ -37,6 +97,7 @@ def test_config_openclaw_exists():
         config = json.load(f)
     assert "group:fs" in config["tools"]["deny"]
     assert config["sandbox"]["workspaceAccess"] == "ro"
+
 
 def test_plugin_scaffold_exists():
     """Verify the orchestration plugin scaffold exists."""
@@ -46,11 +107,20 @@ def test_plugin_scaffold_exists():
         pkg = json.load(f)
     assert "js-yaml" in pkg["dependencies"]
 
-def test_openclaw_gas_budget_and_ledger():
-    """Test ALIGN Ledger appending behavior directly (using temp file logic locally)."""
-    # Just verify that index.js exists and requires crypto for SHA256 hashes
+
+def test_openclaw_audit_log_and_crypto():
+    """Verify that the OpenClaw plugin uses cryptographic hashing and proper audit log target."""
     with open("plugins/openclaw-sovereign/index.js") as f:
         js = f.read()
     assert "crypto.createHash('sha256')" in js
-    assert "ALIGN_LEDGER.yaml" in js
+    assert "openclaw_audit.log" in js
     assert "gasBudget" in js
+    assert "toolGasCost" in js
+    # ALIGN_LEDGER.yaml must NOT be written to by the plugin
+    assert "ALIGN_LEDGER" not in js
+
+
+def test_openclaw_audit_log_directory_exists():
+    """Verify the observability directory exists for audit log output."""
+    assert os.path.isdir("observability")
+    assert os.path.exists("observability/.gitkeep")

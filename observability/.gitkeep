@@ -1,0 +1,2 @@
+# This directory holds append-only audit logs for OpenClaw tool calls.
+# The actual .log files are gitignored (they are runtime-generated).
