@@ -93,7 +93,7 @@ def test_openclaw_audit_log_and_crypto():
         js = f.read()
     assert "crypto.createHash('sha256')" in js
     assert "openclaw_audit.log" in js
-    assert "gasBudget" in js
+    assert "toolGasCost" in js
     # ALIGN_LEDGER.yaml must NOT be written to by the plugin
     assert "ALIGN_LEDGER" not in js
 
