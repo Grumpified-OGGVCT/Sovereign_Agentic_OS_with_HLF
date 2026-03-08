@@ -33,11 +33,17 @@ These new graphics are designed to give a fast but accurate orientation before y
 
 ### Existing repo media, now folded into the visual story
 
-This refresh also leans on the repository’s existing architecture media so the README stays consistent with the diagrams already maintained in `docs/`:
+This refresh also leans on the repository’s existing architecture media so the README stays consistent with the diagrams already maintained in `docs/`. The most useful legacy pieces were the broad stack maps, the router/governance flows, and the memory comparison graphic:
 
 | System architecture | Router flow | Jules governance |
 |---|---|---|
-| <img src="docs/system_architecture.png" alt="System architecture overview" width="100%"> | <img src="docs/registry_router_flow.png" alt="Registry router flow" width="100%"> | <img src="docs/jules_governance_pipeline.png" alt="Jules governance pipeline" width="100%"> |
+| [<img src="docs/system_architecture.png" alt="System architecture overview" width="100%">](docs/system_architecture.png) | [<img src="docs/registry_router_flow.png" alt="Registry router flow" width="100%">](docs/registry_router_flow.png) | [<img src="docs/jules_governance_pipeline.png" alt="Jules governance pipeline" width="100%">](docs/jules_governance_pipeline.png) |
+
+| Jules flow | Infinite RAG comparison |
+|---|---|
+| [<img src="docs/jules_flow.png" alt="Jules flow overview" width="100%">](docs/jules_flow.png) | [<img src="docs/infinite_rag_comparison.png" alt="Infinite RAG comparison" width="100%">](docs/infinite_rag_comparison.png) |
+
+<sub>Click any panel above to open the original in-repo file.</sub>
 
 ---
 

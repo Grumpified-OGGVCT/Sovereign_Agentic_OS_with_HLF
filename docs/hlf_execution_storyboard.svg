@@ -10,12 +10,12 @@
       <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000000" flood-opacity="0.3"/>
     </filter>
     <style>
-      .title { font: 700 32px Inter, Arial, sans-serif; fill: #F0F6FC; }
-      .subtitle { font: 500 15px Inter, Arial, sans-serif; fill: #8B949E; }
-      .cardTitle { font: 700 20px Inter, Arial, sans-serif; fill: #F0F6FC; }
+      .title { font: 700 32px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #F0F6FC; }
+      .subtitle { font: 500 15px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #8B949E; }
+      .cardTitle { font: 700 20px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #F0F6FC; }
       .step { font: 700 13px 'JetBrains Mono', monospace; fill: #58A6FF; letter-spacing: 0.8px; }
-      .body { font: 500 13px Inter, Arial, sans-serif; fill: #C9D1D9; }
-      .accent { font: 600 13px Inter, Arial, sans-serif; fill: #8B949E; }
+      .body { font: 500 13px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #C9D1D9; }
+      .accent { font: 600 13px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #8B949E; }
     </style>
   </defs>
 

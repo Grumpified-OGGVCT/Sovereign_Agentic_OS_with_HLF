@@ -146,7 +146,7 @@
         }
         .visual-brief-grid {
             display: grid;
-            grid-template-columns: 1.3fr 0.9fr;
+            grid-template-columns: 1.1fr 0.9fr;
             gap: 1rem;
             padding: 1rem;
         }
@@ -225,8 +225,11 @@
         }
         .media-wall-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 1rem;
+        }
+        .media-wall-card {
+            height: 100%;
         }
         .media-thumb {
             display: block;
@@ -245,6 +248,17 @@
             font-size: 0.76rem;
             color: var(--text-secondary);
             margin: 0;
+        }
+        .media-link {
+            display: inline-block;
+            margin-top: 0.5rem;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--accent-blue);
+            text-decoration: none;
+        }
+        .media-link:hover {
+            text-decoration: underline;
         }
 
         /* ── Main Container ── */
@@ -869,7 +883,7 @@
             .dashboard-grid { grid-template-columns: 1fr; }
             .tier-row { flex-direction: column; }
         }
-        @media (max-width: 900px) {
+        @media (max-width: 1024px) {
             .visual-brief-grid { grid-template-columns: 1fr; }
             .media-wall-grid { grid-template-columns: 1fr; }
         }
@@ -926,6 +940,7 @@
                         A single-screen briefing for the repo’s layered architecture: ACFS confinement at the base,
                         HLF logic and governance in the middle, and observability plus memory on the upper tiers.
                     </p>
+                    <a class="media-link" href="sovereign_visual_brief.svg">Open source SVG →</a>
                 </div>
             </article>
             <article class="visual-card">
@@ -989,6 +1004,7 @@
                         A cinematic strip for the live demo: authored intent, compiler pass, governance envelope,
                         then audit + memory persistence. It turns the stack’s control flow into something a reader can absorb in seconds.
                     </p>
+                    <a class="media-link" href="hlf_execution_storyboard.svg">Open source SVG →</a>
                 </div>
             </article>
         </div>
@@ -997,30 +1013,49 @@
                 <div class="visual-card-body">
                     <h3>Existing repo media — reused, not ignored</h3>
                     <p>
-                        I also surfaced three existing graphics already maintained in this repository so the demo page
-                        now reflects the project’s established architecture artwork instead of replacing it outright.
+                        I reviewed the older media set and brought back the pieces that still do the most work for readers:
+                        architecture, routing, governance, Jules orchestration, and the Infinite RAG comparison.
                     </p>
                 </div>
                 <div class="media-wall-grid">
-                    <div class="visual-card" style="margin: 0 0 1rem 1rem;">
+                    <div class="visual-card media-wall-card">
                         <img class="media-thumb" src="system_architecture.png" alt="Existing system architecture diagram from the repository">
                         <div class="media-meta">
                             <h4>System architecture</h4>
                             <p>The broader stack map already used in the docs, now surfaced directly in the demo flow.</p>
+                            <a class="media-link" href="system_architecture.png">Open original file →</a>
                         </div>
                     </div>
-                    <div class="visual-card" style="margin-bottom: 1rem;">
+                    <div class="visual-card media-wall-card">
                         <img class="media-thumb" src="registry_router_flow.png" alt="Existing registry router flow diagram from the repository">
                         <div class="media-meta">
                             <h4>Registry router flow</h4>
                             <p>The current routing blueprint that complements the new visual briefing cards.</p>
+                            <a class="media-link" href="registry_router_flow.png">Open original file →</a>
                         </div>
                     </div>
-                    <div class="visual-card" style="margin: 0 1rem 1rem 0;">
+                    <div class="visual-card media-wall-card">
                         <img class="media-thumb" src="jules_governance_pipeline.png" alt="Existing Jules governance pipeline diagram from the repository">
                         <div class="media-meta">
                             <h4>Jules governance pipeline</h4>
                             <p>The repo’s existing governance visual, now displayed alongside the new field-guide storyboard.</p>
+                            <a class="media-link" href="jules_governance_pipeline.png">Open original file →</a>
+                        </div>
+                    </div>
+                    <div class="visual-card media-wall-card">
+                        <img class="media-thumb" src="jules_flow.png" alt="Existing Jules flow diagram from the repository">
+                        <div class="media-meta">
+                            <h4>Jules flow</h4>
+                            <p>A still-relevant execution view that helps connect the governance pipeline to day-to-day agent motion.</p>
+                            <a class="media-link" href="jules_flow.png">Open original file →</a>
+                        </div>
+                    </div>
+                    <div class="visual-card media-wall-card">
+                        <img class="media-thumb" src="infinite_rag_comparison.png" alt="Existing Infinite RAG comparison graphic from the repository">
+                        <div class="media-meta">
+                            <h4>Infinite RAG comparison</h4>
+                            <p>An existing memory graphic that remains useful because the demo already teaches HLF and memory side by side.</p>
+                            <a class="media-link" href="infinite_rag_comparison.png">Open original file →</a>
                         </div>
                     </div>
                 </div>

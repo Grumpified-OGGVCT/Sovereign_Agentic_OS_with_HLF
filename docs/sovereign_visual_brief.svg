@@ -22,14 +22,14 @@
       <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.35"/>
     </filter>
     <style>
-      .title { font: 700 36px Inter, Arial, sans-serif; fill: #F0F6FC; }
-      .subtitle { font: 500 16px Inter, Arial, sans-serif; fill: #8B949E; }
-      .section { font: 700 18px Inter, Arial, sans-serif; fill: #F0F6FC; letter-spacing: 0.4px; }
-      .caption { font: 500 13px Inter, Arial, sans-serif; fill: #8B949E; }
-      .label { font: 600 14px Inter, Arial, sans-serif; fill: #F0F6FC; }
-      .body { font: 500 12px Inter, Arial, sans-serif; fill: #C9D1D9; }
-      .metric { font: 700 22px Inter, Arial, sans-serif; fill: #F0F6FC; }
-      .metricLabel { font: 600 11px Inter, Arial, sans-serif; fill: #8B949E; letter-spacing: 0.6px; }
+      .title { font: 700 36px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #F0F6FC; }
+      .subtitle { font: 500 16px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #8B949E; }
+      .section { font: 700 18px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #F0F6FC; letter-spacing: 0.4px; }
+      .caption { font: 500 13px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #8B949E; }
+      .label { font: 600 14px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #F0F6FC; }
+      .body { font: 500 12px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #C9D1D9; }
+      .metric { font: 700 22px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #F0F6FC; }
+      .metricLabel { font: 600 11px Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; fill: #8B949E; letter-spacing: 0.6px; }
       .mono { font: 600 12px 'JetBrains Mono', monospace; fill: #58A6FF; }
     </style>
   </defs>
