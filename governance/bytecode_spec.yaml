@@ -234,6 +234,31 @@ opcodes:
     description: "Recall memory entity (Infinite RAG read)"
     gas: 3
 
+  # Living Spec lifecycle (Instinct integration)
+  - code: 0x65
+    name: SPEC_DEFINE
+    operand: const_index
+    description: "Define a living spec section (title + constraints → spec registry)"
+    gas: 2
+
+  - code: 0x66
+    name: SPEC_GATE
+    operand: const_index
+    description: "Assert a spec constraint — halt with error if violated"
+    gas: 2
+
+  - code: 0x67
+    name: SPEC_UPDATE
+    operand: const_index
+    description: "Record a spec mutation (agent completed work or found blocker) + ALIGN entry"
+    gas: 2
+
+  - code: 0x68
+    name: SPEC_SEAL
+    operand: none
+    description: "Lock current spec — no further updates allowed, emit SHA-256 checksum"
+    gas: 3
+
   # System
   - code: 0xFE
     name: NOP
@@ -276,3 +301,15 @@ node_types:
     arity: 1
   - tag: DATA
     arity: 1
+  - tag: SPEC_DEFINE
+    arity: "2+"
+    immutable: false
+  - tag: SPEC_GATE
+    arity: "1+"
+    immutable: true
+  - tag: SPEC_UPDATE
+    arity: "2+"
+    immutable: false
+  - tag: SPEC_SEAL
+    arity: 0
+    immutable: true
