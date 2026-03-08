@@ -146,8 +146,6 @@ class PlanExecutor:
         self._task_registry: dict[str, dict[str, Any]] = {}
 
     def plan_to_dag(self, tasks: list[dict[str, Any]]) -> SpindleDAG:
-        # Clear registry between plans (Copilot #1)
-        self._task_registry.clear()
         """Convert a list of task specs into a SpindleDAG.
 
         Each task dict must have a 'type' field matching a PlanTaskType.
@@ -163,6 +161,8 @@ class PlanExecutor:
         Raises:
             ValueError: If tasks list is empty.
         """
+        # Clear registry between plans (Copilot #1)
+        self._task_registry.clear()
         if not tasks:
             raise ValueError("Cannot create DAG from empty task list")
 
@@ -335,9 +335,6 @@ class PlanExecutor:
 
             # Fail-fast: stop on first failure (Copilot #10: propagate error)
             if not step.success:
-                failing_error = None
-                if step.result and hasattr(step.result, 'error'):
-                    failing_error = step.result.error
                 break
 
         self._log_align("PLAN_EXECUTION", {

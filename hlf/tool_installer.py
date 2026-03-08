@@ -35,7 +35,6 @@ CLI Usage::
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import os
@@ -331,6 +330,7 @@ class ToolVerifier:
         ]
 
         failures: list[str] = []
+        warnings: list[str] = []
         passed_count = 0
 
         for name, check_fn in checks:
@@ -338,6 +338,8 @@ class ToolVerifier:
                 ok, msg = check_fn(manifest, tool_path)
                 if ok:
                     passed_count += 1
+                    if msg:
+                        warnings.append(f"{name}: {msg}")
                     logger.info(f"  ✅ {name}")
                 else:
                     failures.append(f"{name}: {msg}")
@@ -347,6 +349,9 @@ class ToolVerifier:
                 logger.error(f"  💥 {name}: {e}")
 
         score = passed_count / len(checks) if checks else 0.0
+        if warnings:
+            for w in warnings:
+                logger.info(f"  ⚠️ {w}")
         return len(failures) == 0, failures, round(score, 3)
 
     def _check_manifest_schema(self, m: ToolManifest, _: Path) -> tuple[bool, str]:
@@ -399,10 +404,17 @@ class ToolVerifier:
         return True, ""
 
     def _check_path_traversal(self, _: ToolManifest, p: Path) -> tuple[bool, str]:
-        """Scan files for path traversal attempts."""
+        """Scan files for path traversal / symlink escape attempts."""
+        root = p.resolve()
         for f in p.rglob("*"):
-            if f.is_file() and ".." in str(f.relative_to(p)):
-                return False, f"Path traversal detected: {f}"
+            try:
+                target = f.resolve()
+            except OSError:
+                return False, f"Unresolvable path encountered: {f}"
+            try:
+                target.relative_to(root)
+            except ValueError:
+                return False, f"Path traversal or escape detected: {f} -> {target}"
         return True, ""
 
     def _check_adapter(self, m: ToolManifest, _: Path) -> tuple[bool, str]:
@@ -868,7 +880,7 @@ class ToolInstaller:
     def _log_align(action: str, details: dict[str, Any]) -> None:
         """Log to ALIGN ledger (Azure Hat: audit trail)."""
         try:
-            from agents.core.als_logger import ALSLogger
+            from agents.core.logger import ALSLogger
             als = ALSLogger()
             als.log(action, details)
         except ImportError:

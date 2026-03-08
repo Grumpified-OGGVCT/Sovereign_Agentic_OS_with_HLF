@@ -498,7 +498,7 @@ class TestRuntimeReturn:
             ]
         }
         runtime = HLFRuntime(gas_limit=50)
-        result = runtime.execute(ast)
+        runtime.execute(ast)
         assert runtime.env.get("_RETURN_VALUE") == 42
 
     def test_return_terminates_with_code_zero(self) -> None:

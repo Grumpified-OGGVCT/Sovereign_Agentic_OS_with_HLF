@@ -1138,8 +1138,8 @@ class HLFInterpreter:
 
         while iteration < max_iterations:
             # Evaluate condition from scope
-            if condition_key and condition_key in self._scope:
-                cond_val = _eval_expr(self._scope[condition_key], self._scope)
+            if condition_key and condition_key in self.scope:
+                cond_val = _eval_expr(self.scope[condition_key], self.scope)
                 if not cond_val:
                     break
             elif condition_key:
@@ -1176,7 +1176,7 @@ class HLFInterpreter:
         if not args:
             raise HlfRuntimeError("[ASSERT] missing condition argument")
 
-        condition = _eval_expr(args[0], self._scope)
+        condition = _eval_expr(args[0], self.scope)
         error_msg = args[1] if len(args) > 1 else "Assertion failed"
 
         if not condition:
@@ -1200,11 +1200,11 @@ class HLFInterpreter:
         to terminate execution cleanly.
         """
         args = self._flatten_args(node.get("args", []))
-        value = _eval_expr(args[0], self._scope) if args else None
-
-        self._scope["_RETURN_VALUE"] = value
+        value = _eval_expr(args[0], self.scope) if args else None
+        # Store return value
+        self.scope["_RETURN_VALUE"] = value
         self._result_code = 0
-        self._result_msg = f"Return: {value}"
+        self._result_message = f"Return: {value}"
 
         self._trace.append({
             "tag": "RETURN",

@@ -11,11 +11,8 @@ Covers:
 from __future__ import annotations
 
 import json
-import textwrap
 import time
 from pathlib import Path
-
-import pytest
 
 from hlf.tool_dispatch import ToolDispatchBridge, ToolDispatchResult
 from hlf.tool_lockfile import LockEntry, ToolLockfile

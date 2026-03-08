@@ -27,7 +27,7 @@ import json
 import logging
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -238,8 +238,10 @@ class ToolDispatchBridge:
 
         # Add tool directory to sys.path temporarily for imports
         tool_dir = str(install_path)
+        path_added = False
         if tool_dir not in sys.path:
             sys.path.insert(0, tool_dir)
+            path_added = True
 
         try:
             spec.loader.exec_module(module)
@@ -247,6 +249,10 @@ class ToolDispatchBridge:
             # Clean up on failure
             sys.modules.pop(module_name, None)
             raise ImportError(f"Failed to load tool '{tool_name}': {e}")
+        finally:
+            # Remove tool dir from sys.path to avoid global pollution
+            if path_added and tool_dir in sys.path:
+                sys.path.remove(tool_dir)
 
         self._loaded_modules[tool_name] = module
         logger.info(f"Lazy-loaded tool module: {tool_name} from {module_file}")

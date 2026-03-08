@@ -307,7 +307,7 @@ class ToolMonitor:
     @staticmethod
     def _log_align(action: str, details: dict[str, Any]) -> None:
         try:
-            from agents.core.als_logger import ALSLogger
+            from agents.core.logger import ALSLogger
             ALSLogger().log(action, details)
         except ImportError:
             pass

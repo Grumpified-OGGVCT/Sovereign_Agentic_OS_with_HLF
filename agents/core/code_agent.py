@@ -182,7 +182,7 @@ class CodeAgent:
             )
 
         # Check if file already exists (Copilot: use existence check, not read)
-        worktree = getattr(sandbox, 'worktree', None)
+        worktree = getattr(sandbox, 'worktree_path', None)
         if worktree:
             full_path = os.path.join(str(worktree), path)
             if os.path.exists(full_path):
