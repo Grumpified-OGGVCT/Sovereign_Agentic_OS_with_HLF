@@ -27,6 +27,7 @@ import os
 import sqlite3
 import time
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -108,6 +109,100 @@ class CrewReport:
     consolidation: ConsolidationReport | None = None
     total_duration: float = 0.0
     timestamp: float = field(default_factory=time.time)
+
+
+# ---------------------------------------------------------------------------
+# Persona system prompts
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# SDD Lifecycle — Spec-Driven Development (Instinct integration)
+# ---------------------------------------------------------------------------
+
+
+class SDDPhase(Enum):
+    """Spec-Driven Development lifecycle phases — strictly ordered."""
+    SPECIFY = 1
+    PLAN = 2
+    EXECUTE = 3
+    VERIFY = 4
+    MERGE = 5
+
+
+# Ordered phase list for validation
+_SDD_PHASE_ORDER = list(SDDPhase)
+
+
+@dataclass
+class SDDSession:
+    """Tracks the state of a Spec-Driven Development mission.
+
+    Attributes:
+        phase: Current lifecycle phase
+        topic: Mission objective / topic
+        spec: The living spec (compiled HLF AST or dict) created in SPECIFY
+        task_dag: Decomposed tasks from PLAN phase
+        verification_report: CoVE's adversarial check result from VERIFY
+        phase_history: Ordered list of (phase, timestamp, notes) transitions
+        responses: Accumulated persona responses across all phases
+        sealed: Whether the mission has been completed (MERGE phase reached)
+    """
+    phase: SDDPhase = SDDPhase.SPECIFY
+    topic: str = ""
+    spec: dict | None = None
+    task_dag: list[dict] = field(default_factory=list)
+    verification_report: dict | None = None
+    phase_history: list[dict] = field(default_factory=list)
+    responses: list[PersonaResponse] = field(default_factory=list)
+    sealed: bool = False
+
+    def advance_to(self, target: SDDPhase, *, override: bool = False, notes: str = "") -> None:
+        """Advance to the next phase with validation.
+
+        Raises:
+            ValueError: If the transition is invalid (skip or backward)
+                       unless override=True.
+        """
+        if self.sealed:
+            raise ValueError("SDD session is sealed — mission already merged")
+        current_idx = _SDD_PHASE_ORDER.index(self.phase)
+        target_idx = _SDD_PHASE_ORDER.index(target)
+
+        if target_idx < current_idx and not override:
+            raise ValueError(
+                f"SDD backward transition {self.phase.name} → {target.name} "
+                f"not allowed without override=True"
+            )
+        if target_idx > current_idx + 1 and not override:
+            raise ValueError(
+                f"SDD phase skip {self.phase.name} → {target.name} "
+                f"not allowed — must progress sequentially"
+            )
+
+        self.phase_history.append({
+            "from": self.phase.name,
+            "to": target.name,
+            "timestamp": time.time(),
+            "notes": notes,
+            "override": override,
+        })
+        self.phase = target
+
+        if target == SDDPhase.MERGE:
+            self.sealed = True
+
+    def to_dict(self) -> dict:
+        """Serialize the session for persistence or transport."""
+        return {
+            "phase": self.phase.name,
+            "topic": self.topic,
+            "spec": self.spec,
+            "task_dag": self.task_dag,
+            "verification_report": self.verification_report,
+            "phase_history": self.phase_history,
+            "sealed": self.sealed,
+            "response_count": len(self.responses),
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -476,6 +571,134 @@ def run_crew_deep(
         conn=conn,
         round_robin=True,
     )
+
+
+def run_sdd_mission(
+    topic: str,
+    conn: sqlite3.Connection | None = None,
+) -> SDDSession:
+    """Run a full Spec-Driven Development mission.
+
+    Enforces the lifecycle: SPECIFY → PLAN → EXECUTE → VERIFY → MERGE.
+    Each phase uses a specific subset of personas. CoVE gates the
+    VERIFY → MERGE transition — if CoVE rejects, the mission halts.
+
+    Args:
+        topic: The mission objective (what to build/change)
+        conn: Optional DB connection for persistence
+
+    Returns:
+        SDDSession with the full audit trail
+    """
+    session = SDDSession(topic=topic)
+    _sdd_log_transition(session, "INIT", "SPECIFY", "Mission started")
+
+    # ── Phase 1: SPECIFY ─────────────────────────────────────────────
+    # Green Hat generates a spec from the user's intent
+    specify_response = run_persona("strategist", f"[SDD-SPECIFY] Create a living specification for: {topic}")
+    session.responses.append(specify_response)
+    session.spec = {
+        "topic": topic,
+        "raw_spec": specify_response.content,
+        "phase": "SPECIFY",
+        "timestamp": time.time(),
+    }
+    session.advance_to(SDDPhase.PLAN, notes="Spec generated by strategist")
+    _sdd_log_transition(session, "SPECIFY", "PLAN", "Spec generated")
+
+    # ── Phase 2: PLAN ────────────────────────────────────────────────
+    # Blue/Indigo decompose spec into task DAG
+    plan_prompt = (
+        f"[SDD-PLAN] Decompose this specification into an ordered task DAG. "
+        f"List each task with dependencies.\n\nSpec:\n{specify_response.content}"
+    )
+    plan_response = run_persona(
+        "strategist", plan_prompt, prior_responses=[specify_response]
+    )
+    session.responses.append(plan_response)
+    session.task_dag = [{"raw_plan": plan_response.content, "timestamp": time.time()}]
+    session.advance_to(SDDPhase.EXECUTE, notes="Task DAG created")
+    _sdd_log_transition(session, "PLAN", "EXECUTE", "Task DAG created")
+
+    # ── Phase 3: EXECUTE ─────────────────────────────────────────────
+    # Specialist personas execute in DAG order
+    exec_personas = ["sentinel", "catalyst", "scribe"]
+    exec_prompt = (
+        f"[SDD-EXECUTE] Execute your specialist analysis for this mission.\n\n"
+        f"Topic: {topic}\n\n"
+        f"Specification:\n{specify_response.content}\n\n"
+        f"Task Plan:\n{plan_response.content}"
+    )
+    for persona_id in exec_personas:
+        resp = run_persona(persona_id, exec_prompt, prior_responses=session.responses)
+        session.responses.append(resp)
+
+    session.advance_to(SDDPhase.VERIFY, notes="Execution complete")
+    _sdd_log_transition(session, "EXECUTE", "VERIFY", "Specialist execution complete")
+
+    # ── Phase 4: VERIFY ──────────────────────────────────────────────
+    # CoVE adversarially validates against original spec
+    verify_prompt = (
+        f"[SDD-VERIFY] Adversarially verify this mission output against the spec.\n\n"
+        f"Original Spec:\n{specify_response.content}\n\n"
+        f"Execution Results:\n"
+    )
+    for resp in session.responses:
+        verify_prompt += f"\n--- {resp.persona} ({resp.role}) ---\n{resp.content[:500]}\n"
+
+    cove_response = run_persona("cove", verify_prompt, prior_responses=session.responses)
+    session.responses.append(cove_response)
+    session.verification_report = {
+        "verifier": "cove",
+        "content": cove_response.content,
+        "timestamp": time.time(),
+    }
+
+    # Check for CoVE rejection — look for REJECT/FAIL indicators
+    cove_lower = cove_response.content.lower()
+    cove_rejected = any(kw in cove_lower for kw in ["reject", "fail", "blocked", "violation"])
+
+    if cove_rejected:
+        session.verification_report["verdict"] = "REJECTED"
+        _sdd_log_transition(session, "VERIFY", "BLOCKED", "CoVE rejected — mission halted")
+        logger.warning(f"SDD mission '{topic}' BLOCKED by CoVE verification")
+        return session
+
+    session.verification_report["verdict"] = "APPROVED"
+
+    # ── Phase 5: MERGE ───────────────────────────────────────────────
+    session.advance_to(SDDPhase.MERGE, notes="CoVE approved — mission complete")
+    _sdd_log_transition(session, "VERIFY", "MERGE", "Mission approved and sealed")
+
+    # Persist if connection available
+    if conn:
+        crew_report = CrewReport(
+            topic=f"[SDD] {topic}",
+            personas_used=[r.persona for r in session.responses],
+            responses=session.responses,
+        )
+        _persist_crew_report(conn, crew_report)
+
+    logger.info(f"SDD mission '{topic}' completed — {len(session.responses)} responses, "
+                f"{len(session.phase_history)} phase transitions")
+    return session
+
+
+def _sdd_log_transition(
+    session: SDDSession, from_phase: str, to_phase: str, notes: str,
+) -> None:
+    """Log an SDD phase transition to the ALIGN ledger."""
+    try:
+        from agents.core.als_logger import ALSLogger
+        als = ALSLogger()
+        als.log("SDD_PHASE_TRANSITION", {
+            "topic": session.topic,
+            "from": from_phase,
+            "to": to_phase,
+            "notes": notes,
+        })
+    except ImportError:
+        pass  # Standalone mode — no ALIGN ledger available
 
 
 # ---------------------------------------------------------------------------
