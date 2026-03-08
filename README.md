@@ -39,9 +39,7 @@ This refresh also leans on the repository’s existing architecture media so the
 |---|---|---|
 | [<img src="docs/system_architecture.png" alt="System architecture overview" width="100%">](docs/system_architecture.png) | [<img src="docs/registry_router_flow.png" alt="Registry router flow" width="100%">](docs/registry_router_flow.png) | [<img src="docs/jules_governance_pipeline.png" alt="Jules governance pipeline" width="100%">](docs/jules_governance_pipeline.png) |
 
-| Jules flow | Infinite RAG comparison |
-|---|---|
-| [<img src="docs/jules_flow.png" alt="Jules flow overview" width="100%">](docs/jules_flow.png) | [<img src="docs/infinite_rag_comparison.png" alt="Infinite RAG comparison" width="100%">](docs/infinite_rag_comparison.png) |
+| Jules flow | Jules architecture | Infinite RAG comparison |\r\n|---|---|---|\r\n| [<img src="docs/jules_flow.png" alt="Jules flow overview" width="100%">](docs/jules_flow.png) | [<img src="docs/jules_architecture.png" alt="Jules orchestrator architecture" width="100%">](docs/jules_architecture.png) | [<img src="docs/infinite_rag_comparison.png" alt="Infinite RAG comparison" width="100%">](docs/infinite_rag_comparison.png) |
 
 <sub>Click any panel above to open the original in-repo file.</sub>
 
