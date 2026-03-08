@@ -92,19 +92,23 @@ Read this file FIRST. It contains everything you need to continue the HLF delta 
 - InsAIts V2 human_readable on every AST node
 - 6-gate security pipeline (all gates operational)
 - Runtime interpreter with gas metering (639 lines)
-- Host function dispatcher (305 lines, 7 live functions)
+- Host function dispatcher (305 lines, 12 live functions incl. z.AI τ() calls)
 - Toolchain: hlfc, hlffmt, hlflint, benchmarks, metrics, pre-commit
-- All governance configs: hls.yaml, dictionary.json, ALIGN_LEDGER, host_functions.json
-- 11-Hat Aegis-Nexus Engine (11 named agents)
+- All governance configs: hls.yaml, dictionary.json, ALIGN_LEDGER, host_functions.json (v1.1.0)
+- 14-Hat Aegis-Nexus Engine (14 named agents + Weaver meta-agent)
 - Jules Integration (10-step daily pipeline)
 - Dual Ollama Load-Sharing
 - Infinite RAG Memory Matrix (SQLite WAL + Redis)
+- **z.AI Provider** — GLM-5 reasoning, GLM-4.6V vision, CogView-4 image gen, CogVideoX-3 video gen, GLM-OCR
+- Agent Orchestration Layer (PlanExecutor, CodeAgent, BuildAgent)
+- Tool Ecosystem Pipeline (hlf install, 12-point CoVE gate, lockfiles)
 
 ### 🟡 CONFIGURED / STUB
-- `bytecode_spec.yaml` — spec exists, no VM
+- `bytecode_spec.yaml` — spec exists, bytecode VM implemented (stack-machine)
 - `kya_init.sh` — self-signed certs, not real SPIFFE/SPIRE
 - `dapr_grpc.proto` — proto defined, no gRPC runtime
 - OpenClaw Strategy B — `openclaw_strategies.yaml` exists
+- z.AI video generation — async task model, polling not yet wired
 
 ### ❌ GENUINELY NOT BUILT
 - Phase 5.1: OCI module distribution, module checksums
