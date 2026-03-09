@@ -59,9 +59,9 @@ local key = KEYS[1]
 local cost = tonumber(ARGV[1])
 local cap  = tonumber(ARGV[2])
 local ttl  = 90000
--- Guard: reject requests that exceed tier capacity to prevent negative balance
--- (e.g., misconfiguration or a malformed intent with abnormally large AST)
-if cost > cap then
+-- Guard: reject zero/negative costs (DECRBY with negative cost = INCRBY = gas injection)
+-- and requests that exceed tier capacity to prevent negative balance
+if cost < 1 or cost > cap then
     return -1
 end
 local curr = redis.call('GET', key)
@@ -206,17 +206,29 @@ def verify_gas_limit(ast: dict, max_gas: int = 10) -> tuple[bool, int]:
     return node_count <= max_gas, node_count
 
 
+# VRAM check cache (avoids blocking HTTP call on every route_request)
+_vram_cache: dict[str, Any] = {"result": True, "expires": 0.0}
+_VRAM_CACHE_TTL = 30.0  # seconds
+
+
 def check_vram_threshold(model: str, client: httpx.Client | None = None) -> bool:
     """
     Returns True if the model can be loaded (VRAM < 80% or model is cloud).
     Cloud models skip VRAM check entirely.
+    Results are cached for 30s to avoid blocking the hot path.
     """
     if _is_cloud(model):
         return True
+
+    # Check cache first
+    if time.time() < _vram_cache["expires"]:
+        return _vram_cache["result"]
+
     # Try primary then secondary Ollama for VRAM check
     hosts = [settings.ollama_host]
     if settings.ollama_host_secondary:
         hosts.append(settings.ollama_host_secondary)
+    result = True  # fail-open default
     for host in hosts:
         try:
             # Enforce strict 12s timeout for Ollama checks
@@ -227,16 +239,23 @@ def check_vram_threshold(model: str, client: httpx.Client | None = None) -> bool
             data = resp.json()
             models = data.get("models", [])
             if not models:
-                return True
+                result = True
+                break
             total_vram = sum(m.get("size_vram", 0) for m in models)
             multiplier = int(os.environ.get("VRAM_CAPACITY_MULTIPLIER", "5"))
             max_vram = max(m.get("size_vram", 0) for m in models) * multiplier
             if max_vram == 0:
-                return True
-            return (total_vram / max_vram) < 0.80
+                result = True
+                break
+            result = (total_vram / max_vram) < 0.80
+            break
         except Exception:
             continue
-    return True  # fail-open for VRAM check
+
+    # Update cache
+    _vram_cache["result"] = result
+    _vram_cache["expires"] = time.time() + _VRAM_CACHE_TTL
+    return result
 
 
 def mediate_web_search(payload: dict[str, Any]) -> dict[str, Any]:

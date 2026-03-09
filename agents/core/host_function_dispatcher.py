@@ -35,6 +35,12 @@ _logger = ALSLogger(agent_role="host-fn-dispatcher", goal_id="execution")
 _REGISTRY_PATH = Path(__file__).parent.parent.parent / "governance" / "host_functions.json"
 _registry: dict[str, dict] | None = None
 
+# Per-backend circuit breaker state
+_backend_failures: dict[str, int] = {}
+_backend_reset_times: dict[str, float] = {}
+_BACKEND_CB_THRESHOLD = 3
+_BACKEND_CB_TIMEOUT = 60.0  # seconds
+
 
 def _load_registry() -> dict[str, dict]:
     global _registry
@@ -88,6 +94,34 @@ def dispatch(name: str, args: list, tier: str = "hearth") -> Any:
 
 
 def _dispatch_backend(backend: str, name: str, args: list, meta: dict) -> Any:
+    # Circuit breaker: skip backends with repeated failures
+    if _backend_failures.get(backend, 0) >= _BACKEND_CB_THRESHOLD:
+        reset_time = _backend_reset_times.get(backend, 0)
+        if time.time() < reset_time:
+            raise RuntimeError(
+                f"Backend '{backend}' circuit breaker open — "
+                f"resets in {int(reset_time - time.time())}s"
+            )
+        _backend_failures[backend] = 0  # half-open
+
+    try:
+        result = _dispatch_backend_inner(backend, name, args, meta)
+        _backend_failures[backend] = 0  # reset on success
+        return result
+    except Exception:
+        _backend_failures[backend] = _backend_failures.get(backend, 0) + 1
+        if _backend_failures[backend] >= _BACKEND_CB_THRESHOLD:
+            _backend_reset_times[backend] = time.time() + _BACKEND_CB_TIMEOUT
+            _logger.log(
+                "BACKEND_CIRCUIT_BREAKER_OPEN",
+                {"backend": backend, "name": name, "threshold": _BACKEND_CB_THRESHOLD},
+                anomaly_score=0.7,
+            )
+        raise
+
+
+def _dispatch_backend_inner(backend: str, name: str, args: list, meta: dict) -> Any:
+    """Route to the concrete backend implementation."""
     if backend == "builtin":
         return _exec_builtin(name, args)
     if backend == "dapr_file_read":
@@ -370,6 +404,8 @@ def _native_bridge(name: str, args: list, meta: dict) -> Any:
         ))
 
     if name == "SHELL_EXEC":
+        # Security: delegated to bridge's 6-layer stack (allowlist → rate limit
+        # → ACFS confinement → output cap → timeout → ALS audit), see shell.py
         command = str(args[0]) if args else ""
         cmd_args = list(args[1]) if len(args) > 1 and args[1] else []
         result = bridge.shell_exec(command, cmd_args, timeout_seconds=30.0)
