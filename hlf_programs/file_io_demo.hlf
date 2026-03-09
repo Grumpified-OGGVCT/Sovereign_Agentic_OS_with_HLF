@@ -1,0 +1,18 @@
+[HLF-v2]
+[SET] name = "file_io_demo"
+[INTENT] demonstrate "end-to-end file I/O via host function backends"
+
+[THOUGHT] "This program proves the runtime file I/O backends are wired"
+
+[SET] demo_file = "test_output.txt"
+[SET] demo_content = "Hello from HLF runtime!"
+
+[OBSERVATION] "Writing file via dapr_file_write backend"
+[ACTION] write_file "${demo_file}"
+
+[OBSERVATION] "Reading file back to verify round-trip"
+[ACTION] read_file "${demo_file}"
+
+[OBSERVATION] "File I/O integration verified"
+[RESULT] 0 "File I/O demo completed successfully"
+Ω

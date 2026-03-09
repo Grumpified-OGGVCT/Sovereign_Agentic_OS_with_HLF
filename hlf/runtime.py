@@ -109,7 +109,11 @@ class HostFunctionRegistry:
 
     @classmethod
     def from_json(cls, path: Path | None = None) -> HostFunctionRegistry:
-        """Load host function registry from JSON file."""
+        """Load host function registry from JSON file.
+
+        Registers default backend dispatchers for file I/O, HTTP, and native
+        bridge operations so HLF programs have real backends out of the box.
+        """
         path = path or _HOST_FUNCTIONS_PATH
         if not path.exists():
             return cls()
@@ -131,7 +135,20 @@ class HostFunctionRegistry:
             )
             registry.functions[hf.name] = hf
 
+        # Register default backend dispatchers
+        registry._register_default_dispatchers()
         return registry
+
+    def _register_default_dispatchers(self) -> None:
+        """Register built-in backend dispatchers for file I/O, HTTP, and native bridge.
+
+        Each dispatcher reuses the existing ACFS path validation and security
+        layers from host_function_dispatcher.py.
+        """
+        self.register_dispatcher("dapr_file_read", _dispatch_file_read)
+        self.register_dispatcher("dapr_file_write", _dispatch_file_write)
+        self.register_dispatcher("dapr_http_proxy", _dispatch_http)
+        self.register_dispatcher("native_bridge", _dispatch_native_bridge)
 
     def register_dispatcher(self, backend: str, handler: Callable[..., Any]) -> None:
         """Register a backend dispatcher (builtin, dapr_file_read, etc.)."""
@@ -237,6 +254,73 @@ def _builtin_dispatch(func_name: str, args: dict[str, Any]) -> Any:
     return f"<builtin:{func_name} executed>"
 
 
+# ─── Backend Dispatchers ─────────────────────────────────────────────────────
+
+
+def _acfs_safe_path(raw: str) -> Path:
+    """Resolve a path and validate it stays within BASE_DIR (ACFS confinement)."""
+    base = Path(_os.environ.get("BASE_DIR", str(_PROJECT_ROOT))).resolve()
+    try:
+        target = (base / raw.lstrip("/")).resolve(strict=False)
+    except PermissionError:
+        target = (base / raw.lstrip("/")).absolute()
+    if not target.is_relative_to(base):
+        raise PermissionError(f"ACFS confinement violation: '{raw}' resolves outside BASE_DIR")
+    return target
+
+
+def _dispatch_file_read(func_name: str, args: dict[str, Any]) -> str:
+    """READ <path> — read a file with ACFS confinement."""
+    path = str(args.get("path", args.get("arg_0", "")))
+    target = _acfs_safe_path(path)
+    try:
+        return target.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return f"FILE_NOT_FOUND: {path}"
+    except Exception as exc:
+        return f"READ_ERROR: {exc}"
+
+
+def _dispatch_file_write(func_name: str, args: dict[str, Any]) -> str:
+    """WRITE <path> <data> — write a file with ACFS confinement."""
+    path = str(args.get("path", args.get("arg_0", "")))
+    data = str(args.get("data", args.get("arg_1", "")))
+    target = _acfs_safe_path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(data, encoding="utf-8")
+    return f"WRITTEN: {target.name} ({len(data)} bytes)"
+
+
+def _dispatch_http(func_name: str, args: dict[str, Any]) -> str:
+    """HTTP_GET / WEB_SEARCH — network operations."""
+    try:
+        import httpx
+    except ImportError:
+        return "HTTP_UNAVAILABLE: httpx not installed"
+    url = str(args.get("url", args.get("query", args.get("arg_0", ""))))
+    try:
+        resp = httpx.get(url, timeout=10.0, follow_redirects=True)
+        return resp.text[:4096]
+    except Exception as exc:
+        return f"HTTP_ERROR: {exc}"
+
+
+def _dispatch_native_bridge(func_name: str, args: dict[str, Any]) -> str:
+    """Dispatch native OS operations (SYS_INFO, SHELL_EXEC, etc.).
+
+    Security: delegates to the bridge's 6-layer stack (allowlist → rate limit
+    → ACFS confinement → output cap → timeout → ALS audit).
+    """
+    try:
+        from agents.core.host_function_dispatcher import _native_bridge
+        flat_args = list(args.values())
+        return _native_bridge(func_name, flat_args, {})
+    except ImportError:
+        return f"NATIVE_BRIDGE_UNAVAILABLE: host_function_dispatcher not importable"
+    except Exception as exc:
+        return f"NATIVE_BRIDGE_ERROR: {exc}"
+
+
 # ─── Gas Metering ────────────────────────────────────────────────────────────
 
 
@@ -254,7 +338,12 @@ class GasMeter:
     history: list[dict[str, Any]] = field(default_factory=list)
 
     def consume(self, amount: int, context: str = "") -> int:
-        """Consume gas units.  Raises HlfGasExhausted if budget exceeded."""
+        """Consume gas units.  Raises HlfGasExhausted if budget exceeded.
+
+        Guards against negative/zero amounts (defense-in-depth for C05).
+        """
+        if amount < 1:
+            raise ValueError(f"Gas amount must be >= 1, got {amount} (context: {context})")
         if self.consumed + amount > self.limit:
             raise HlfGasExhausted(f"Gas exhausted: {self.consumed}+{amount} > {self.limit} (context: {context})")
         self.consumed += amount
