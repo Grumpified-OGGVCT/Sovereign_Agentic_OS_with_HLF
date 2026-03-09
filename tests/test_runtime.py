@@ -81,7 +81,7 @@ class TestHostFunctionRegistry:
         assert "WEB_SEARCH" in host_registry.functions
 
     def test_registry_version(self, host_registry: HostFunctionRegistry) -> None:
-        assert host_registry.version == "1.1.0"
+        assert host_registry.version == "1.2.0"
 
     def test_function_attributes(self, host_registry: HostFunctionRegistry) -> None:
         read_fn = host_registry.functions["READ"]

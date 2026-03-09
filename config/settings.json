@@ -63,6 +63,28 @@
   "max_context_tokens": { "hearth": 8192, "forge": 16384, "sovereign": 32768 },
   "rate_limits": { "external_rpm": 50, "websearch_capacity": 10 },
   "circuit_breaker": { "timeout_ms": 12000, "dead_man_threshold": 3, "dead_man_window_sec": 300 },
+  "native": {
+    "enabled": true,
+    "features": {
+      "clipboard": true,
+      "notifications": true,
+      "shell": true,
+      "tray": true,
+      "sysinfo": true,
+      "app_launch": true,
+      "process_list": true
+    },
+    "shell": {
+      "rate_limit_per_minute": 10,
+      "timeout_seconds": 30.0,
+      "max_stdout_bytes": 10000,
+      "max_stderr_bytes": 5000
+    },
+    "tray": {
+      "auto_start": false,
+      "ipc_port": 9377
+    }
+  },
   "semantic_cache": { "similarity_threshold": 0.99, "ttl_seconds": 3600, "min_confidence": 0.95 },
   "ollama_allowed_models": {
     "hearth": ["qwen-7b"],

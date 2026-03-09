@@ -1,5 +1,5 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "functions": [
     { "name": "READ", "args": [{"name":"path","type":"path"}], "returns": "string", "tier": ["hearth","forge","sovereign"], "gas": 1, "backend": "dapr_file_read", "sensitive": false },
     { "name": "WRITE", "args": [{"name":"path","type":"path"},{"name":"data","type":"string"}], "returns": "bool", "tier": ["hearth","forge","sovereign"], "gas": 2, "backend": "dapr_file_write", "sensitive": false },
@@ -12,6 +12,14 @@
     { "name": "ZAI_COMPLETE", "args": [{"name":"prompt","type":"string"},{"name":"model","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "zai_client", "sensitive": true },
     { "name": "ZAI_VISION", "args": [{"name":"image_path","type":"path"},{"name":"prompt","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "zai_client", "sensitive": true },
     { "name": "ZAI_IMAGE", "args": [{"name":"prompt","type":"string"}], "returns": "path", "tier": ["sovereign"], "gas": 8, "backend": "zai_client", "sensitive": true },
-    { "name": "ZAI_OCR", "args": [{"name":"image_path","type":"path"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 3, "backend": "zai_client", "sensitive": false }
+    { "name": "ZAI_OCR", "args": [{"name":"image_path","type":"path"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 3, "backend": "zai_client", "sensitive": false },
+
+    { "name": "SYS_INFO", "args": [], "returns": "string", "tier": ["hearth","forge","sovereign"], "gas": 1, "backend": "native_bridge", "sensitive": false },
+    { "name": "CLIPBOARD_READ", "args": [], "returns": "string", "tier": ["forge","sovereign"], "gas": 1, "backend": "native_bridge", "sensitive": true },
+    { "name": "CLIPBOARD_WRITE", "args": [{"name":"text","type":"string"}], "returns": "bool", "tier": ["forge","sovereign"], "gas": 2, "backend": "native_bridge", "sensitive": true },
+    { "name": "NOTIFY", "args": [{"name":"title","type":"string"},{"name":"body","type":"string"}], "returns": "bool", "tier": ["hearth","forge","sovereign"], "gas": 1, "backend": "native_bridge", "sensitive": false },
+    { "name": "SHELL_EXEC", "args": [{"name":"command","type":"string"},{"name":"args","type":"list"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 8, "backend": "native_bridge", "sensitive": true },
+    { "name": "APP_LAUNCH", "args": [{"name":"app_name","type":"string"},{"name":"args","type":"list"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "native_bridge", "sensitive": false },
+    { "name": "PROCESS_LIST", "args": [{"name":"filter","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 2, "backend": "native_bridge", "sensitive": false }
   ]
 }
