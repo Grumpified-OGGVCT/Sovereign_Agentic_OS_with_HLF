@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os as _os
 import time
 from collections.abc import Callable
@@ -32,6 +33,7 @@ from hlf.hlfc import compile as hlfc_compile
 # ─── Configuration ───────────────────────────────────────────────────────────
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_logger = logging.getLogger("hlf.runtime")
 _HOST_FUNCTIONS_PATH = _PROJECT_ROOT / "governance" / "host_functions.json"
 _MODULE_SEARCH_PATHS: list[Path] = [
     _PROJECT_ROOT / "hlf" / "modules",
@@ -351,6 +353,10 @@ class ModuleLoader:
         search_paths: list[Path] | None = None,
         tier: str | None = None,
         manifest_path: Path | None = None,
+        oci_registry: str | None = None,
+        oci_namespace: str | None = None,
+        oci_enabled: bool = False,
+        oci_cache_dir: Path | None = None,
     ):
         self.search_paths = search_paths or list(_MODULE_SEARCH_PATHS)
         self.tier = tier or _DEPLOYMENT_TIER
@@ -358,6 +364,12 @@ class ModuleLoader:
         self._loading: set[str] = set()  # circular import guard
         self._manifest_path = manifest_path or (_PROJECT_ROOT / "acfs.manifest.yaml")
         self._module_checksums: dict[str, str] = self._load_manifest_checksums()
+        # OCI Distribution support (Phase 5.1)
+        self._oci_enabled = oci_enabled
+        self._oci_registry = oci_registry or "ghcr.io"
+        self._oci_namespace = oci_namespace or "Grumpified-OGGVCT/hlf-modules"
+        self._oci_cache_dir = oci_cache_dir or (_PROJECT_ROOT / "hlf" / ".oci_cache")
+        self._oci_client = None  # lazy-loaded
 
     def _load_manifest_checksums(self) -> dict[str, str]:
         """Load expected module checksums from acfs.manifest.yaml."""
@@ -372,7 +384,13 @@ class ModuleLoader:
             return {}
 
     def resolve_path(self, module_name: str, relative_to: Path | None = None) -> Path | None:
-        """Find the .hlf file for a module name."""
+        """Find the .hlf file for a module name.
+
+        Resolution order:
+          1. Explicit search paths (hlf/modules/, hlf/stdlib/, tests/fixtures/)
+          2. Relative to the importing file
+          3. OCI registry pull (if enabled) — Phase 5.1
+        """
         candidates = [f"{module_name}.hlf", f"{module_name}/main.hlf"]
 
         # Search in explicit paths
@@ -390,7 +408,43 @@ class ModuleLoader:
                 if full_path.exists():
                     return full_path
 
+        # OCI registry fallback (Phase 5.1)
+        if self._oci_enabled:
+            oci_path = self._resolve_oci(module_name)
+            if oci_path:
+                return oci_path
+
         return None
+
+    def _resolve_oci(self, module_name: str) -> Path | None:
+        """Attempt to pull a module from the configured OCI registry.
+
+        Returns the local cache path if successful, None otherwise.
+        Errors are logged but not raised (OCI is a fallback, not required).
+        """
+        try:
+            if self._oci_client is None:
+                from hlf.oci_client import OCIClient
+                self._oci_client = OCIClient(
+                    cache_dir=self._oci_cache_dir,
+                    registry=self._oci_registry,
+                    namespace=self._oci_namespace,
+                )
+
+            from hlf.oci_client import OCIModuleRef
+            ref = OCIModuleRef(
+                registry=self._oci_registry,
+                namespace=self._oci_namespace,
+                module=module_name,
+            )
+
+            expected_sha = self._module_checksums.get(module_name)
+            result = self._oci_client.pull(ref, expected_sha256=expected_sha)
+            return result.local_path
+
+        except Exception as exc:
+            _logger.debug("OCI fallback failed for '%s': %s", module_name, exc)
+            return None
 
     def load(
         self,

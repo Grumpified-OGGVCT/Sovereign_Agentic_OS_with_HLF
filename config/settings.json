@@ -95,5 +95,16 @@
     "enabled": true,
     "interval_hours": 6,
     "promote": true
+  },
+  "modules": {
+    "oci_registry": "ghcr.io",
+    "oci_namespace": "Grumpified-OGGVCT/hlf-modules",
+    "oci_enabled": false,
+    "cache_dir": "hlf/.oci_cache"
+  },
+  "daemons": {
+    "sentinel": { "enabled": true, "check_interval_ms": 5000 },
+    "scribe": { "enabled": true, "token_budget_pct": 0.80 },
+    "arbiter": { "enabled": true, "escalation_timeout_ms": 12000 }
   }
 }

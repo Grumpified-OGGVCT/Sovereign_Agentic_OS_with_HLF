@@ -1,7 +1,7 @@
 # HLF Language Progress Report
 
 > **Auto-maintained reference for all agents (Jules, Antigravity, human contributors).**
-> Last updated: 2026-03-08 20:20 CST by Antigravity doc-sync pass (full test run + codebase audit).
+> Last updated: 2026-03-08 20:44 CST — Phase 5.1 OCI + Issue #17 Aegis-Nexus daemons shipped.
 > 📓 **[NotebookLM Research Notebook →](https://notebooklm.google.com/notebook/13b9e9f1-77aa-4eba-8760-e38dbdc98bdc)** — Genesis knowledge base (299 sources)
 
 ---
@@ -13,7 +13,7 @@
 | Tool | File | Lines | Status |
 |------|------|-------|--------|
 | **Compiler** (`hlfc`) | `hlf/hlfc.py` | 918 | ✅ Production |
-| **Runtime** (`runtime`) | `hlf/runtime.py` | 511 | ✅ Production |
+| **Runtime** (`runtime`) | `hlf/runtime.py` | 728 | ✅ Production |
 | **Interpreter** (`hlfrun`) | `hlf/hlfrun.py` | 201 | ✅ Production |
 | **Formatter** (`hlffmt`) | `hlf/hlffmt.py` | 66 | ✅ Production |
 | **Linter** (`hlflint`) | `hlf/hlflint.py` | 62 | ✅ Production |
@@ -28,8 +28,13 @@
 | **Host Fn Registry** | `governance/host_functions.json` | 24 | ✅ Production (v1.1.0) |
 | **System Prompt** | `governance/templates/system_prompt.txt` | 14 | ✅ Production |
 | **Stdlib Modules** | `hlf/stdlib/*.hlf` | 5 modules | ✅ Production |
+| **OCI Client** | `hlf/oci_client.py` | 340 | ✅ Production |
+| **Sentinel Daemon** | `agents/core/daemons/sentinel.py` | 240 | ✅ Production |
+| **Scribe Daemon** | `agents/core/daemons/scribe.py` | 260 | ✅ Production |
+| **Arbiter Daemon** | `agents/core/daemons/arbiter.py` | 330 | ✅ Production |
+| **Daemon Manager** | `agents/core/daemons/__init__.py` | 165 | ✅ Production |
 
-**Total toolchain:** ~3,200+ lines of Python + supporting JSON/YAML/HLF
+**Total toolchain:** ~4,500+ lines of Python + supporting JSON/YAML/HLF
 
 ---
 
@@ -91,11 +96,11 @@ Source (.hlf) → Lark LALR(1) Parser → Parse Tree → HLFTransformer → JSON
 
 ## Test Coverage
 
-- **1,075 total tests** (1,075 passing / 0 failing / 0 errors — 100% pass rate)
+- **1,164 total tests** (1,164 passing / 0 failing / 0 errors — 100% pass rate)
   - HLF-specific: `test_hlf.py`, `test_grammar_roundtrip.py`, `test_stdlib.py`
   - Security: `test_policy.py`, `test_intent_capsule.py`
-  - Runtime: `test_runtime.py`, `test_e2e_pipeline.py`
-  - Agents: `test_aegis_nexus.py`, `test_native_bridge.py`, `test_zai_client.py`
+  - Runtime: `test_runtime.py`, `test_e2e_pipeline.py`, `test_oci_client.py`
+  - Agents: `test_aegis_nexus.py`, `test_native_bridge.py`, `test_zai_client.py`, `test_aegis_daemons.py`
   - Pipeline: `test_tool_forge.py`, `test_phase4_phase5.py`
 - **7 fixtures:** `tests/fixtures/` (hello_world, db_migration, deploy_stack, creative_delegate, log_analysis, math_proof, seccomp_audit)
 - **5 stdlib modules:** `hlf/stdlib/` (math, string, io, crypto, collections)
