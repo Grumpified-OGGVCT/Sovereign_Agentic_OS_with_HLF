@@ -46,7 +46,9 @@ class TestSandboxManagement:
     def test_create_sandbox(self):
         bridge, tmp = _make_bridge()
         sandbox = bridge.get_or_create_sandbox(
-            "agent-01", "developer", tmp,
+            "agent-01",
+            "developer",
+            tmp,
         )
         assert sandbox is not None
         assert sandbox.agent_id == "agent-01"
@@ -176,10 +178,20 @@ class TestTraceCollection:
     def test_traces_accumulate(self):
         bridge, tmp = _make_bridge()
         bridge.execute_node(
-            "n1", "a1", "developer", tmp, _execute_fn_reads_file, {},
+            "n1",
+            "a1",
+            "developer",
+            tmp,
+            _execute_fn_reads_file,
+            {},
         )
         bridge.execute_node(
-            "n2", "a2", "developer", tmp, _execute_fn_uses_tools, {},
+            "n2",
+            "a2",
+            "developer",
+            tmp,
+            _execute_fn_uses_tools,
+            {},
         )
         assert len(bridge.traces) == 2
         assert bridge.traces[0].node_id == "n1"
@@ -197,7 +209,12 @@ class TestEventBusIntegration:
         bridge, tmp = _make_bridge(event_bus=mock_bus)
 
         bridge.execute_node(
-            "n1", "a1", "developer", tmp, _execute_fn_reads_file, {},
+            "n1",
+            "a1",
+            "developer",
+            tmp,
+            _execute_fn_reads_file,
+            {},
         )
 
         # Should have published start + complete events

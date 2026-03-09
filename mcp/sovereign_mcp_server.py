@@ -331,11 +331,11 @@ def query_memory(search_term: str, limit: int = 10) -> list[dict]:
 
         if rows:
             import time
+
             rowids = [r[0] for r in rows]
             placeholders = ",".join("?" * len(rowids))
             conn.execute(
-                f"UPDATE fact_store SET last_accessed = ? WHERE rowid IN ({placeholders})",
-                [time.time(), *rowids]
+                f"UPDATE fact_store SET last_accessed = ? WHERE rowid IN ({placeholders})", [time.time(), *rowids]
             )
             conn.commit()
 
@@ -472,7 +472,9 @@ def view_thread_history(url: str) -> list[dict]:
 
 @mcp.tool()
 def deep_recall(
-    query: str, n_results: int = 10, scope: str | None = None,
+    query: str,
+    n_results: int = 10,
+    scope: str | None = None,
 ) -> list[dict]:
     """
     Deep semantic retrieval across the Janus vault (Infinite RAG pattern).
@@ -483,15 +485,20 @@ def deep_recall(
         n_results: Number of results (default 10, max 100).
         scope: Optional filter by source domain.
     """
-    return _janus_call({
-        "cmd": "deep_recall", "query": query,
-        "n_results": n_results, "scope": scope,
-    })
+    return _janus_call(
+        {
+            "cmd": "deep_recall",
+            "query": query,
+            "n_results": n_results,
+            "scope": scope,
+        }
+    )
 
 
 @mcp.tool()
 def vault_similar(
-    text_or_url: str, n_results: int = 5,
+    text_or_url: str,
+    n_results: int = 5,
 ) -> list[dict]:
     """
     Find archival content semantically similar to given text or a URL's content.
@@ -501,10 +508,13 @@ def vault_similar(
         text_or_url: Raw text to match against, or a URL to fetch and match.
         n_results: Number of similar results (default 5, max 30).
     """
-    return _janus_call({
-        "cmd": "vault_similar", "text_or_url": text_or_url,
-        "n_results": n_results,
-    })
+    return _janus_call(
+        {
+            "cmd": "vault_similar",
+            "text_or_url": text_or_url,
+            "n_results": n_results,
+        }
+    )
 
 
 @mcp.tool()
@@ -518,7 +528,8 @@ def vault_stats() -> list[dict]:
 
 @mcp.tool()
 def janus_web_search(
-    query: str, max_results: int = 10,
+    query: str,
+    max_results: int = 10,
 ) -> list[dict]:
     """
     Search the public web using DuckDuckGo (no API key needed).
@@ -528,16 +539,21 @@ def janus_web_search(
         query: The search query.
         max_results: Maximum results to return (default 10, max 25).
     """
-    return _janus_call({
-        "cmd": "web_search", "query": query,
-        "max_results": max_results,
-    })
+    return _janus_call(
+        {
+            "cmd": "web_search",
+            "query": query,
+            "max_results": max_results,
+        }
+    )
 
 
 @mcp.tool()
 def janus_advanced_search(
-    query: str, max_results: int = 10,
-    region: str = "wt-wt", time_range: str | None = None,
+    query: str,
+    max_results: int = 10,
+    region: str = "wt-wt",
+    time_range: str | None = None,
     site: str | None = None,
 ) -> list[dict]:
     """
@@ -550,11 +566,16 @@ def janus_advanced_search(
         time_range: Time filter: 'd' (day), 'w' (week), 'm' (month), 'y' (year).
         site: Domain to restrict search to (e.g. 'stolenhistory.net').
     """
-    return _janus_call({
-        "cmd": "advanced_search", "query": query,
-        "max_results": max_results, "region": region,
-        "time_range": time_range, "site": site,
-    })
+    return _janus_call(
+        {
+            "cmd": "advanced_search",
+            "query": query,
+            "max_results": max_results,
+            "region": region,
+            "time_range": time_range,
+            "site": site,
+        }
+    )
 
 
 @mcp.tool()
@@ -567,14 +588,20 @@ def extract_page(url: str, max_chars: int = 8000) -> list[dict]:
         url: The URL to extract content from.
         max_chars: Maximum characters to return (default 8000).
     """
-    return _janus_call({
-        "cmd": "extract_page", "url": url, "max_chars": max_chars,
-    })
+    return _janus_call(
+        {
+            "cmd": "extract_page",
+            "url": url,
+            "max_chars": max_chars,
+        }
+    )
 
 
 @mcp.tool()
 def ingest_url(
-    url: str, depth: int = 1, search_after: str | None = None,
+    url: str,
+    depth: int = 1,
+    search_after: str | None = None,
 ) -> list[dict]:
     """
     Crawl a URL, ingest its content into the Janus vault, and optionally
@@ -586,10 +613,14 @@ def ingest_url(
         depth: Link-follow levels (1 = single page, 2 = follow links).
         search_after: Optional query to run on freshly ingested content.
     """
-    return _janus_call({
-        "cmd": "ingest_url", "url": url,
-        "depth": depth, "search_after": search_after,
-    })
+    return _janus_call(
+        {
+            "cmd": "ingest_url",
+            "url": url,
+            "depth": depth,
+            "search_after": search_after,
+        }
+    )
 
 
 @mcp.tool()
@@ -602,10 +633,13 @@ def summarize_text(text: str, max_sentences: int = 5) -> list[dict]:
         text: The text to summarize.
         max_sentences: Number of key sentences to extract (default 5).
     """
-    return _janus_call({
-        "cmd": "summarize_text", "text": text,
-        "max_sentences": max_sentences,
-    })
+    return _janus_call(
+        {
+            "cmd": "summarize_text",
+            "text": text,
+            "max_sentences": max_sentences,
+        }
+    )
 
 
 # ===========================================================================

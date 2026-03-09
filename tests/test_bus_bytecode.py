@@ -1,4 +1,5 @@
 """Tests for bytecode routing in the Gateway Bus."""
+
 from __future__ import annotations
 
 import base64
@@ -89,9 +90,7 @@ class TestBytecodeRouting:
             patch.object(bus_mod, "consume_gas_async", new=AsyncMock(return_value=True)),
         ):
             payload = _make_hlb_base64()
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 resp = await client.post("/api/v1/intent", json={"hlf": payload})
 
         # Should succeed (202) — not get rejected as invalid HLF
@@ -114,9 +113,7 @@ class TestBytecodeRouting:
             patch("agents.gateway.router.is_gateway_healthy", new=AsyncMock(return_value=True)),
             patch.object(bus_mod, "consume_gas_async", new=AsyncMock(return_value=True)),
         ):
-            async with AsyncClient(
-                transport=ASGITransport(app=app), base_url="http://test"
-            ) as client:
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 resp = await client.post("/api/v1/intent", json={"hlf": _HLF_SRC})
 
         assert resp.status_code == 202

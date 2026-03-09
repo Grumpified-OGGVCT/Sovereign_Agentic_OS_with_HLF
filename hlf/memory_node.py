@@ -42,6 +42,7 @@ class HLFMemoryNode:
         last_accessed:    Unix timestamp of last retrieval
         created_at:       Unix timestamp of creation
     """
+
     node_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     entity_id: str = ""
     hlf_source: str = ""

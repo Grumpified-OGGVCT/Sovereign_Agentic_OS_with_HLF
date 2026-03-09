@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 class NodeStatus(Enum):
     """Execution status of a Spindle DAG node."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -66,6 +67,7 @@ class SpindleNode:
         error: Exception if execution failed.
         duration: Execution time in seconds.
     """
+
     node_id: str
     execute_fn: Callable[[dict[str, Any]], Any] | None = None
     compensate_fn: Callable[[dict[str, Any]], None] | None = None
@@ -90,6 +92,7 @@ class SpindleResult:
         total_duration: Total wall-clock time for the execution.
         node_results: Map of node_id -> result for completed nodes.
     """
+
     success: bool = True
     completed_nodes: list[str] = field(default_factory=list)
     failed_node: str | None = None
@@ -142,9 +145,7 @@ class SpindleDAG:
         for node in self._nodes.values():
             for dep_id in node.depends_on:
                 if dep_id not in self._nodes:
-                    raise ValueError(
-                        f"Node '{node.node_id}' depends on unknown node '{dep_id}'"
-                    )
+                    raise ValueError(f"Node '{node.node_id}' depends on unknown node '{dep_id}'")
 
         # Cycle detection via topological sort
         self.topological_order()
@@ -162,9 +163,7 @@ class SpindleDAG:
                 in_degree[node.node_id] += 1
 
         # Start with nodes that have no dependencies
-        queue: deque[str] = deque(
-            nid for nid, deg in in_degree.items() if deg == 0
-        )
+        queue: deque[str] = deque(nid for nid, deg in in_degree.items() if deg == 0)
         order: list[str] = []
 
         while queue:
@@ -198,10 +197,7 @@ class SpindleDAG:
         remaining = set(self._nodes.keys())
         while remaining:
             # Find all nodes whose dependencies are fully satisfied
-            wave = [
-                nid for nid in remaining
-                if all(dep in completed for dep in self._nodes[nid].depends_on)
-            ]
+            wave = [nid for nid in remaining if all(dep in completed for dep in self._nodes[nid].depends_on)]
             if not wave:
                 raise ValueError("DAG contains a cycle — cannot form waves")
 
@@ -274,11 +270,14 @@ class SpindleExecutor:
                 self.interrupt(nid, reason="context_propagation")
                 interrupted.append(nid)
 
-        self._log_align("SPINDLE_CONTEXT_PROPAGATED", {
-            "updates": list(updates.keys()),
-            "version": context["_context_version"],
-            "interrupted_nodes": interrupted,
-        })
+        self._log_align(
+            "SPINDLE_CONTEXT_PROPAGATED",
+            {
+                "updates": list(updates.keys()),
+                "version": context["_context_version"],
+                "interrupted_nodes": interrupted,
+            },
+        )
 
         return interrupted
 
@@ -309,17 +308,17 @@ class SpindleExecutor:
             if node_id in self._interrupted_nodes:
                 node.status = NodeStatus.SKIPPED
                 reason = self._interrupt_reasons.get(node_id, "unknown")
-                self._log_align("SPINDLE_NODE_INTERRUPTED", {
-                    "node_id": node_id,
-                    "reason": reason,
-                })
+                self._log_align(
+                    "SPINDLE_NODE_INTERRUPTED",
+                    {
+                        "node_id": node_id,
+                        "reason": reason,
+                    },
+                )
                 continue
 
             # Check if all dependencies completed
-            deps_satisfied = all(
-                self.dag.get_node(dep).status == NodeStatus.COMPLETED
-                for dep in node.depends_on
-            )
+            deps_satisfied = all(self.dag.get_node(dep).status == NodeStatus.COMPLETED for dep in node.depends_on)
             if not deps_satisfied:
                 node.status = NodeStatus.SKIPPED
                 continue
@@ -332,20 +331,26 @@ class SpindleExecutor:
             context["_interrupted"] = node_id in self._interrupted_nodes
             context["_current_node"] = node_id
 
-            self._log_align("SPINDLE_NODE_START", {
-                "node_id": node_id,
-                "agent_id": node.agent_id or "unassigned",
-            })
+            self._log_align(
+                "SPINDLE_NODE_START",
+                {
+                    "node_id": node_id,
+                    "agent_id": node.agent_id or "unassigned",
+                },
+            )
 
             # Publish to event bus if available
             if self._event_bus:
                 try:
                     from agents.core.event_bus import EventType, SpindleEvent
-                    self._event_bus.publish(SpindleEvent(
-                        event_type=EventType.NODE_STARTED,
-                        source=node_id,
-                        payload={"agent_id": node.agent_id or "unassigned"},
-                    ))
+
+                    self._event_bus.publish(
+                        SpindleEvent(
+                            event_type=EventType.NODE_STARTED,
+                            source=node_id,
+                            payload={"agent_id": node.agent_id or "unassigned"},
+                        )
+                    )
                 except ImportError:
                     # Event bus integration is optional
                     logger.debug("Event bus not available; skipping event publish")
@@ -360,10 +365,13 @@ class SpindleExecutor:
                 result.execution_order.append(node_id)
                 result.node_results[node_id] = node.result
 
-                self._log_align("SPINDLE_NODE_COMPLETE", {
-                    "node_id": node_id,
-                    "duration": node.duration,
-                })
+                self._log_align(
+                    "SPINDLE_NODE_COMPLETE",
+                    {
+                        "node_id": node_id,
+                        "duration": node.duration,
+                    },
+                )
 
             except Exception as e:
                 node.status = NodeStatus.FAILED
@@ -374,10 +382,13 @@ class SpindleExecutor:
                 result.failed_node = node_id
                 result.execution_order.append(node_id)
 
-                self._log_align("SPINDLE_NODE_FAILED", {
-                    "node_id": node_id,
-                    "error": str(e),
-                })
+                self._log_align(
+                    "SPINDLE_NODE_FAILED",
+                    {
+                        "node_id": node_id,
+                        "error": str(e),
+                    },
+                )
 
                 logger.warning(f"Spindle: node '{node_id}' failed: {e}")
 
@@ -402,25 +413,30 @@ class SpindleExecutor:
                     node.status = NodeStatus.COMPENSATED
                     result.compensated_nodes.append(node_id)
 
-                    self._log_align("SPINDLE_NODE_COMPENSATED", {
-                        "node_id": node_id,
-                    })
+                    self._log_align(
+                        "SPINDLE_NODE_COMPENSATED",
+                        {
+                            "node_id": node_id,
+                        },
+                    )
 
                     logger.info(f"Spindle: compensated node '{node_id}'")
                 except Exception as comp_err:
                     # Compensation failure is critical — log but continue
-                    logger.error(
-                        f"Spindle: compensation FAILED for '{node_id}': {comp_err}"
+                    logger.error(f"Spindle: compensation FAILED for '{node_id}': {comp_err}")
+                    self._log_align(
+                        "SPINDLE_COMPENSATION_FAILED",
+                        {
+                            "node_id": node_id,
+                            "error": str(comp_err),
+                        },
                     )
-                    self._log_align("SPINDLE_COMPENSATION_FAILED", {
-                        "node_id": node_id,
-                        "error": str(comp_err),
-                    })
 
     def _log_align(self, event: str, data: dict) -> None:
         """Log an event to the ALIGN ledger."""
         try:
             from agents.core.als_logger import ALSLogger
+
             als = ALSLogger()
             als.log(event, data)
         except ImportError:

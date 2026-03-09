@@ -34,11 +34,13 @@ class TestPubSub:
         received: list[SpindleEvent] = []
 
         bus.subscribe(EventType.NODE_COMPLETED, received.append)
-        bus.publish(SpindleEvent(
-            event_type=EventType.NODE_COMPLETED,
-            source="node_a",
-            payload={"result": 42},
-        ))
+        bus.publish(
+            SpindleEvent(
+                event_type=EventType.NODE_COMPLETED,
+                source="node_a",
+                payload={"result": 42},
+            )
+        )
 
         assert len(received) == 1
         assert received[0].source == "node_a"
@@ -50,10 +52,12 @@ class TestPubSub:
         received: list[SpindleEvent] = []
 
         bus.subscribe(EventType.NODE_COMPLETED, received.append)
-        bus.publish(SpindleEvent(
-            event_type=EventType.NODE_FAILED,
-            source="node_b",
-        ))
+        bus.publish(
+            SpindleEvent(
+                event_type=EventType.NODE_FAILED,
+                source="node_b",
+            )
+        )
 
         assert len(received) == 0
 
@@ -65,10 +69,12 @@ class TestPubSub:
 
         bus.subscribe(EventType.SPEC_CHANGED, r1.append)
         bus.subscribe(EventType.SPEC_CHANGED, r2.append)
-        notified = bus.publish(SpindleEvent(
-            event_type=EventType.SPEC_CHANGED,
-            source="coordinator",
-        ))
+        notified = bus.publish(
+            SpindleEvent(
+                event_type=EventType.SPEC_CHANGED,
+                source="coordinator",
+            )
+        )
 
         assert notified == 2
         assert len(r1) == 1
@@ -101,7 +107,8 @@ class TestFiltering:
         received: list[SpindleEvent] = []
 
         bus.subscribe(
-            EventType.NODE_COMPLETED, received.append,
+            EventType.NODE_COMPLETED,
+            received.append,
             filter_source="agent_x",
         )
 
@@ -175,16 +182,20 @@ class TestHistoryAndIntersection:
     def test_intersection_analysis(self) -> None:
         """check_intersection finds events overlapping a working set."""
         bus = SpindleEventBus()
-        bus.publish(SpindleEvent(
-            event_type=EventType.SPEC_CHANGED,
-            source="user",
-            semantic_refs=["auth_module", "user_model"],
-        ))
-        bus.publish(SpindleEvent(
-            event_type=EventType.SPEC_CHANGED,
-            source="user",
-            semantic_refs=["payment_module"],
-        ))
+        bus.publish(
+            SpindleEvent(
+                event_type=EventType.SPEC_CHANGED,
+                source="user",
+                semantic_refs=["auth_module", "user_model"],
+            )
+        )
+        bus.publish(
+            SpindleEvent(
+                event_type=EventType.SPEC_CHANGED,
+                source="user",
+                semantic_refs=["payment_module"],
+            )
+        )
 
         # Agent working on auth_module
         conflicts = bus.check_intersection({"auth_module", "session_store"})
@@ -194,11 +205,13 @@ class TestHistoryAndIntersection:
     def test_intersection_no_overlap(self) -> None:
         """No overlap returns empty list."""
         bus = SpindleEventBus()
-        bus.publish(SpindleEvent(
-            event_type=EventType.SPEC_CHANGED,
-            source="user",
-            semantic_refs=["payment_module"],
-        ))
+        bus.publish(
+            SpindleEvent(
+                event_type=EventType.SPEC_CHANGED,
+                source="user",
+                semantic_refs=["payment_module"],
+            )
+        )
 
         conflicts = bus.check_intersection({"auth_module"})
         assert conflicts == []
@@ -221,9 +234,12 @@ class TestPauseAndErrors:
         bus.pause()
         assert bus.is_paused
 
-        notified = bus.publish(SpindleEvent(
-            event_type=EventType.NODE_COMPLETED, source="a",
-        ))
+        notified = bus.publish(
+            SpindleEvent(
+                event_type=EventType.NODE_COMPLETED,
+                source="a",
+            )
+        )
         assert notified == 0
         assert len(received) == 0
         assert len(bus.get_history()) == 1  # still recorded
@@ -253,9 +269,12 @@ class TestPauseAndErrors:
         bus.subscribe(EventType.NODE_COMPLETED, bad_callback)
         bus.subscribe(EventType.NODE_COMPLETED, received.append)
 
-        notified = bus.publish(SpindleEvent(
-            event_type=EventType.NODE_COMPLETED, source="a",
-        ))
+        notified = bus.publish(
+            SpindleEvent(
+                event_type=EventType.NODE_COMPLETED,
+                source="a",
+            )
+        )
         # bad_callback errors but second subscriber still gets notified
         assert len(received) == 1
         assert notified == 1  # only successful deliveries counted

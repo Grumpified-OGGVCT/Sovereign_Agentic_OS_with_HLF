@@ -19,9 +19,10 @@ from hlf.insaits import decompile, decompile_bytecode, decompile_live
 # Helpers
 # ------------------------------------------------------------------ #
 
+
 def _prog(body: str) -> str:
     """Wrap body lines in the HLF v3 program envelope."""
-    return f'[HLF-v3]\n{body}\nΩ\n'
+    return f"[HLF-v3]\n{body}\nΩ\n"
 
 
 # ------------------------------------------------------------------ #
@@ -32,22 +33,22 @@ def _prog(body: str) -> str:
 @pytest.fixture()
 def simple_ast() -> dict:
     """A simple 3-statement AST: SET, INTENT, RESULT."""
-    return hlfc_compile(_prog(
-        '[SET] target_host = "example.com"\n'
-        '[INTENT] SCAN "target_host"\n'
-        '[RESULT] code=0 message="ok"'
-    ))
+    return hlfc_compile(
+        _prog('[SET] target_host = "example.com"\n[INTENT] SCAN "target_host"\n[RESULT] code=0 message="ok"')
+    )
 
 
 @pytest.fixture()
 def memory_ast() -> dict:
     """AST with MEMORY and RECALL statements."""
-    return hlfc_compile(_prog(
-        '[SET] host = "10.0.0.1"\n'
-        '[MEMORY] host = "discovered" confidence=0.9 "scan result"\n'
-        '[RECALL] host = "discovered" top_k=3\n'
-        '[RESULT] code=0 message="done"'
-    ))
+    return hlfc_compile(
+        _prog(
+            '[SET] host = "10.0.0.1"\n'
+            '[MEMORY] host = "discovered" confidence=0.9 "scan result"\n'
+            '[RECALL] host = "discovered" top_k=3\n'
+            '[RESULT] code=0 message="done"'
+        )
+    )
 
 
 # ------------------------------------------------------------------ #
@@ -153,8 +154,11 @@ class TestDecompileBytecode:
         assert any(
             word in result
             for word in [
-                "Load value", "Set immutable", "Assign",
-                "variable", "Program terminates",
+                "Load value",
+                "Set immutable",
+                "Assign",
+                "variable",
+                "Program terminates",
             ]
         )
 
@@ -163,9 +167,7 @@ class TestDecompileBytecode:
         from hlf.bytecode import BytecodeCompiler
 
         source = _prog(
-            '[MEMORY] host = "found" confidence=0.9 "scan result"\n'
-            '[RECALL] host = "found" top_k=3\n'
-            '[RESULT] 0 "done"'
+            '[MEMORY] host = "found" confidence=0.9 "scan result"\n[RECALL] host = "found" top_k=3\n[RESULT] 0 "done"'
         )
         ast = hlfc_compile(source)
         compiler = BytecodeCompiler()
@@ -184,15 +186,16 @@ class TestDecompileBytecode:
 class TestTagCoverage:
     """Ensure all major tags produce decompile output."""
 
-    @pytest.mark.parametrize("source,expected_text", [
-        (_prog('[SET] x = 1'), "x"),
-        (_prog('[INTENT] SCAN "target"'), "INTENT"),
-        (_prog('[RESULT] code=0 message="ok"'), "0"),
-    ])
+    @pytest.mark.parametrize(
+        "source,expected_text",
+        [
+            (_prog("[SET] x = 1"), "x"),
+            (_prog('[INTENT] SCAN "target"'), "INTENT"),
+            (_prog('[RESULT] code=0 message="ok"'), "0"),
+        ],
+    )
     def test_tag_produces_output(self, source: str, expected_text: str) -> None:
         """Each tag produces expected prose."""
         ast = hlfc_compile(source)
         result = decompile(ast)
-        assert expected_text in result, (
-            f"Expected '{expected_text}' in decompile output for '{source}'"
-        )
+        assert expected_text in result, f"Expected '{expected_text}' in decompile output for '{source}'"

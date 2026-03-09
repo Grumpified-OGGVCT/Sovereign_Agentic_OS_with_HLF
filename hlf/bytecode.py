@@ -33,99 +33,122 @@ from typing import Any
 
 # ─── Opcodes ─────────────────────────────────────────────────────────────────
 
+
 class Op:
     """HLF bytecode opcodes (matching governance/bytecode_spec.yaml)."""
 
     # Stack
-    PUSH_CONST   = 0x01
-    POP          = 0x02
-    DUP          = 0x03
+    PUSH_CONST = 0x01
+    POP = 0x02
+    DUP = 0x03
 
     # Variables
-    STORE        = 0x10
-    LOAD         = 0x11
-    STORE_IMMUT  = 0x12
+    STORE = 0x10
+    LOAD = 0x11
+    STORE_IMMUT = 0x12
 
     # Arithmetic
-    ADD          = 0x20
-    SUB          = 0x21
-    MUL          = 0x22
-    DIV          = 0x23
-    MOD          = 0x24
-    NEG          = 0x25
+    ADD = 0x20
+    SUB = 0x21
+    MUL = 0x22
+    DIV = 0x23
+    MOD = 0x24
+    NEG = 0x25
 
     # Comparison
-    CMP_EQ       = 0x30
-    CMP_NE       = 0x31
-    CMP_LT       = 0x32
-    CMP_LE       = 0x33
-    CMP_GT       = 0x34
-    CMP_GE       = 0x35
+    CMP_EQ = 0x30
+    CMP_NE = 0x31
+    CMP_LT = 0x32
+    CMP_LE = 0x33
+    CMP_GT = 0x34
+    CMP_GE = 0x35
 
     # Logic
-    AND          = 0x38
-    OR           = 0x39
-    NOT          = 0x3A
+    AND = 0x38
+    OR = 0x39
+    NOT = 0x3A
 
     # Control flow
-    JMP          = 0x40
-    JZ           = 0x41
-    JNZ          = 0x42
+    JMP = 0x40
+    JZ = 0x41
+    JNZ = 0x42
 
     # Calls
     CALL_BUILTIN = 0x50
-    CALL_HOST    = 0x51
-    CALL_TOOL    = 0x52
+    CALL_HOST = 0x51
+    CALL_TOOL = 0x52
 
     # HLF-specific
-    TAG          = 0x60
-    INTENT       = 0x61
-    RESULT       = 0x62
+    TAG = 0x60
+    INTENT = 0x61
+    RESULT = 0x62
     MEMORY_STORE = 0x63
-    MEMORY_RECALL= 0x64
-    OPENCLAW_TOOL= 0x65
+    MEMORY_RECALL = 0x64
+    OPENCLAW_TOOL = 0x65
 
     # System
-    NOP          = 0xFE
-    HALT         = 0xFF
+    NOP = 0xFE
+    HALT = 0xFF
 
 
 # Reverse map for disassembly
-_OP_NAMES: dict[int, str] = {
-    v: k for k, v in vars(Op).items()
-    if isinstance(v, int) and not k.startswith("_")
-}
+_OP_NAMES: dict[int, str] = {v: k for k, v in vars(Op).items() if isinstance(v, int) and not k.startswith("_")}
 
 # Gas costs per opcode
 _OP_GAS: dict[int, int] = {
-    Op.PUSH_CONST: 1, Op.POP: 1, Op.DUP: 1,
-    Op.STORE: 1, Op.LOAD: 1, Op.STORE_IMMUT: 1,
-    Op.ADD: 1, Op.SUB: 1, Op.MUL: 1, Op.DIV: 1, Op.MOD: 1, Op.NEG: 1,
-    Op.CMP_EQ: 1, Op.CMP_NE: 1, Op.CMP_LT: 1, Op.CMP_LE: 1,
-    Op.CMP_GT: 1, Op.CMP_GE: 1,
-    Op.AND: 1, Op.OR: 1, Op.NOT: 1,
-    Op.JMP: 1, Op.JZ: 1, Op.JNZ: 1,
-    Op.CALL_BUILTIN: 2, Op.CALL_HOST: 5, Op.CALL_TOOL: 3,
-    Op.TAG: 1, Op.INTENT: 1, Op.RESULT: 1,
-    Op.MEMORY_STORE: 3, Op.MEMORY_RECALL: 3, Op.OPENCLAW_TOOL: 5,
-    Op.NOP: 0, Op.HALT: 0,
+    Op.PUSH_CONST: 1,
+    Op.POP: 1,
+    Op.DUP: 1,
+    Op.STORE: 1,
+    Op.LOAD: 1,
+    Op.STORE_IMMUT: 1,
+    Op.ADD: 1,
+    Op.SUB: 1,
+    Op.MUL: 1,
+    Op.DIV: 1,
+    Op.MOD: 1,
+    Op.NEG: 1,
+    Op.CMP_EQ: 1,
+    Op.CMP_NE: 1,
+    Op.CMP_LT: 1,
+    Op.CMP_LE: 1,
+    Op.CMP_GT: 1,
+    Op.CMP_GE: 1,
+    Op.AND: 1,
+    Op.OR: 1,
+    Op.NOT: 1,
+    Op.JMP: 1,
+    Op.JZ: 1,
+    Op.JNZ: 1,
+    Op.CALL_BUILTIN: 2,
+    Op.CALL_HOST: 5,
+    Op.CALL_TOOL: 3,
+    Op.TAG: 1,
+    Op.INTENT: 1,
+    Op.RESULT: 1,
+    Op.MEMORY_STORE: 3,
+    Op.MEMORY_RECALL: 3,
+    Op.OPENCLAW_TOOL: 5,
+    Op.NOP: 0,
+    Op.HALT: 0,
 }
 
 
 # ─── Binary Format Constants ────────────────────────────────────────────────
 
-_MAGIC = bytes([0x48, 0x4C, 0x46, 0x04])    # "HLF\x04"
-_VERSION = bytes([0x00, 0x04])                # v0.4
+_MAGIC = bytes([0x48, 0x4C, 0x46, 0x04])  # "HLF\x04"
+_VERSION = bytes([0x00, 0x04])  # v0.4
 _HEADER_SIZE = 24
 
 # Constant types
-_CONST_INT    = 0
-_CONST_FLOAT  = 1
+_CONST_INT = 0
+_CONST_FLOAT = 1
 _CONST_STRING = 2
-_CONST_BOOL   = 3
+_CONST_BOOL = 3
 
 
 # ─── Exceptions ──────────────────────────────────────────────────────────────
+
 
 class HlfBytecodeError(Exception):
     """Raised when bytecode compilation or execution fails."""
@@ -140,6 +163,7 @@ class HlfVMStackUnderflow(HlfBytecodeError):
 
 
 # ─── Constant Pool ──────────────────────────────────────────────────────────
+
 
 class ConstantPool:
     """Typed constant pool for the bytecode binary format."""
@@ -215,7 +239,7 @@ class ConstantPool:
             elif ctype == _CONST_STRING:
                 slen = struct.unpack_from("<H", data, pos)[0]
                 pos += 2
-                val = data[pos:pos + slen].decode("utf-8")
+                val = data[pos : pos + slen].decode("utf-8")
                 pos += slen
             elif ctype == _CONST_BOOL:
                 val = bool(struct.unpack_from("<B", data, pos)[0])
@@ -233,9 +257,11 @@ class ConstantPool:
 
 # ─── Bytecode Compiler (AST → .hlb) ─────────────────────────────────────────
 
+
 @dataclass
 class _Instruction:
     """A single bytecode instruction."""
+
     opcode: int
     operand: int = 0
 
@@ -504,16 +530,18 @@ class BytecodeCompiler:
             if op in ("ADD", "SUB", "MUL", "DIV", "MOD"):
                 self._compile_expression(node.get("left"))
                 self._compile_expression(node.get("right"))
-                opcode = {"ADD": Op.ADD, "SUB": Op.SUB, "MUL": Op.MUL,
-                          "DIV": Op.DIV, "MOD": Op.MOD}[op]
+                opcode = {"ADD": Op.ADD, "SUB": Op.SUB, "MUL": Op.MUL, "DIV": Op.DIV, "MOD": Op.MOD}[op]
                 self.instructions.append(_Instruction(opcode))
             elif op == "COMPARE":
                 self._compile_expression(node.get("left"))
                 self._compile_expression(node.get("right"))
                 cmp_map = {
-                    "==": Op.CMP_EQ, "!=": Op.CMP_NE,
-                    "<": Op.CMP_LT, "<=": Op.CMP_LE,
-                    ">": Op.CMP_GT, ">=": Op.CMP_GE,
+                    "==": Op.CMP_EQ,
+                    "!=": Op.CMP_NE,
+                    "<": Op.CMP_LT,
+                    "<=": Op.CMP_LE,
+                    ">": Op.CMP_GT,
+                    ">=": Op.CMP_GE,
                 }
                 operator = node.get("operator", "==")
                 self.instructions.append(_Instruction(cmp_map.get(operator, Op.CMP_EQ)))
@@ -563,9 +591,11 @@ class BytecodeCompiler:
 
 # ─── Stack-Machine VM ────────────────────────────────────────────────────────
 
+
 @dataclass
 class VMResult:
     """Result of bytecode execution."""
+
     code: int = 0
     message: str = "ok"
     gas_used: int = 0
@@ -625,7 +655,7 @@ class HlfVM:
         stored_checksum = struct.unpack_from("<I", hlb_data, 20)[0]
 
         # Verify checksum
-        code_section = hlb_data[code_offset:code_offset + code_length]
+        code_section = hlb_data[code_offset : code_offset + code_length]
         actual_checksum = zlib.crc32(code_section) & 0xFFFFFFFF
         if actual_checksum != stored_checksum:
             msg = f"Bytecode checksum mismatch: {actual_checksum:#x} != {stored_checksum:#x}"
@@ -676,8 +706,7 @@ class HlfVM:
             trace=list(self.trace),
         )
 
-    def _dispatch(self, opcode: int, operand: int, pool: ConstantPool,
-                  code_section: bytes) -> None:
+    def _dispatch(self, opcode: int, operand: int, pool: ConstantPool, code_section: bytes) -> None:
         """Dispatch a single instruction."""
         # Stack operations
         if opcode == Op.PUSH_CONST:
@@ -824,10 +853,14 @@ class HlfVM:
                 existing = [existing]
             existing.append({"content": content, "confidence": confidence})
             self.scope[mem_key] = existing
-            self.trace.append({
-                "op": "MEMORY_STORE", "entity": entity,
-                "content": content, "confidence": confidence,
-            })
+            self.trace.append(
+                {
+                    "op": "MEMORY_STORE",
+                    "entity": entity,
+                    "content": content,
+                    "confidence": confidence,
+                }
+            )
 
         elif opcode == Op.MEMORY_RECALL:
             entity = pool.get(operand)
@@ -844,10 +877,14 @@ class HlfVM:
             # Store recall results in scope and push onto stack
             self.scope[f"RECALL_{entity}"] = results
             self.stack.append(results)
-            self.trace.append({
-                "op": "MEMORY_RECALL", "entity": entity,
-                "top_k": top_k, "found": len(results),
-            })
+            self.trace.append(
+                {
+                    "op": "MEMORY_RECALL",
+                    "entity": entity,
+                    "top_k": top_k,
+                    "found": len(results),
+                }
+            )
 
         elif opcode == Op.OPENCLAW_TOOL:
             func_name = pool.get(operand)
@@ -910,10 +947,12 @@ class HlfVM:
             return str(_uuid.uuid4())
         elif name == "BASE64_ENCODE":
             import base64
+
             text = str(args[0]) if args else ""
             return base64.b64encode(text.encode()).decode()
         elif name == "BASE64_DECODE":
             import base64
+
             text = str(args[0]) if args else ""
             return base64.b64decode(text.encode()).decode()
         return None
@@ -956,13 +995,12 @@ def disassemble(hlb_data: bytes) -> str:
         checksum = struct.unpack_from("<I", hlb_data, 20)[0]
 
         pool, _ = ConstantPool.decode(hlb_data, const_pool_offset)
-        code_section = hlb_data[code_offset:code_offset + code_length]
+        code_section = hlb_data[code_offset : code_offset + code_length]
     except (struct.error, UnicodeDecodeError, HlfBytecodeError) as exc:
         return f"<invalid bytecode: {exc}>"
 
     lines = [
-        f"HLF Bytecode v0.4 — {code_length} bytes code, "
-        f"{len(pool)} constants, CRC32={checksum:#010x}",
+        f"HLF Bytecode v0.4 — {code_length} bytes code, {len(pool)} constants, CRC32={checksum:#010x}",
         "",
         "Constants:",
     ]
@@ -983,9 +1021,20 @@ def disassemble(hlb_data: bytes) -> str:
 
         # Show operand context
         extra = ""
-        if opcode in (Op.PUSH_CONST, Op.STORE, Op.LOAD, Op.STORE_IMMUT,
-                       Op.CALL_BUILTIN, Op.CALL_HOST, Op.CALL_TOOL,
-                       Op.TAG, Op.INTENT, Op.MEMORY_STORE, Op.MEMORY_RECALL, Op.OPENCLAW_TOOL):
+        if opcode in (
+            Op.PUSH_CONST,
+            Op.STORE,
+            Op.LOAD,
+            Op.STORE_IMMUT,
+            Op.CALL_BUILTIN,
+            Op.CALL_HOST,
+            Op.CALL_TOOL,
+            Op.TAG,
+            Op.INTENT,
+            Op.MEMORY_STORE,
+            Op.MEMORY_RECALL,
+            Op.OPENCLAW_TOOL,
+        ):
             try:
                 extra = f"  ; {pool.get(operand)!r}"
             except (IndexError, KeyError):

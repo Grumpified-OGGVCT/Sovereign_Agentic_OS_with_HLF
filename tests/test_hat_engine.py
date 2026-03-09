@@ -77,9 +77,19 @@ class TestHatDefinitions:
         from agents.core.hat_engine import HAT_DEFINITIONS
 
         expected = {
-            "red", "black", "white", "yellow", "green", "blue",
-            "indigo", "cyan", "purple", "orange", "silver",
-            "azure", "gold",
+            "red",
+            "black",
+            "white",
+            "yellow",
+            "green",
+            "blue",
+            "indigo",
+            "cyan",
+            "purple",
+            "orange",
+            "silver",
+            "azure",
+            "gold",
         }
         assert set(HAT_DEFINITIONS.keys()) == expected
 

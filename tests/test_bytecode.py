@@ -229,7 +229,7 @@ class TestHlfVM:
 
     def test_too_short_raises(self) -> None:
         with pytest.raises(HlfBytecodeError, match="too short"):
-            execute_bytecode(b"\x48\x4C")
+            execute_bytecode(b"\x48\x4c")
 
     def test_checksum_mismatch_raises(self) -> None:
         ast = {"program": [{"tag": "RESULT", "code": 0, "message": "ok", "args": [], "terminator": True}]}

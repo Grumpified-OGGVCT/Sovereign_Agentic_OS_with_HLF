@@ -31,11 +31,15 @@ def _init_test_repo() -> str:
     subprocess.run(["git", "init", repo], check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@test.com"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     # Initial commit
     readme = os.path.join(repo, "README.md")
@@ -44,7 +48,9 @@ def _init_test_repo() -> str:
     subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "Initial"],
-        cwd=repo, check=True, capture_output=True,
+        cwd=repo,
+        check=True,
+        capture_output=True,
     )
     return repo
 
@@ -71,10 +77,7 @@ class TestDiffRegionParsing:
         assert regions == [(1, 5)]
 
     def test_parse_multiple_hunks(self) -> None:
-        diff = (
-            "@@ -1,3 +1,3 @@\n modified\n"
-            "@@ -10,2 +10,4 @@\n added\n"
-        )
+        diff = "@@ -1,3 +1,3 @@\n modified\n@@ -10,2 +10,4 @@\n added\n"
         regions = ACFSWorktreeManager._parse_diff_regions(diff)
         assert len(regions) == 2
         assert regions[0] == (1, 3)
@@ -146,7 +149,9 @@ class TestDetectConflicts:
         subprocess.run(["git", "add", "-A"], cwd=repo, check=True, capture_output=True)
         subprocess.run(
             ["git", "commit", "-m", "add shared"],
-            cwd=repo, check=True, capture_output=True,
+            cwd=repo,
+            check=True,
+            capture_output=True,
         )
 
         wt_base = tempfile.mkdtemp(prefix="acfs_wt_base_")

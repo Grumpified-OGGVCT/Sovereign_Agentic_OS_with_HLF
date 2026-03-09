@@ -45,6 +45,7 @@ logger = logging.getLogger(__name__)
 
 class ToolCategory(StrEnum):
     """Categories of tools available to agents."""
+
     FILE = "file"
     TERMINAL = "terminal"
     GIT = "git"
@@ -60,10 +61,11 @@ class ToolCategory(StrEnum):
 
 class ToolPermission(StrEnum):
     """Permission levels for tool access."""
-    READ = "read"        # Can read files, view status
-    WRITE = "write"      # Can write files, make commits
+
+    READ = "read"  # Can read files, view status
+    WRITE = "write"  # Can write files, make commits
     EXECUTE = "execute"  # Can run commands, deploy
-    ADMIN = "admin"      # Full access including destructive ops
+    ADMIN = "admin"  # Full access including destructive ops
 
 
 # Default role → permission mapping
@@ -107,6 +109,7 @@ class ToolResult:
         tool_id: Which tool was invoked.
         metadata: Extra context (e.g., file path, exit code).
     """
+
     success: bool
     output: Any = None
     error: str | None = None
@@ -134,6 +137,7 @@ class ToolDefinition:
         input_schema: JSON-Schema-like dict describing expected inputs.
         output_schema: JSON-Schema-like dict describing outputs.
     """
+
     tool_id: str
     category: ToolCategory
     description: str
@@ -200,9 +204,7 @@ class ToolRegistry:
         """Look up a tool by ID."""
         return self._tools.get(tool_id)
 
-    def list_tools(
-        self, category: ToolCategory | None = None
-    ) -> list[ToolDefinition]:
+    def list_tools(self, category: ToolCategory | None = None) -> list[ToolDefinition]:
         """List all registered tools, optionally filtered by category."""
         tools = list(self._tools.values())
         if category is not None:
@@ -227,36 +229,25 @@ class ToolRegistry:
         if tool is None:
             return False
 
-        role_perms = self._role_permissions.get(
-            agent_role, {ToolPermission.READ}
-        )
+        role_perms = self._role_permissions.get(agent_role, {ToolPermission.READ})
         return tool.required_permission in role_perms
 
-    def grant_permission(
-        self, role: str, permission: ToolPermission
-    ) -> None:
+    def grant_permission(self, role: str, permission: ToolPermission) -> None:
         """Grant a permission to a role."""
         if role not in self._role_permissions:
             self._role_permissions[role] = set()
         self._role_permissions[role].add(permission)
 
-    def revoke_permission(
-        self, role: str, permission: ToolPermission
-    ) -> None:
+    def revoke_permission(self, role: str, permission: ToolPermission) -> None:
         """Revoke a permission from a role."""
         if role in self._role_permissions:
             self._role_permissions[role].discard(permission)
 
     def get_available_tools(self, agent_role: str) -> list[ToolDefinition]:
         """Get all tools an agent role can use."""
-        return [
-            tool for tool in self._tools.values()
-            if self.can_use(agent_role, tool.tool_id)
-        ]
+        return [tool for tool in self._tools.values() if self.can_use(agent_role, tool.tool_id)]
 
-    def execute(
-        self, tool_id: str, agent_role: str, **kwargs: Any
-    ) -> ToolResult:
+    def execute(self, tool_id: str, agent_role: str, **kwargs: Any) -> ToolResult:
         """Execute a tool with permission checks.
 
         Args:
@@ -279,7 +270,7 @@ class ToolRegistry:
             return ToolResult(
                 success=False,
                 error=f"Agent role '{agent_role}' lacks permission for '{tool_id}' "
-                      f"(requires {tool.required_permission})",
+                f"(requires {tool.required_permission})",
                 tool_id=tool_id,
             )
 
@@ -312,6 +303,7 @@ class ToolRegistry:
         """Log to ALIGN ledger."""
         try:
             from agents.core.als_logger import ALSLogger
+
             als = ALSLogger()
             als.log(event, data)
         except ImportError:

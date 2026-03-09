@@ -35,10 +35,10 @@ from hlf.memory_node import HLFMemoryNode, _compute_hash  # noqa: F401 — share
 logger = logging.getLogger(__name__)
 
 # Default configuration
-DEFAULT_HOT_CAPACITY = 256       # Max nodes in hot cache
-DEFAULT_COLD_AGE_DAYS = 90       # Move to cold after N days without access
-DEFAULT_DECAY_FACTOR = 0.95      # Confidence decay per cycle
-DEFAULT_DECAY_WINDOW_DAYS = 30   # Decay nodes not accessed in N days
+DEFAULT_HOT_CAPACITY = 256  # Max nodes in hot cache
+DEFAULT_COLD_AGE_DAYS = 90  # Move to cold after N days without access
+DEFAULT_DECAY_FACTOR = 0.95  # Confidence decay per cycle
+DEFAULT_DECAY_WINDOW_DAYS = 30  # Decay nodes not accessed in N days
 
 
 class InfiniteRAGEngine:
@@ -183,11 +183,18 @@ class InfiniteRAGEngine:
                 parent_hash, last_accessed, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                node.node_id, node.entity_id, node.hlf_source,
+                node.node_id,
+                node.entity_id,
+                node.hlf_source,
                 json.dumps(node.hlf_ast, sort_keys=True),
-                node.content_hash, node.confidence, node.provenance_agent,
-                node.provenance_ts, node.correction_count, node.parent_hash,
-                node.last_accessed, node.created_at,
+                node.content_hash,
+                node.confidence,
+                node.provenance_agent,
+                node.provenance_ts,
+                node.correction_count,
+                node.parent_hash,
+                node.last_accessed,
+                node.created_at,
             ),
         )
         conn.commit()
@@ -554,12 +561,14 @@ class InfiniteRAGEngine:
                 (entity_id,),
             ).fetchall()
             for r in rows:
-                results.append({
-                    "entity_id": r["target_entity"],
-                    "relationship": r["relationship"],
-                    "weight": r["weight"],
-                    "direction": "outgoing",
-                })
+                results.append(
+                    {
+                        "entity_id": r["target_entity"],
+                        "relationship": r["relationship"],
+                        "weight": r["weight"],
+                        "direction": "outgoing",
+                    }
+                )
 
         if direction in ("incoming", "both"):
             rows = conn.execute(
@@ -569,12 +578,14 @@ class InfiniteRAGEngine:
                 (entity_id,),
             ).fetchall()
             for r in rows:
-                results.append({
-                    "entity_id": r["source_entity"],
-                    "relationship": r["relationship"],
-                    "weight": r["weight"],
-                    "direction": "incoming",
-                })
+                results.append(
+                    {
+                        "entity_id": r["source_entity"],
+                        "relationship": r["relationship"],
+                        "weight": r["weight"],
+                        "direction": "incoming",
+                    }
+                )
 
         return results
 
@@ -711,13 +722,15 @@ class InfiniteRAGEngine:
                         sig_nodes.append(sig)
                         tokens_used += sig["token_estimate"]
                     else:
-                        full_nodes.append({
-                            "node_id": node.node_id,
-                            "entity_id": node.entity_id,
-                            "hlf_source": node.hlf_source,
-                            "confidence": node.confidence,
-                            "token_estimate": est,
-                        })
+                        full_nodes.append(
+                            {
+                                "node_id": node.node_id,
+                                "entity_id": node.entity_id,
+                                "hlf_source": node.hlf_source,
+                                "confidence": node.confidence,
+                                "token_estimate": est,
+                            }
+                        )
                         tokens_used += est
 
             elif depth <= signature_depth:
@@ -777,11 +790,18 @@ class InfiniteRAGEngine:
                 parent_hash, archived_at, created_at)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (
-                row["node_id"], row["entity_id"], row["hlf_source"],
-                row["hlf_ast_json"], row["content_hash"], row["confidence"],
-                row["provenance_agent"], row["provenance_ts"],
-                row["correction_count"], row["parent_hash"],
-                time.time(), row["created_at"],
+                row["node_id"],
+                row["entity_id"],
+                row["hlf_source"],
+                row["hlf_ast_json"],
+                row["content_hash"],
+                row["confidence"],
+                row["provenance_agent"],
+                row["provenance_ts"],
+                row["correction_count"],
+                row["parent_hash"],
+                time.time(),
+                row["created_at"],
             ),
         )
 
@@ -815,6 +835,6 @@ class InfiniteRAGEngine:
             provenance_ts=row["provenance_ts"],
             correction_count=row["correction_count"],
             parent_hash=row["parent_hash"],
-            last_accessed=row.get("archived_at", time.time()) if hasattr(row, 'get') else time.time(),
+            last_accessed=row.get("archived_at", time.time()) if hasattr(row, "get") else time.time(),
             created_at=row["created_at"],
         )

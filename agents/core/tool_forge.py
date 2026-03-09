@@ -171,6 +171,7 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
                 try:
                     ns = {}
                     import builtins
+
                     builtins.exec(code, ns)  # Bypass policy linter for controlled sandbox
                     func = ns.get(name)
                     queue.put(callable(func))

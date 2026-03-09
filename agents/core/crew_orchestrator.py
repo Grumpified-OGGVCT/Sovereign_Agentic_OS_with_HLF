@@ -82,6 +82,7 @@ def reload_registry() -> None:
 @dataclass
 class PersonaResponse:
     """Single persona's analysis output."""
+
     persona: str
     role: str
     hat: str
@@ -95,6 +96,7 @@ class PersonaResponse:
 @dataclass
 class ConsolidationReport:
     """Consolidator's synthesis of all persona responses."""
+
     agreements: list[str] = field(default_factory=list)
     disagreements: list[str] = field(default_factory=list)
     evidence_gaps: list[str] = field(default_factory=list)
@@ -106,6 +108,7 @@ class ConsolidationReport:
 @dataclass
 class CrewReport:
     """Complete crew discussion output."""
+
     topic: str
     personas_used: list[str] = field(default_factory=list)
     responses: list[PersonaResponse] = field(default_factory=list)
@@ -125,6 +128,7 @@ class CrewReport:
 
 class SDDPhase(Enum):
     """Spec-Driven Development lifecycle phases — strictly ordered."""
+
     SPECIFY = 1
     PLAN = 2
     EXECUTE = 3
@@ -150,6 +154,7 @@ class SDDSession:
         responses: Accumulated persona responses across all phases
         sealed: Whether the mission has been completed (MERGE phase reached)
     """
+
     session_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     phase: SDDPhase = SDDPhase.SPECIFY
     topic: str = ""
@@ -175,22 +180,22 @@ class SDDSession:
 
         if target_idx < current_idx and not override:
             raise ValueError(
-                f"SDD backward transition {self.phase.name} → {target.name} "
-                f"not allowed without override=True"
+                f"SDD backward transition {self.phase.name} → {target.name} not allowed without override=True"
             )
         if target_idx > current_idx + 1 and not override:
             raise ValueError(
-                f"SDD phase skip {self.phase.name} → {target.name} "
-                f"not allowed — must progress sequentially"
+                f"SDD phase skip {self.phase.name} → {target.name} not allowed — must progress sequentially"
             )
 
-        self.phase_history.append({
-            "from": self.phase.name,
-            "to": target.name,
-            "timestamp": time.time(),
-            "notes": notes,
-            "override": override,
-        })
+        self.phase_history.append(
+            {
+                "from": self.phase.name,
+                "to": target.name,
+                "timestamp": time.time(),
+                "notes": notes,
+                "override": override,
+            }
+        )
         self.phase = target
 
         if target == SDDPhase.MERGE:
@@ -206,33 +211,41 @@ class SDDSession:
         if self.sealed:
             raise ValueError("Cannot realign a sealed session")
 
-        self.realignment_events.append({
-            "triggered_by": event.triggered_by,
-            "change_type": event.change_type,
-            "change_description": event.change_description,
-            "affected_nodes": event.affected_nodes,
-            "timestamp": event.timestamp,
-        })
+        self.realignment_events.append(
+            {
+                "triggered_by": event.triggered_by,
+                "change_type": event.change_type,
+                "change_description": event.change_description,
+                "affected_nodes": event.affected_nodes,
+                "timestamp": event.timestamp,
+            }
+        )
 
         # Update spec with re-alignment data
         if self.spec is not None:
-            self.spec.setdefault("_realignments", []).append({
-                "by": event.triggered_by,
-                "type": event.change_type,
-                "desc": event.change_description,
-                "ts": event.timestamp,
-            })
+            self.spec.setdefault("_realignments", []).append(
+                {
+                    "by": event.triggered_by,
+                    "type": event.change_type,
+                    "desc": event.change_description,
+                    "ts": event.timestamp,
+                }
+            )
 
-        self.phase_history.append({
-            "from": self.phase.name,
-            "to": self.phase.name,
-            "timestamp": event.timestamp,
-            "notes": f"REALIGNMENT: {event.change_type} — {event.change_description}",
-            "override": False,
-        })
+        self.phase_history.append(
+            {
+                "from": self.phase.name,
+                "to": self.phase.name,
+                "timestamp": event.timestamp,
+                "notes": f"REALIGNMENT: {event.change_type} — {event.change_description}",
+                "override": False,
+            }
+        )
 
         _sdd_log_transition(
-            self.topic, self.phase.name, self.phase.name,
+            self.topic,
+            self.phase.name,
+            self.phase.name,
             f"realignment: {event.change_type}",
         )
 
@@ -284,6 +297,7 @@ class SDDRealignmentEvent:
         affected_nodes: List of DAG node_ids affected by this change.
         timestamp: When the re-alignment was triggered.
     """
+
     triggered_by: str
     change_type: str
     change_description: str
@@ -351,12 +365,7 @@ class ValidationToken:
 
     def is_valid(self) -> bool:
         """Check if the token is valid (signed + all checks passed)."""
-        return (
-            self.verify()
-            and self.tests_passed
-            and self.lint_clean
-            and self.cove_approved
-        )
+        return self.verify() and self.tests_passed and self.lint_clean and self.cove_approved
 
     def to_dict(self) -> dict:
         """Serialize for persistence."""
@@ -441,7 +450,8 @@ class SDDSessionStore:
         now = time.time()
         session_json = json.dumps(session.to_dict(), sort_keys=True)
 
-        conn.execute("""
+        conn.execute(
+            """
             INSERT INTO sdd_sessions
                 (session_id, topic, phase, sealed, session_json, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -450,10 +460,17 @@ class SDDSessionStore:
                 sealed = excluded.sealed,
                 session_json = excluded.session_json,
                 updated_at = excluded.updated_at
-        """, (
-            session.session_id, session.topic, session.phase.name,
-            1 if session.sealed else 0, session_json, now, now,
-        ))
+        """,
+            (
+                session.session_id,
+                session.topic,
+                session.phase.name,
+                1 if session.sealed else 0,
+                session_json,
+                now,
+                now,
+            ),
+        )
         conn.commit()
 
     def load(self, session_id: str) -> SDDSession | None:
@@ -528,6 +545,7 @@ class SDDSessionStore:
 # ---------------------------------------------------------------------------
 # Persona system prompts
 # ---------------------------------------------------------------------------
+
 
 def _load_persona_prompt_file(agent_id: str) -> str | None:
     """Load the full unreduced persona prompt from config/personas/{agent_id}.md.
@@ -623,22 +641,26 @@ def _build_persona_prompt(agent_id: str, topic: str, prior_responses: list[Perso
             ca_agent = registry.get(ca, {})
             ca_role = ca_agent.get("role", ca.title())
             aware_names.append(f"- **{ca}**: {ca_role}")
-        prompt_parts.extend([
-            "",
-            "**Cross-awareness — you are context-aware of these collaborators:**",
-            *aware_names,
-            "",
-            "You may reference their domains, suggest they investigate further,",
-            "or flag disagreements with their perspectives.",
-        ])
+        prompt_parts.extend(
+            [
+                "",
+                "**Cross-awareness — you are context-aware of these collaborators:**",
+                *aware_names,
+                "",
+                "You may reference their domains, suggest they investigate further,",
+                "or flag disagreements with their perspectives.",
+            ]
+        )
 
     # If prior responses exist (round-robin), include summaries
     if prior_responses:
-        prompt_parts.extend([
-            "",
-            "---",
-            "**Prior perspectives from the crew (reference, do NOT repeat):**",
-        ])
+        prompt_parts.extend(
+            [
+                "",
+                "---",
+                "**Prior perspectives from the crew (reference, do NOT repeat):**",
+            ]
+        )
         for pr in prior_responses:
             # Truncate long responses to keep context efficient
             summary = pr.content[:800] + "..." if len(pr.content) > 800 else pr.content
@@ -646,22 +668,24 @@ def _build_persona_prompt(agent_id: str, topic: str, prior_responses: list[Perso
 
     # Append structured output rules (only if using fallback — full prompts have their own)
     if not full_prompt:
-        prompt_parts.extend([
-            "",
-            "---",
-            "**Rules:**",
-            "1. Respond ONLY within your domain expertise",
-            "2. Be adversarial — assume everything is broken until proven otherwise",
-            "3. Cite specific files, functions, or code patterns when possible",
-            "4. Rate each finding as CRITICAL / HIGH / MEDIUM / LOW / INFO",
-            "5. Provide actionable, concrete recommendations (not vague advice)",
-            "6. If you disagree with a prior persona's assessment, state it explicitly",
-            "7. Format your response as structured JSON:",
-            "",
-            "```json",
-            '[{"severity": "HIGH", "title": "...", "description": "...", "recommendation": "..."}]',
-            "```",
-        ])
+        prompt_parts.extend(
+            [
+                "",
+                "---",
+                "**Rules:**",
+                "1. Respond ONLY within your domain expertise",
+                "2. Be adversarial — assume everything is broken until proven otherwise",
+                "3. Cite specific files, functions, or code patterns when possible",
+                "4. Rate each finding as CRITICAL / HIGH / MEDIUM / LOW / INFO",
+                "5. Provide actionable, concrete recommendations (not vague advice)",
+                "6. If you disagree with a prior persona's assessment, state it explicitly",
+                "7. Format your response as structured JSON:",
+                "",
+                "```json",
+                '[{"severity": "HIGH", "title": "...", "description": "...", "recommendation": "..."}]',
+                "```",
+            ]
+        )
 
     return "\n".join(prompt_parts)
 
@@ -686,27 +710,29 @@ def _build_consolidator_prompt(topic: str, responses: list[PersonaResponse]) -> 
         prompt_parts.append(resp.content)
         prompt_parts.append("")
 
-    prompt_parts.extend([
-        "---",
-        "**Your task:**",
-        "1. Identify AGREEMENTS — findings where 2+ personas converge",
-        "2. Identify DISAGREEMENTS — findings where personas contradict",
-        "3. Identify EVIDENCE GAPS — questions no persona addressed",
-        "4. Produce PRIORITIZED RECOMMENDATIONS — ranked by cross-persona consensus",
-        "5. Assign a CONFIDENCE SCORE (0.0 — 1.0) based on coverage completeness",
-        "",
-        "**Format your response as JSON:**",
-        "```json",
-        '{',
-        '  "agreements": ["..."],',
-        '  "disagreements": ["..."],',
-        '  "evidence_gaps": ["..."],',
-        '  "recommendations": ["..."],',
-        '  "confidence": 0.85,',
-        '  "executive_summary": "..."',
-        '}',
-        "```",
-    ])
+    prompt_parts.extend(
+        [
+            "---",
+            "**Your task:**",
+            "1. Identify AGREEMENTS — findings where 2+ personas converge",
+            "2. Identify DISAGREEMENTS — findings where personas contradict",
+            "3. Identify EVIDENCE GAPS — questions no persona addressed",
+            "4. Produce PRIORITIZED RECOMMENDATIONS — ranked by cross-persona consensus",
+            "5. Assign a CONFIDENCE SCORE (0.0 — 1.0) based on coverage completeness",
+            "",
+            "**Format your response as JSON:**",
+            "```json",
+            "{",
+            '  "agreements": ["..."],',
+            '  "disagreements": ["..."],',
+            '  "evidence_gaps": ["..."],',
+            '  "recommendations": ["..."],',
+            '  "confidence": 0.85,',
+            '  "executive_summary": "..."',
+            "}",
+            "```",
+        ]
+    )
 
     return "\n".join(prompt_parts)
 
@@ -714,6 +740,7 @@ def _build_consolidator_prompt(topic: str, responses: list[PersonaResponse]) -> 
 # ---------------------------------------------------------------------------
 # Ollama interface – reuses hat_engine's _call_ollama
 # ---------------------------------------------------------------------------
+
 
 def _call_persona(system_prompt: str, user_prompt: str, agent_id: str) -> str:
     """Call Ollama for a single persona.  Each gets its own API call."""
@@ -725,6 +752,7 @@ def _call_persona(system_prompt: str, user_prompt: str, agent_id: str) -> str:
     # Reuse hat_engine's _call_ollama for consistency
     try:
         from agents.core.hat_engine import _call_ollama
+
         return _call_ollama(system_prompt, user_prompt, model=model, restrictions=restrictions)
     except ImportError:
         logger.error("Cannot import hat_engine._call_ollama — persona call failed")
@@ -738,20 +766,20 @@ def _call_persona(system_prompt: str, user_prompt: str, agent_id: str) -> str:
 # Default persona order — intentionally structured for progressive analysis
 # Order follows the deliberation chain: research → plan → analyze → validate → meta
 DEFAULT_PERSONA_ORDER = [
-    "scout",        # Research first — external intelligence, new findings
-    "strategist",   # Plan next — prioritize based on scout intelligence
-    "sentinel",     # Security — find attack surfaces early
-    "palette",      # UX — find usability/accessibility issues
-    "catalyst",     # Performance — profile bottlenecks & latency budgets
-    "cove",         # CoVE — adversarial 12-dimension validation
-    "oracle",       # Predictions — model second-order effects of findings
-    "steward",      # MCP integrity — tool workflow validation
-    "scribe",       # Token/gas accounting — resource audit
-    "chronicler",   # Tech debt — codebase health & drift tracking
-    "herald",       # Documentation — doc-code accuracy & knowledge freshness
-    "weaver",       # Meta-agent — prompt optimization & HLF self-improvement
-    "arbiter",      # Governance — ALIGN rule adjudication
-    "consolidator", # ALWAYS LAST — synthesizes all perspectives
+    "scout",  # Research first — external intelligence, new findings
+    "strategist",  # Plan next — prioritize based on scout intelligence
+    "sentinel",  # Security — find attack surfaces early
+    "palette",  # UX — find usability/accessibility issues
+    "catalyst",  # Performance — profile bottlenecks & latency budgets
+    "cove",  # CoVE — adversarial 12-dimension validation
+    "oracle",  # Predictions — model second-order effects of findings
+    "steward",  # MCP integrity — tool workflow validation
+    "scribe",  # Token/gas accounting — resource audit
+    "chronicler",  # Tech debt — codebase health & drift tracking
+    "herald",  # Documentation — doc-code accuracy & knowledge freshness
+    "weaver",  # Meta-agent — prompt optimization & HLF self-improvement
+    "arbiter",  # Governance — ALIGN rule adjudication
+    "consolidator",  # ALWAYS LAST — synthesizes all perspectives
 ]
 
 
@@ -776,8 +804,11 @@ def run_persona(
     if not agent:
         logger.error(f"Persona '{agent_id}' not found in registry")
         return PersonaResponse(
-            persona=agent_id, role="Unknown", hat="unknown",
-            model="none", content=f"ERROR: Persona '{agent_id}' not registered"
+            persona=agent_id,
+            role="Unknown",
+            hat="unknown",
+            model="none",
+            content=f"ERROR: Persona '{agent_id}' not registered",
         )
 
     system_prompt = _build_persona_prompt(agent_id, topic, prior_responses)
@@ -797,10 +828,7 @@ def run_persona(
         token_estimate=len(content.split()),  # Rough estimate
     )
 
-    logger.info(
-        f"Persona {agent_id} completed in {duration:.1f}s "
-        f"(~{response.token_estimate} tokens)"
-    )
+    logger.info(f"Persona {agent_id} completed in {duration:.1f}s (~{response.token_estimate} tokens)")
     return response
 
 
@@ -869,10 +897,7 @@ def run_crew(
     if conn:
         _persist_crew_report(conn, report)
 
-    logger.info(
-        f"Crew discussion completed: {len(responses)} personas, "
-        f"{report.total_duration:.1f}s total"
-    )
+    logger.info(f"Crew discussion completed: {len(responses)} personas, {report.total_duration:.1f}s total")
     return report
 
 
@@ -932,9 +957,7 @@ def run_sdd_mission(
         f"[SDD-PLAN] Decompose this specification into an ordered task DAG. "
         f"List each task with dependencies.\n\nSpec:\n{specify_response.content}"
     )
-    plan_response = run_persona(
-        "strategist", plan_prompt, prior_responses=[specify_response]
-    )
+    plan_response = run_persona("strategist", plan_prompt, prior_responses=[specify_response])
     session.responses.append(plan_response)
     session.task_dag = [{"raw_plan": plan_response.content, "timestamp": time.time()}]
     session.advance_to(SDDPhase.EXECUTE, notes="Task DAG created")
@@ -999,24 +1022,33 @@ def run_sdd_mission(
         )
         _persist_crew_report(conn, crew_report)
 
-    logger.info(f"SDD mission '{topic}' completed — {len(session.responses)} responses, "
-                f"{len(session.phase_history)} phase transitions")
+    logger.info(
+        f"SDD mission '{topic}' completed — {len(session.responses)} responses, "
+        f"{len(session.phase_history)} phase transitions"
+    )
     return session
 
 
 def _sdd_log_transition(
-    session: SDDSession, from_phase: str, to_phase: str, notes: str,
+    session: SDDSession,
+    from_phase: str,
+    to_phase: str,
+    notes: str,
 ) -> None:
     """Log an SDD phase transition to the ALIGN ledger."""
     try:
         from agents.core.als_logger import ALSLogger
+
         als = ALSLogger()
-        als.log("SDD_PHASE_TRANSITION", {
-            "topic": session.topic,
-            "from": from_phase,
-            "to": to_phase,
-            "notes": notes,
-        })
+        als.log(
+            "SDD_PHASE_TRANSITION",
+            {
+                "topic": session.topic,
+                "from": from_phase,
+                "to": to_phase,
+                "notes": notes,
+            },
+        )
     except ImportError:
         pass  # Standalone mode — no ALIGN ledger available
 
@@ -1024,6 +1056,7 @@ def _sdd_log_transition(
 # ---------------------------------------------------------------------------
 # Consolidation engine
 # ---------------------------------------------------------------------------
+
 
 def _run_consolidation(topic: str, responses: list[PersonaResponse]) -> ConsolidationReport:
     """Run the Consolidator persona to synthesize all perspectives."""
@@ -1068,6 +1101,7 @@ def _extract_json(text: str) -> str | None:
     """Extract JSON from a response that may contain markdown wrapping."""
     # Check for ```json ... ``` blocks
     import re
+
     pattern = re.compile(r"```(?:json)?\s*\n?([\s\S]*?)\n?```", re.MULTILINE)
     match = pattern.search(text)
     if match:
@@ -1086,6 +1120,7 @@ def _extract_json(text: str) -> str | None:
 # ---------------------------------------------------------------------------
 # Persistence
 # ---------------------------------------------------------------------------
+
 
 def _ensure_crew_tables(conn: sqlite3.Connection) -> None:
     """Create crew orchestration tables if they don't exist."""
@@ -1182,6 +1217,7 @@ def get_recent_crew_discussions(
 # Utility functions
 # ---------------------------------------------------------------------------
 
+
 def list_personas() -> dict[str, dict]:
     """Return all registered personas with their metadata."""
     registry = _load_registry()
@@ -1200,10 +1236,7 @@ def list_personas() -> dict[str, dict]:
 def get_cross_awareness_graph() -> dict[str, list[str]]:
     """Return the cross-awareness graph showing how personas are linked."""
     registry = _load_registry()
-    return {
-        agent_id: agent.get("cross_awareness", [])
-        for agent_id, agent in registry.items()
-    }
+    return {agent_id: agent.get("cross_awareness", []) for agent_id, agent in registry.items()}
 
 
 def get_system_status() -> dict[str, Any]:
@@ -1268,9 +1301,7 @@ def get_system_status() -> dict[str, Any]:
         "registry_hash": registry_hash,
         "prompt_file_hashes": prompt_hashes,
         "total_personas": len(roster),
-        "personas_with_full_prompts": sum(
-            1 for r in roster.values() if r["has_full_prompt_file"]
-        ),
+        "personas_with_full_prompts": sum(1 for r in roster.values() if r["has_full_prompt_file"]),
     }
 
 
@@ -1300,11 +1331,13 @@ if __name__ == "__main__":
     for agent_id, meta in status["persona_roster"].items():
         prompt_indicator = "📄" if meta["has_full_prompt_file"] else "📋"
         size = f"({meta['prompt_file_size_bytes']}b)" if meta["has_full_prompt_file"] else "(registry)"
-        print(f"  {prompt_indicator} {agent_id:<14} "
-              f"hat={meta['hat']:<8} "
-              f"model={meta['model']:<20} "
-              f"skills={meta['hard_skills_count']:<3} "
-              f"{size}")
+        print(
+            f"  {prompt_indicator} {agent_id:<14} "
+            f"hat={meta['hat']:<8} "
+            f"model={meta['model']:<20} "
+            f"skills={meta['hard_skills_count']:<3} "
+            f"{size}"
+        )
 
     print()
     print("  CROSS-AWARENESS GRAPH")
@@ -1321,4 +1354,3 @@ if __name__ == "__main__":
 
     print()
     print("=" * 72)
-

@@ -173,8 +173,7 @@ class SpindleEventBus:
         for event_type in list(self._subscribers):
             before = len(self._subscribers[event_type])
             self._subscribers[event_type] = [
-                s for s in self._subscribers[event_type]
-                if s.subscriber_id != subscriber_id
+                s for s in self._subscribers[event_type] if s.subscriber_id != subscriber_id
             ]
             removed += before - len(self._subscribers[event_type])
             if not self._subscribers[event_type]:
@@ -193,7 +192,7 @@ class SpindleEventBus:
         # Record history
         self._history.append(event)
         if len(self._history) > self._history_limit:
-            self._history = self._history[-self._history_limit:]
+            self._history = self._history[-self._history_limit :]
 
         if self._paused:
             return 0
@@ -210,7 +209,8 @@ class SpindleEventBus:
             except Exception:
                 logger.exception(
                     "Event bus callback error: subscriber=%s event=%s",
-                    sub.subscriber_id, event.event_type,
+                    sub.subscriber_id,
+                    event.event_type,
                 )
 
         # Notify wildcard subscribers (event_type=None)

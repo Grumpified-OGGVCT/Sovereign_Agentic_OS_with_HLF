@@ -115,6 +115,7 @@ def _eval_expr(node: Any, scope: dict[str, Any]) -> Any:
 
     # String — expand ${VAR} refs from scope
     if isinstance(node, str):
+
         def _replace(m: re.Match) -> str:
             return str(scope.get(m.group(1), m.group(0)))
 
@@ -371,16 +372,27 @@ class HLFInterpreter:
         elif tag == "CALL":
             result = self._exec_call(node)
         elif tag in (
-            "INTENT", "CONSTRAINT", "EXPECT", "OBSERVATION",
-            "THOUGHT", "PLAN", "DELEGATE", "VOTE", "ASSERT",
-            "MODULE", "DATA", "EPISTEMIC",
+            "INTENT",
+            "CONSTRAINT",
+            "EXPECT",
+            "OBSERVATION",
+            "THOUGHT",
+            "PLAN",
+            "DELEGATE",
+            "VOTE",
+            "ASSERT",
+            "MODULE",
+            "DATA",
+            "EPISTEMIC",
         ):
             # Structural/declarative tags — log and continue
-            self._trace.append({
-                "tag": tag,
-                "human_readable": node.get("human_readable", ""),
-                "action": "acknowledged",
-            })
+            self._trace.append(
+                {
+                    "tag": tag,
+                    "human_readable": node.get("human_readable", ""),
+                    "action": "acknowledged",
+                }
+            )
         elif tag == "SPEC_DEFINE":
             self._exec_spec_define(node)
         elif tag == "SPEC_GATE":
@@ -438,6 +450,7 @@ class HLFInterpreter:
         rest = args[1:]
         try:
             from agents.core.host_function_dispatcher import dispatch
+
             result = dispatch(verb, rest, self.tier)
         except ImportError:
             # Fallback: log the action without dispatch (for standalone use)
@@ -480,11 +493,13 @@ class HLFInterpreter:
         # Evaluate the condition expression
         condition_result = _eval_expr(condition, self.scope)
 
-        self._trace.append({
-            "tag": "CONDITIONAL",
-            "condition_result": bool(condition_result),
-            "operator": "⊎ ⇒ ⇌",
-        })
+        self._trace.append(
+            {
+                "tag": "CONDITIONAL",
+                "condition_result": bool(condition_result),
+                "operator": "⊎ ⇒ ⇌",
+            }
+        )
 
         if condition_result:
             if then_branch:
@@ -502,11 +517,13 @@ class HLFInterpreter:
         tasks = node.get("tasks", [])
         results = []
 
-        self._trace.append({
-            "tag": "PARALLEL",
-            "task_count": len(tasks),
-            "operator": "∥",
-        })
+        self._trace.append(
+            {
+                "tag": "PARALLEL",
+                "task_count": len(tasks),
+                "operator": "∥",
+            }
+        )
 
         if not tasks:
             return results
@@ -547,11 +564,13 @@ class HLFInterpreter:
         refs = node.get("refs", [])
         action = node.get("action")
 
-        self._trace.append({
-            "tag": "SYNC",
-            "refs": refs,
-            "operator": "⋈",
-        })
+        self._trace.append(
+            {
+                "tag": "SYNC",
+                "refs": refs,
+                "operator": "⋈",
+            }
+        )
 
         # Check that all referenced tasks have completed
         missing = [ref for ref in refs if ref not in self._parallel_results]
@@ -587,12 +606,14 @@ class HLFInterpreter:
             "field_types": {f.get("name", ""): f.get("type_name", "Any") for f in fields},
         }
 
-        self._trace.append({
-            "tag": "STRUCT",
-            "name": name,
-            "fields": [f.get("name", "") for f in fields],
-            "operator": "≡",
-        })
+        self._trace.append(
+            {
+                "tag": "STRUCT",
+                "name": name,
+                "fields": [f.get("name", "") for f in fields],
+                "operator": "≡",
+            }
+        )
 
     def _exec_glyph_modified(self, node: dict) -> Any:
         """Execute GLYPH_MODIFIED — apply modifier semantics, then execute inner statement."""
@@ -602,12 +623,14 @@ class HLFInterpreter:
 
         self._active_glyphs.append(glyph_name)
 
-        self._trace.append({
-            "tag": "GLYPH_MODIFIED",
-            "glyph": glyph,
-            "glyph_name": glyph_name,
-            "action": "modifier_applied",
-        })
+        self._trace.append(
+            {
+                "tag": "GLYPH_MODIFIED",
+                "glyph": glyph,
+                "glyph_name": glyph_name,
+                "action": "modifier_applied",
+            }
+        )
 
         # Apply glyph-specific semantics
         semantics = _GLYPH_SEMANTICS.get(glyph_name, {})  # noqa: F841 — pre-staged for glyph dispatch
@@ -641,22 +664,24 @@ class HLFInterpreter:
         tool_name = node.get("tool", "")
         args = node.get("args", [])
 
-        self._trace.append({
-            "tag": "OPENCLAW_TOOL",
-            "tool": tool_name,
-            "args": args,
-            "operator": "↦ 🗲",
-        })
+        self._trace.append(
+            {
+                "tag": "OPENCLAW_TOOL",
+                "tool": tool_name,
+                "args": args,
+                "operator": "↦ 🗲",
+            }
+        )
 
         # Dispatch to OpenClaw orchestrator plugin via configurable endpoint
         import os
 
         import httpx
+
         openclaw_url = os.environ.get("OPENCLAW_ENDPOINT")
         if not openclaw_url:
             raise HlfRuntimeError(
-                "OPENCLAW_ENDPOINT environment variable is not set; "
-                "cannot execute OPENCLAW_TOOL in this deployment."
+                "OPENCLAW_ENDPOINT environment variable is not set; cannot execute OPENCLAW_TOOL in this deployment."
             )
         try:
             response = httpx.post(
@@ -690,27 +715,31 @@ class HLFInterpreter:
         args = node.get("args", [])
         type_annotation = node.get("type_annotation")  # noqa: F841 — pre-staged for v4 type dispatch
 
-        self._trace.append({
-            "tag": "TOOL",
-            "tool": tool_name,
-            "args": args,
-            "operator": "↦ τ",
-        })
+        self._trace.append(
+            {
+                "tag": "TOOL",
+                "tool": tool_name,
+                "args": args,
+                "operator": "↦ τ",
+            }
+        )
 
         # Try to dispatch via runtime.py HostFunctionRegistry first
         try:
             from hlf.runtime import HostFunctionRegistry
+
             registry = HostFunctionRegistry.from_json()
             result_obj = registry.dispatch(
                 tool_name,
                 {"args": args},
                 tier=self.tier,
             )
-            result = result_obj.value if hasattr(result_obj, 'value') else result_obj
+            result = result_obj.value if hasattr(result_obj, "value") else result_obj
         except ImportError:
             # Fallback: try legacy dispatcher
             try:
                 from agents.core.host_function_dispatcher import dispatch
+
                 result = dispatch(tool_name, args, self.tier)
             except ImportError:
                 result = {"tool": tool_name, "args": args, "status": "dispatch_unavailable"}
@@ -723,11 +752,13 @@ class HLFInterpreter:
         """Execute IMPORT — delegate to runtime.py ModuleLoader if available."""
         module_name = node.get("name", "")
 
-        self._trace.append({
-            "tag": "IMPORT",
-            "module": module_name,
-            "action": "import_requested",
-        })
+        self._trace.append(
+            {
+                "tag": "IMPORT",
+                "module": module_name,
+                "action": "import_requested",
+            }
+        )
 
         # Module loading is handled by HLFRuntime in runtime.py which
         # wraps this interpreter. If running standalone, log and continue.
@@ -794,6 +825,7 @@ class HLFInterpreter:
         if self._memory_engine is not None:
             try:
                 from hlf.memory_node import HLFMemoryNode
+
                 mem_node = HLFMemoryNode.from_ast(
                     ast=node,
                     entity_id=entity,
@@ -805,10 +837,14 @@ class HLFInterpreter:
             except Exception as e:
                 logger.warning(f"MEMORY store to engine failed: {e}")
 
-        self._trace.append({
-            "tag": "MEMORY", "entity": entity,
-            "confidence": confidence, "action": "stored",
-        })
+        self._trace.append(
+            {
+                "tag": "MEMORY",
+                "entity": entity,
+                "confidence": confidence,
+                "action": "stored",
+            }
+        )
 
     def _exec_recall(self, node: dict) -> list:
         """Execute RECALL — retrieve memories for an entity.
@@ -840,10 +876,14 @@ class HLFInterpreter:
         self.scope[f"RECALL_{entity}"] = results
         self._result_value = results
 
-        self._trace.append({
-            "tag": "RECALL", "entity": entity,
-            "top_k": top_k, "found": len(results),
-        })
+        self._trace.append(
+            {
+                "tag": "RECALL",
+                "entity": entity,
+                "top_k": top_k,
+                "found": len(results),
+            }
+        )
         return results
 
     # ------------------------------------------------------------------ #
@@ -855,10 +895,14 @@ class HLFInterpreter:
         name = node.get("name", "")
         body = node.get("body", [])
         self._macros[name] = body
-        self._trace.append({
-            "tag": "DEFINE", "name": name,
-            "statements": len(body), "action": "registered",
-        })
+        self._trace.append(
+            {
+                "tag": "DEFINE",
+                "name": name,
+                "statements": len(body),
+                "action": "registered",
+            }
+        )
 
     def _exec_call(self, node: dict) -> Any:
         """Execute CALL — expand and execute a previously-defined macro.
@@ -888,10 +932,14 @@ class HLFInterpreter:
             if self._result_code is not None:
                 break
 
-        self._trace.append({
-            "tag": "CALL", "name": name,
-            "args_count": len(args), "action": "executed",
-        })
+        self._trace.append(
+            {
+                "tag": "CALL",
+                "name": name,
+                "args_count": len(args),
+                "action": "executed",
+            }
+        )
         return result
 
     def _substitute_params(self, node: Any, args: list) -> Any:
@@ -900,10 +948,12 @@ class HLFInterpreter:
             return None
         if isinstance(node, str):
             import re as _re
+
             def _replace_param(m: _re.Match) -> str:
                 idx = int(m.group(1)) - 1
                 return str(args[idx]) if idx < len(args) else m.group(0)
-            return _re.sub(r'\$(\d+)', _replace_param, node)
+
+            return _re.sub(r"\$(\d+)", _replace_param, node)
         if isinstance(node, list):
             return [self._substitute_params(item, args) for item in node]
         if isinstance(node, dict):
@@ -931,10 +981,14 @@ class HLFInterpreter:
             "updates": [],
             "status": "active",
         }
-        self._trace.append({
-            "tag": "SPEC_DEFINE", "section": section,
-            "constraints": len(constraints), "action": "registered",
-        })
+        self._trace.append(
+            {
+                "tag": "SPEC_DEFINE",
+                "section": section,
+                "constraints": len(constraints),
+                "action": "registered",
+            }
+        )
 
     def _exec_spec_gate(self, node: dict) -> None:
         """Execute SPEC_GATE — assert a spec constraint; halt if violated."""
@@ -945,15 +999,15 @@ class HLFInterpreter:
             if args:
                 condition = args[0]
         result = _eval_expr(condition, self.scope)
-        self._trace.append({
-            "tag": "SPEC_GATE",
-            "condition_result": bool(result),
-            "action": "asserted",
-        })
+        self._trace.append(
+            {
+                "tag": "SPEC_GATE",
+                "condition_result": bool(result),
+                "action": "asserted",
+            }
+        )
         if not result:
-            raise HlfRuntimeError(
-                f"SPEC_GATE violation: condition evaluated to {result!r}"
-            )
+            raise HlfRuntimeError(f"SPEC_GATE violation: condition evaluated to {result!r}")
 
     def _exec_spec_update(self, node: dict) -> None:
         """Execute SPEC_UPDATE — record a spec mutation + ALIGN ledger entry."""
@@ -977,17 +1031,25 @@ class HLFInterpreter:
         # Try to log to ALIGN ledger
         try:
             from agents.core.als_logger import ALSLogger
+
             als = ALSLogger()
-            als.log("SPEC_UPDATED", {
-                "section": section,
-                "updates": updates,
-            })
+            als.log(
+                "SPEC_UPDATED",
+                {
+                    "section": section,
+                    "updates": updates,
+                },
+            )
         except ImportError:
             pass  # Standalone mode — no ALIGN ledger available
-        self._trace.append({
-            "tag": "SPEC_UPDATE", "section": section,
-            "update_count": len(updates), "action": "recorded",
-        })
+        self._trace.append(
+            {
+                "tag": "SPEC_UPDATE",
+                "section": section,
+                "update_count": len(updates),
+                "action": "recorded",
+            }
+        )
 
     def _exec_spec_seal(self, node: dict) -> None:
         """Execute SPEC_SEAL — lock spec, compute SHA-256 checksum."""
@@ -996,24 +1058,32 @@ class HLFInterpreter:
         self._spec_sealed = True
         # Compute deterministic checksum of the spec registry
         import json as _json
+
         canonical = _json.dumps(self._spec_registry, sort_keys=True, default=str)
         checksum = hashlib.sha256(canonical.encode()).hexdigest()
         self.scope["SPEC_CHECKSUM"] = checksum
         # Try to log to ALIGN ledger
         try:
             from agents.core.als_logger import ALSLogger
+
             als = ALSLogger()
-            als.log("SPEC_SEALED", {
-                "sections": list(self._spec_registry.keys()),
-                "checksum": checksum,
-            })
+            als.log(
+                "SPEC_SEALED",
+                {
+                    "sections": list(self._spec_registry.keys()),
+                    "checksum": checksum,
+                },
+            )
         except ImportError:
             pass  # Standalone mode
-        self._trace.append({
-            "tag": "SPEC_SEAL", "checksum": checksum,
-            "sections": list(self._spec_registry.keys()),
-            "action": "sealed",
-        })
+        self._trace.append(
+            {
+                "tag": "SPEC_SEAL",
+                "checksum": checksum,
+                "sections": list(self._spec_registry.keys()),
+                "action": "sealed",
+            }
+        )
 
 
 # --------------------------------------------------------------------------- #

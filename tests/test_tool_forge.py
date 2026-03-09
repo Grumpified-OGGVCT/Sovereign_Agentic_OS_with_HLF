@@ -455,8 +455,10 @@ class TestALIGNLedgerEntries:
         """Successful forge_tool logs TOOL_FORGE_REGISTERED via ALSLogger."""
         from agents.core.tool_forge import forge_tool
 
-        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code), \
-             patch("agents.core.tool_forge._logger") as mock_logger:
+        with (
+            patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code),
+            patch("agents.core.tool_forge._logger") as mock_logger,
+        ):
             result = forge_tool("add two numbers together", loop_count=3)
 
         assert result != {}
@@ -529,4 +531,3 @@ class TestInsAItsOpenClawTool:
         prose = decompile(ast)
         assert "Invoke OpenClaw tool 'OPENCLAW_SUMMARIZE'" in prose
         assert "1 argument(s)" in prose
-

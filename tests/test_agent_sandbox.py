@@ -147,7 +147,7 @@ class TestTerminalExecution:
 
     def test_command_failure(self):
         sandbox, tmp = _make_sandbox()
-        result = sandbox.run_command("python -c \"import sys; sys.exit(1)\"")
+        result = sandbox.run_command('python -c "import sys; sys.exit(1)"')
         assert result.exit_code == 1
 
     def test_command_timeout(self):
