@@ -1,5 +1,5 @@
 # Session Handover — HLF 4.0 Delta Analysis & SAFE Backfill
-> Created: 2026-03-02 | Conversation: 17bf5fb7-8201-4b97-b2db-5f9e35e348ef
+> Created: 2026-03-02 | Updated: 2026-03-08 | Conversation: 17bf5fb7-8201-4b97-b2db-5f9e35e348ef
 
 ## INSTRUCTIONS FOR NEXT SESSION
 
@@ -102,20 +102,22 @@ Read this file FIRST. It contains everything you need to continue the HLF delta 
 - **z.AI Provider** — GLM-5 reasoning, GLM-4.6V vision, CogView-4 image gen, CogVideoX-3 video gen, GLM-OCR
 - Agent Orchestration Layer (PlanExecutor, CodeAgent, BuildAgent)
 - Tool Ecosystem Pipeline (hlf install, 12-point CoVE gate, lockfiles)
+- **z.AI Video Polling** — `poll_video_status()`, `get_video_result()`, `zai.video_status` tool (37 tests) *(shipped 2026-03-08)*
+- **HLF stdlib modules** — 5 core modules in `hlf/stdlib/` (math, string, io, crypto, collections) + `hlf/modules/` for user modules (28 tests) *(shipped 2026-03-08)*
+- **Intent Capsules** — Wired into Gateway Bus step 4a, tier factories (hearth/forge/sovereign), CapsuleViolation → HTTP 403 (18 tests) *(shipped 2026-03-08)*
 
 ### 🟡 CONFIGURED / STUB
 - `bytecode_spec.yaml` — spec exists, bytecode VM implemented (stack-machine)
 - `kya_init.sh` — self-signed certs, not real SPIFFE/SPIRE
 - `dapr_grpc.proto` — proto defined, no gRPC runtime
 - OpenClaw Strategy B — `openclaw_strategies.yaml` exists
-- z.AI video generation — async task model, polling not yet wired
 
 ### ❌ GENUINELY NOT BUILT
 - Phase 5.1: OCI module distribution, module checksums
 - Phase 5.2: Byte-Code VM (Wasm, hlfrun, .hlb format)
 - Phase 5.3: LSP, REPL, Package Manager, Test Harness, MkDocs
 - Phase 5.4+: DGM, MAP-Elites, EGL monitoring, Yunjue pipeline, Soft Veto Gate
-- SAFE Tier 1: Intent Capsules, MAESTRO Classification, ADR System, InsAIts V2 daemon, SPIFFE/SPIRE upgrade
+- SAFE Tier 1: MAESTRO Classification, ADR System, InsAIts V2 daemon, SPIFFE/SPIRE upgrade
 - SAFE Tier 2: Z3 Formal Verification, ALIGN Live Ledger, full ALS Schema
 - HLF-Anchored Memory Nodes (concept exists, pipeline not wired)
 
@@ -126,8 +128,9 @@ Read this file FIRST. It contains everything you need to continue the HLF delta 
 1. **🔴 Fix 67 broken tests** — `test_tool_forge` (30), `test_hlf` (9), `test_policy` (9), `test_e2e_pipeline` (6), `test_aegis_nexus` (5), `test_installation` (4), `test_grammar_roundtrip` (2), `test_hat_engine` (1), `test_phase4_phase5` (1)
 2. **Update TODO.md** with new gap items: HLF-Anchored Memory Nodes, EGL/DGM phase, hieroglyphic paper reference
 3. **Phase 5.1 completion** — OCI module distribution + checksums (~30% remaining)
-4. **SAFE Tier 1 backfill** — Intent Capsules (lowest effort, highest value)
+4. ~~**SAFE Tier 1 backfill** — Intent Capsules~~ ✅ DONE (2026-03-08)
 5. **Investigate copilot_changes.diff** — some features from Copilot PRs may have landed partially
+6. **Commit Native Bridge work** — `agents/core/native/`, `sovereign_tray.py`, `test_native_bridge.py` still unstaged
 
 ---
 
