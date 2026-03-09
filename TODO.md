@@ -1,6 +1,6 @@
 # Sovereign Agentic OS — Master TODO
 
-> Last updated: 2026-03-08 | Test baseline: 1,075 passing (100%)
+> Last updated: 2026-03-09 12:25 CST | Test baseline: 1,670 passing (100%)
 > GitHub Issues: [#67](https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/issues/67), [#17](https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/issues/17), [#14](https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/issues/14), [#51](https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/issues/51)
 
 ---
@@ -15,29 +15,42 @@
 - [x] Agent Orchestration Layer — PlanExecutor, CodeAgent, BuildAgent (Wave 5)
 - [x] Tool Ecosystem Pipeline — `hlf install`, CoVE gate, lockfiles, lazy-loading
 - [x] Bytecode VM — stack-machine, `bytecode_spec.yaml`, assembler/disassembler
+- [x] HLF LSP (`hlflsp`) — diagnostics, completions, hover, go-to-def, symbols (29 tests)
+- [x] Daemon Bridge — SpindleEventBus↔DaemonEventBus translation + gas accounting (17 tests)
+- [x] Daemon Test Suites — Sentinel (27), Scribe (29), Arbiter (28), OCI Client (30) = 114 tests
+- [x] HLF Package Manager (`hlfpm`) — install/uninstall/search/freeze, lockfile (27 tests)
+- [x] HLF Test Harness (`hlftest`) — runner, assertions, pytest plugin (23 tests)
+- [x] HLF REPL (`hlfsh`) — persistent env, gas metering, 8 commands (27 tests)
+- [x] Phase 5.1: OCI module distribution, module checksums ✅ DONE
+- [ ] Phase 5.2: Wasm sandbox (Wasmtime), Dapr gRPC runtime, `.hlb` binary format
+- [x] Phase 5.3: LSP, REPL, Package Manager, Test Harness ✅ DONE — only MkDocs site remaining
 
 ---
 
-## 🔴 Priority 1: Phase 5.1 Completion — OCI Module Distribution
+## ✅ Priority 1: Phase 5.1 — OCI Module Distribution (COMPLETE)
 
-*Remaining ~10% of Phase 5.1*
-
-- [ ] OCI module distribution (`docker push` for `.hlf` modules)
-- [ ] `[IMPORT]` tag resolution via OCI registry paths in `config/settings.json`
-- [ ] `acfs.manifest.yaml` `modules:` section for checksum tracking
+- [x] OCI module distribution — `OCIClient.push()` / `OCIClient.pull()`
+- [x] `[IMPORT]` tag resolution via OCI — `ModuleLoader._resolve_oci()` with lazy client
+- [x] `acfs.manifest.yaml` `modules:` section — checksums loaded by `_load_manifest_checksums()`
+- [x] `settings.json` OCI config — `oci_registry`, `oci_namespace`, `oci_enabled`, `cache_dir`
 
 ---
 
 ## 🟠 Priority 2: GitHub Issue #17 — Aegis-Nexus Sentinel/Scribe/Arbiter
 
-*Runtime daemons — the unique value beyond 14-Hat review*
+*Runtime daemons — partially shipped, wiring remaining*
 
-- [ ] Sentinel runtime daemon — background privilege escalation / injection anomaly monitor
-- [ ] Scribe runtime daemon — continuous InsAIts translation stream + 80% token budget gate
-- [ ] Arbiter runtime daemon — inter-agent dispute resolution via ALIGN adjudication
+- [x] Sentinel runtime daemon — `sentinel.py` (292 lines) + 27 tests
+- [x] Scribe runtime daemon — `scribe.py` (281 lines) + 29 tests
+- [x] Arbiter runtime daemon — `arbiter.py` (435 lines) + 28 tests
+- [x] Daemon Bridge — event translation + gas accounting (17 tests)
+- [x] Agent profiles in `config/personas/` — sentinel.md, scribe.md, arbiter.md (8KB+ each)
+- [x] DaemonManager → SpindleEventBus auto-wiring on start (Batch B, 27 tests)
+- [ ] Per-agent gas dashboard report API
 - [ ] ASB Redis Streams inter-agent communication wiring
-- [ ] Per-agent gas accounting integration
-- [ ] Agent profile updates in `config/personas/`
+
+> **Resolved**: All 5 `hlf_programs/` now compile end-to-end — replaced standalone
+> `←` with `[SET]`, fixed CONSTRAINT arity, downgraded `decision_matrix.hlf` v4→v3.
 
 ---
 
@@ -54,11 +67,12 @@
 
 ## 🟡 Priority 4: Phase 5.3 — HLF Language Developer Experience
 
-- [ ] Language Server Protocol (`hlflsp` via `pygls`)
-- [ ] HLF REPL (`hlfsh`)
-- [ ] Package Manager (`hlfpm`) with OCI integration
-- [ ] Test Harness (`hlf-test`) + pytest plugin
-- [ ] MkDocs documentation site auto-generated from `dictionary.json` + `hls.yaml`
+- [x] Language Server Protocol (`hlflsp` via `pygls`) — 29 tests
+- [x] HLF REPL (`hlfsh`) — 27 tests
+- [x] Package Manager (`hlfpm`) with OCI integration — 27 tests
+- [x] Test Harness (`hlftest`) + pytest plugin — 23 tests
+- [x] MkDocs documentation site auto-generated from `dictionary.json` + `hls.yaml` ✅
+- [x] Jules PR #22 sync — `_exec_tool` kwargs expansion fix (194 tests green)
 
 ---
 
