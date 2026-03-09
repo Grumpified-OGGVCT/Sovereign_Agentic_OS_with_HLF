@@ -18,9 +18,10 @@ from hlf.memory_node import HLFMemoryNode
 # Helpers
 # ------------------------------------------------------------------ #
 
+
 def _prog(body: str) -> str:
     """Wrap body lines in the HLF v2 program envelope."""
-    return f'[HLF-v2]\n{body}\nΩ\n'
+    return f"[HLF-v2]\n{body}\nΩ\n"
 
 
 # ------------------------------------------------------------------ #
@@ -88,10 +89,16 @@ class TestHLFMemoryNode:
         """Same source produces the same content hash."""
         source = _prog('[SET] key = "value"\n[RESULT] 0 "ok"')
         n1 = HLFMemoryNode.from_hlf_source(
-            source=source, entity_id="k", agent="a", confidence=0.5,
+            source=source,
+            entity_id="k",
+            agent="a",
+            confidence=0.5,
         )
         n2 = HLFMemoryNode.from_hlf_source(
-            source=source, entity_id="k", agent="a", confidence=0.5,
+            source=source,
+            entity_id="k",
+            agent="a",
+            confidence=0.5,
         )
         assert n1.content_hash == n2.content_hash
 
@@ -99,11 +106,15 @@ class TestHLFMemoryNode:
         """Different sources produce different hashes."""
         n1 = HLFMemoryNode.from_hlf_source(
             source=_prog('[SET] a = 1\n[RESULT] 0 "ok"'),
-            entity_id="a", agent="a", confidence=0.5,
+            entity_id="a",
+            agent="a",
+            confidence=0.5,
         )
         n2 = HLFMemoryNode.from_hlf_source(
             source=_prog('[SET] b = 2\n[RESULT] 0 "ok"'),
-            entity_id="b", agent="a", confidence=0.5,
+            entity_id="b",
+            agent="a",
+            confidence=0.5,
         )
         assert n1.content_hash != n2.content_hash
 
@@ -134,7 +145,10 @@ class TestHLFMemoryNode:
         """Empty source raises ValueError."""
         with pytest.raises(ValueError, match="empty"):
             HLFMemoryNode.from_hlf_source(
-                source="", entity_id="x", agent="a", confidence=0.5,
+                source="",
+                entity_id="x",
+                agent="a",
+                confidence=0.5,
             )
 
 
@@ -165,10 +179,16 @@ class TestInfiniteRAGEngine:
         """Storing the same content twice returns the same node_id (dedup)."""
         source = _prog('[SET] port = 443\n[RESULT] 0 "ok"')
         n1 = HLFMemoryNode.from_hlf_source(
-            source=source, entity_id="port", agent="a", confidence=0.9,
+            source=source,
+            entity_id="port",
+            agent="a",
+            confidence=0.9,
         )
         n2 = HLFMemoryNode.from_hlf_source(
-            source=source, entity_id="port", agent="b", confidence=0.8,
+            source=source,
+            entity_id="port",
+            agent="b",
+            confidence=0.8,
         )
         id1 = engine.store(n1)
         id2 = engine.store(n2)

@@ -92,9 +92,7 @@ class IntentCapsule:
         # Gas check
         node_count = sum(1 for n in program if n is not None)
         if node_count > self.max_gas:
-            violations.append(
-                f"Program has {node_count} nodes but capsule gas limit is {self.max_gas}"
-            )
+            violations.append(f"Program has {node_count} nodes but capsule gas limit is {self.max_gas}")
 
         return violations
 
@@ -112,10 +110,7 @@ class IntentCapsule:
         # Pre-flight validation
         violations = self.validate_program(ast)
         if violations:
-            raise CapsuleViolation(
-                self.agent,
-                f"{len(violations)} constraint(s) violated: {'; '.join(violations[:5])}"
-            )
+            raise CapsuleViolation(self.agent, f"{len(violations)} constraint(s) violated: {'; '.join(violations[:5])}")
 
         # Build scope with read-only protection markers
         exec_scope = dict(scope or {})
@@ -154,9 +149,7 @@ class IntentCapsule:
         if tag == "TOOL":
             tool_name = node.get("tool", "")
             if self.allowed_tools and tool_name not in self.allowed_tools:
-                violations.append(
-                    f"Node {index}: tool '{tool_name}' not permitted by capsule"
-                )
+                violations.append(f"Node {index}: tool '{tool_name}' not permitted by capsule")
 
         # Recursively check inner nodes (glyph_modified, parallel, etc.)
         inner = node.get("inner")
@@ -203,9 +196,9 @@ class CapsuleInterpreter(HLFInterpreter):
 
         # Allowlist check (skip structural tags)
         if tag not in STRUCTURAL_TAGS and self._capsule.allowed_tags and tag not in self._capsule.allowed_tags:
-                violation = f"Tag [{tag}] not in capsule allowlist for '{self._capsule.agent}'"
-                self._violations_caught.append(violation)
-                raise CapsuleViolation(self._capsule.agent, violation)
+            violation = f"Tag [{tag}] not in capsule allowlist for '{self._capsule.agent}'"
+            self._violations_caught.append(violation)
+            raise CapsuleViolation(self._capsule.agent, violation)
 
         # Tool allowlist check
         if tag == "TOOL":
@@ -244,20 +237,43 @@ class CapsuleInterpreter(HLFInterpreter):
 
 # Tags that are always allowed (structural, non-executing)
 STRUCTURAL_TAGS = {
-    "INTENT", "THOUGHT", "OBSERVATION", "PLAN", "EXPECT",
-    "CONSTRAINT", "ASSERT", "MODULE", "DATA", "EPISTEMIC",
+    "INTENT",
+    "THOUGHT",
+    "OBSERVATION",
+    "PLAN",
+    "EXPECT",
+    "CONSTRAINT",
+    "ASSERT",
+    "MODULE",
+    "DATA",
+    "EPISTEMIC",
 }
 
 # Default allowed tags for standard capsules
 DEFAULT_TAGS = {
-    "INTENT", "THOUGHT", "OBSERVATION", "PLAN", "CONSTRAINT",
-    "EXPECT", "ACTION", "SET", "ASSIGN", "FUNCTION", "RESULT",
-    "VOTE", "ASSERT", "CALL", "IMPORT",
+    "INTENT",
+    "THOUGHT",
+    "OBSERVATION",
+    "PLAN",
+    "CONSTRAINT",
+    "EXPECT",
+    "ACTION",
+    "SET",
+    "ASSIGN",
+    "FUNCTION",
+    "RESULT",
+    "VOTE",
+    "ASSERT",
+    "CALL",
+    "IMPORT",
 }
 
 # Default allowed tools for standard capsules
 DEFAULT_TOOLS = {
-    "READ_FILE", "WRITE_FILE", "HASH", "LIST_DIR",
+    "READ_FILE",
+    "WRITE_FILE",
+    "HASH",
+    "LIST_DIR",
 }
 
 

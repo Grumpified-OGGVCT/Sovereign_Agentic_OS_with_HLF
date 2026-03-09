@@ -30,8 +30,9 @@ def _failing_tool(**kwargs):
     raise RuntimeError("intentional failure")
 
 
-def _make_tool(tool_id: str, category: ToolCategory = ToolCategory.FILE,
-               permission: ToolPermission = ToolPermission.READ) -> ToolDefinition:
+def _make_tool(
+    tool_id: str, category: ToolCategory = ToolCategory.FILE, permission: ToolPermission = ToolPermission.READ
+) -> ToolDefinition:
     return ToolDefinition(
         tool_id=tool_id,
         category=category,

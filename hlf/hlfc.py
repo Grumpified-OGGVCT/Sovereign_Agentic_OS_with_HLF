@@ -514,8 +514,8 @@ class HLFTransformer(Transformer):
     def memory_stmt(self, items: list) -> dict[str, Any]:
         # Grammar: [MEMORY] IDENT = literal [confidence=N] [content]
         # items[0] = IDENT (entity key/scope), items[1] = literal (stored value)
-        entity = str(items[0])      # IDENT — the memory scope key
-        stored_value = items[1]     # literal — the primary content
+        entity = str(items[0])  # IDENT — the memory scope key
+        stored_value = items[1]  # literal — the primary content
         # Optional confidence and additional content parameters
         confidence = None
         content = None
@@ -541,8 +541,8 @@ class HLFTransformer(Transformer):
     def recall_stmt(self, items: list) -> dict[str, Any]:
         # Grammar: [RECALL] IDENT = literal [top_k=N]
         # items[0] = IDENT (entity key/scope), items[1] = literal (filter/query)
-        entity = str(items[0])      # IDENT — the memory scope to recall from
-        _filter = items[1]          # literal — recall filter (logged but entity is the key)
+        entity = str(items[0])  # IDENT — the memory scope to recall from
+        _filter = items[1]  # literal — recall filter (logged but entity is the key)
         top_k = None
         for item in items[2:]:
             if isinstance(item, (int, float)):

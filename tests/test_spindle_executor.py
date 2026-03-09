@@ -35,48 +35,62 @@ from agents.core.spindle import (
 def _make_linear_dag() -> SpindleDAG:
     """Create A → B → C linear DAG."""
     dag = SpindleDAG()
-    dag.add_node(SpindleNode(
-        node_id="A",
-        execute_fn=lambda ctx: ctx.setdefault("log", []).append("A") or "done_A",
-        compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("A"),
-    ))
-    dag.add_node(SpindleNode(
-        node_id="B",
-        execute_fn=lambda ctx: ctx.setdefault("log", []).append("B") or "done_B",
-        compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("B"),
-        depends_on=["A"],
-    ))
-    dag.add_node(SpindleNode(
-        node_id="C",
-        execute_fn=lambda ctx: ctx.setdefault("log", []).append("C") or "done_C",
-        compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("C"),
-        depends_on=["B"],
-    ))
+    dag.add_node(
+        SpindleNode(
+            node_id="A",
+            execute_fn=lambda ctx: ctx.setdefault("log", []).append("A") or "done_A",
+            compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("A"),
+        )
+    )
+    dag.add_node(
+        SpindleNode(
+            node_id="B",
+            execute_fn=lambda ctx: ctx.setdefault("log", []).append("B") or "done_B",
+            compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("B"),
+            depends_on=["A"],
+        )
+    )
+    dag.add_node(
+        SpindleNode(
+            node_id="C",
+            execute_fn=lambda ctx: ctx.setdefault("log", []).append("C") or "done_C",
+            compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("C"),
+            depends_on=["B"],
+        )
+    )
     return dag
 
 
 def _make_diamond_dag() -> SpindleDAG:
     """Create diamond: A → B, A → C, B+C → D."""
     dag = SpindleDAG()
-    dag.add_node(SpindleNode(
-        node_id="A",
-        execute_fn=lambda ctx: ctx.setdefault("log", []).append("A"),
-    ))
-    dag.add_node(SpindleNode(
-        node_id="B",
-        execute_fn=lambda ctx: ctx.setdefault("log", []).append("B"),
-        depends_on=["A"],
-    ))
-    dag.add_node(SpindleNode(
-        node_id="C",
-        execute_fn=lambda ctx: ctx.setdefault("log", []).append("C"),
-        depends_on=["A"],
-    ))
-    dag.add_node(SpindleNode(
-        node_id="D",
-        execute_fn=lambda ctx: ctx.setdefault("log", []).append("D"),
-        depends_on=["B", "C"],
-    ))
+    dag.add_node(
+        SpindleNode(
+            node_id="A",
+            execute_fn=lambda ctx: ctx.setdefault("log", []).append("A"),
+        )
+    )
+    dag.add_node(
+        SpindleNode(
+            node_id="B",
+            execute_fn=lambda ctx: ctx.setdefault("log", []).append("B"),
+            depends_on=["A"],
+        )
+    )
+    dag.add_node(
+        SpindleNode(
+            node_id="C",
+            execute_fn=lambda ctx: ctx.setdefault("log", []).append("C"),
+            depends_on=["A"],
+        )
+    )
+    dag.add_node(
+        SpindleNode(
+            node_id="D",
+            execute_fn=lambda ctx: ctx.setdefault("log", []).append("D"),
+            depends_on=["B", "C"],
+        )
+    )
     return dag
 
 
@@ -232,16 +246,20 @@ class TestSpindleSagaCompensation:
     def test_failure_triggers_compensation(self) -> None:
         """When B fails, A gets compensated."""
         dag = SpindleDAG()
-        dag.add_node(SpindleNode(
-            node_id="A",
-            execute_fn=lambda ctx: ctx.setdefault("log", []).append("A"),
-            compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("A"),
-        ))
-        dag.add_node(SpindleNode(
-            node_id="B",
-            execute_fn=lambda ctx: 1 / 0,  # raises ZeroDivisionError
-            depends_on=["A"],
-        ))
+        dag.add_node(
+            SpindleNode(
+                node_id="A",
+                execute_fn=lambda ctx: ctx.setdefault("log", []).append("A"),
+                compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("A"),
+            )
+        )
+        dag.add_node(
+            SpindleNode(
+                node_id="B",
+                execute_fn=lambda ctx: 1 / 0,  # raises ZeroDivisionError
+                depends_on=["A"],
+            )
+        )
 
         ctx: dict = {}
         executor = SpindleExecutor(dag)
@@ -255,22 +273,28 @@ class TestSpindleSagaCompensation:
     def test_reverse_compensation_order(self) -> None:
         """Compensation runs in reverse execution order."""
         dag = SpindleDAG()
-        dag.add_node(SpindleNode(
-            node_id="A",
-            execute_fn=lambda ctx: ctx.setdefault("log", []).append("A"),
-            compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("A"),
-        ))
-        dag.add_node(SpindleNode(
-            node_id="B",
-            execute_fn=lambda ctx: ctx.setdefault("log", []).append("B"),
-            compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("B"),
-            depends_on=["A"],
-        ))
-        dag.add_node(SpindleNode(
-            node_id="C",
-            execute_fn=lambda ctx: 1 / 0,  # fail
-            depends_on=["B"],
-        ))
+        dag.add_node(
+            SpindleNode(
+                node_id="A",
+                execute_fn=lambda ctx: ctx.setdefault("log", []).append("A"),
+                compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("A"),
+            )
+        )
+        dag.add_node(
+            SpindleNode(
+                node_id="B",
+                execute_fn=lambda ctx: ctx.setdefault("log", []).append("B"),
+                compensate_fn=lambda ctx: ctx.setdefault("comp", []).append("B"),
+                depends_on=["A"],
+            )
+        )
+        dag.add_node(
+            SpindleNode(
+                node_id="C",
+                execute_fn=lambda ctx: 1 / 0,  # fail
+                depends_on=["B"],
+            )
+        )
 
         ctx: dict = {}
         result = SpindleExecutor(dag).run(ctx)
@@ -283,15 +307,19 @@ class TestSpindleSagaCompensation:
     def test_downstream_skipped_on_failure(self) -> None:
         """Nodes after the failed node don't execute."""
         dag = SpindleDAG()
-        dag.add_node(SpindleNode(
-            node_id="A",
-            execute_fn=lambda ctx: 1 / 0,  # fail immediately
-        ))
-        dag.add_node(SpindleNode(
-            node_id="B",
-            execute_fn=lambda ctx: ctx.setdefault("log", []).append("B"),
-            depends_on=["A"],
-        ))
+        dag.add_node(
+            SpindleNode(
+                node_id="A",
+                execute_fn=lambda ctx: 1 / 0,  # fail immediately
+            )
+        )
+        dag.add_node(
+            SpindleNode(
+                node_id="B",
+                execute_fn=lambda ctx: ctx.setdefault("log", []).append("B"),
+                depends_on=["A"],
+            )
+        )
 
         ctx: dict = {}
         result = SpindleExecutor(dag).run(ctx)
@@ -303,16 +331,20 @@ class TestSpindleSagaCompensation:
     def test_context_mutation_visible_to_compensation(self) -> None:
         """Compensation fns see context mutations from execute fns."""
         dag = SpindleDAG()
-        dag.add_node(SpindleNode(
-            node_id="A",
-            execute_fn=lambda ctx: ctx.update({"created": True}),
-            compensate_fn=lambda ctx: ctx.update({"cleaned": ctx.get("created")}),
-        ))
-        dag.add_node(SpindleNode(
-            node_id="B",
-            execute_fn=lambda ctx: 1 / 0,
-            depends_on=["A"],
-        ))
+        dag.add_node(
+            SpindleNode(
+                node_id="A",
+                execute_fn=lambda ctx: ctx.update({"created": True}),
+                compensate_fn=lambda ctx: ctx.update({"cleaned": ctx.get("created")}),
+            )
+        )
+        dag.add_node(
+            SpindleNode(
+                node_id="B",
+                execute_fn=lambda ctx: 1 / 0,
+                depends_on=["A"],
+            )
+        )
 
         ctx: dict = {}
         SpindleExecutor(dag).run(ctx)

@@ -378,3 +378,42 @@ class TestHLFRuntime:
         assert result.code == 0
         assert "math_utils" in result.modules_loaded
         assert runtime.env.get("pi") == 3
+
+    def test_file_io_read_write(self) -> None:
+
+        test_file = Path("tests/fixtures/test_io_temp.txt")
+        if test_file.exists():
+            test_file.unlink()
+
+        ast = {
+            "program": [
+                {"tag": "TOOL", "name": "WRITE", "args": [{"path": str(test_file), "data": "test_data_hlf"}]},
+                {"tag": "TOOL", "name": "READ", "args": [{"path": str(test_file)}]},
+                {"tag": "RESULT", "code": 0, "message": "done"},
+            ]
+        }
+
+        runtime = HLFRuntime(gas_limit=50)
+        result = runtime.execute(ast)
+
+        assert result.code == 0
+        assert test_file.exists()
+        assert test_file.read_text(encoding="utf-8") == "test_data_hlf"
+
+        # Verify read from tool execution
+        assert runtime.env.get("__tool_result_READ") == "test_data_hlf"
+        test_file.unlink()
+
+    def test_file_io_path_traversal_blocked(self) -> None:
+        ast = {
+            "program": [
+                {"tag": "TOOL", "name": "WRITE", "args": [{"path": "../../../../../etc/passwd", "data": "hacked"}]},
+                {"tag": "RESULT", "code": 0, "message": "done"},
+            ]
+        }
+
+        runtime = HLFRuntime(gas_limit=50)
+        result = runtime.execute(ast)
+
+        assert result.code == 1
+        assert "Path traversal detected" in result.message

@@ -1,4 +1,5 @@
 """Tests for hlfc CLI — JSON, bytecode, and disassembly modes."""
+
 from __future__ import annotations
 
 import json

@@ -274,8 +274,7 @@ HAT_DEFINITIONS: dict[str, dict] = {
         "name": "Azure Hat — MCP Workflow Integrity",
         "agent_name": "steward",
         "focus": (
-            "MCP tool lifecycle, parameter schema validation, "
-            "workflow ledger, HITL gates, state machine enforcement"
+            "MCP tool lifecycle, parameter schema validation, workflow ledger, HITL gates, state machine enforcement"
         ),
         "system_prompt": (
             "You are the AZURE HAT analyst for a Sovereign Agentic OS. "

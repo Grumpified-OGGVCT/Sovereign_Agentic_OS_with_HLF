@@ -293,11 +293,13 @@ class TestRealignmentEvents:
         session = SDDSession(topic="persist realign")
         session.spec = {"task": "test"}
         session.advance_to(SDDPhase.PLAN)
-        session.realign(SDDRealignmentEvent(
-            triggered_by="sentinel",
-            change_type="api_change",
-            change_description="Endpoint moved to /v3",
-        ))
+        session.realign(
+            SDDRealignmentEvent(
+                triggered_by="sentinel",
+                change_type="api_change",
+                change_description="Endpoint moved to /v3",
+            )
+        )
         store.save(session)
 
         restored = store.load(session.session_id)

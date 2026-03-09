@@ -37,18 +37,24 @@ def tmp_git_repo(tmp_path: Path) -> Path:
     subprocess.run(["git", "init"], cwd=str(repo), check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@sovereign.os"],
-        cwd=str(repo), check=True, capture_output=True,
+        cwd=str(repo),
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "ACFS Test"],
-        cwd=str(repo), check=True, capture_output=True,
+        cwd=str(repo),
+        check=True,
+        capture_output=True,
     )
     # Create an initial commit so worktrees can branch from HEAD
     (repo / "README.md").write_text("# Test Repo\n")
     subprocess.run(["git", "add", "."], cwd=str(repo), check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "initial commit"],
-        cwd=str(repo), check=True, capture_output=True,
+        cwd=str(repo),
+        check=True,
+        capture_output=True,
     )
     return repo
 
@@ -86,7 +92,10 @@ class TestWorktreeInfo:
 
     def test_fields(self) -> None:
         info = WorktreeInfo(
-            path="/tmp/wt", branch="feat/auth", agent_id="catalyst", commit_count=5,
+            path="/tmp/wt",
+            branch="feat/auth",
+            agent_id="catalyst",
+            commit_count=5,
         )
         assert info.agent_id == "catalyst"
         assert info.commit_count == 5
@@ -174,9 +183,7 @@ class TestShadowCommit:
         assert len(sha) == 40  # Full SHA-1
         assert all(c in "0123456789abcdef" for c in sha)
 
-    def test_shadow_commit_includes_merkle(
-        self, manager: ACFSWorktreeManager
-    ) -> None:
+    def test_shadow_commit_includes_merkle(self, manager: ACFSWorktreeManager) -> None:
         """Commit message includes ALIGN-Merkle hash."""
         path = manager.create_worktree("catalyst", "fix/merkle-test")
         (Path(path) / "data.json").write_text('{"key": "value"}\n')
@@ -186,13 +193,13 @@ class TestShadowCommit:
         # Verify commit message contains Merkle hash
         result = subprocess.run(
             ["git", "log", "-1", "--format=%B"],
-            cwd=path, capture_output=True, text=True,
+            cwd=path,
+            capture_output=True,
+            text=True,
         )
         assert "ALIGN-Merkle:" in result.stdout
 
-    def test_shadow_commit_increments_count(
-        self, manager: ACFSWorktreeManager
-    ) -> None:
+    def test_shadow_commit_increments_count(self, manager: ACFSWorktreeManager) -> None:
         """Each shadow_commit increments the commit_count."""
         path = manager.create_worktree("scribe", "audit/count-test")
         (Path(path) / "f1.txt").write_text("first\n")

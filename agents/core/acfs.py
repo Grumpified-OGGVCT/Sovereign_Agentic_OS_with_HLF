@@ -39,6 +39,7 @@ _DEFAULT_AUTO_CLEANUP_HOURS = 24
 @dataclass
 class WorktreeInfo:
     """Metadata about an active worktree."""
+
     path: str
     branch: str
     agent_id: str
@@ -88,10 +89,7 @@ class ACFSWorktreeManager:
             RuntimeError: If max worktree limit reached or git fails
         """
         if len(self._worktrees) >= self.max_worktrees:
-            raise RuntimeError(
-                f"ACFS worktree limit reached ({self.max_worktrees}). "
-                f"Destroy existing worktrees first."
-            )
+            raise RuntimeError(f"ACFS worktree limit reached ({self.max_worktrees}). Destroy existing worktrees first.")
 
         # Create unique directory name
         wt_dir = self.worktree_base_dir / f"wt_{agent_id}_{branch_name.replace('/', '_')}"
@@ -120,11 +118,14 @@ class ACFSWorktreeManager:
         )
         self._worktrees[wt_path] = info
 
-        self._log_align("ACFS_WORKTREE_CREATED", {
-            "agent_id": agent_id,
-            "branch": branch_name,
-            "path": wt_path,
-        })
+        self._log_align(
+            "ACFS_WORKTREE_CREATED",
+            {
+                "agent_id": agent_id,
+                "branch": branch_name,
+                "path": wt_path,
+            },
+        )
 
         logger.info(f"ACFS: created worktree for {agent_id} at {wt_path}")
         return wt_path
@@ -151,10 +152,13 @@ class ACFSWorktreeManager:
 
         self._worktrees.pop(worktree_path, None)
 
-        self._log_align("ACFS_WORKTREE_DESTROYED", {
-            "agent_id": agent_id,
-            "path": worktree_path,
-        })
+        self._log_align(
+            "ACFS_WORKTREE_DESTROYED",
+            {
+                "agent_id": agent_id,
+                "path": worktree_path,
+            },
+        )
 
         logger.info(f"ACFS: destroyed worktree at {worktree_path}")
 
@@ -197,9 +201,7 @@ class ACFSWorktreeManager:
                 ["diff", "--cached", "--stat"],
                 cwd=worktree_path,
             )
-            merkle_hash = hashlib.sha256(
-                diff_output.encode() if diff_output else b""
-            ).hexdigest()[:16]
+            merkle_hash = hashlib.sha256(diff_output.encode() if diff_output else b"").hexdigest()[:16]
 
             # Commit with Merkle hash in message
             full_message = f"{message}\n\nALIGN-Merkle: {merkle_hash}"
@@ -223,13 +225,16 @@ class ACFSWorktreeManager:
         if info:
             info.commit_count += 1
 
-        self._log_align("ACFS_SHADOW_COMMIT", {
-            "path": worktree_path,
-            "agent_id": info.agent_id if info else "unknown",
-            "sha": sha,
-            "merkle_hash": merkle_hash,
-            "message": message,
-        })
+        self._log_align(
+            "ACFS_SHADOW_COMMIT",
+            {
+                "path": worktree_path,
+                "agent_id": info.agent_id if info else "unknown",
+                "sha": sha,
+                "merkle_hash": merkle_hash,
+                "message": message,
+            },
+        )
 
         logger.info(f"ACFS: shadow commit {sha[:8]} in {worktree_path}")
         return sha
@@ -241,10 +246,7 @@ class ACFSWorktreeManager:
             List of paths that were cleaned up
         """
         cutoff = time.time() - (self.auto_cleanup_hours * 3600)
-        stale = [
-            path for path, info in self._worktrees.items()
-            if info.created_at < cutoff
-        ]
+        stale = [path for path, info in self._worktrees.items() if info.created_at < cutoff]
 
         for path in stale:
             try:
@@ -281,15 +283,15 @@ class ACFSWorktreeManager:
                 continue
             parts = line.strip().split(None, 1)
             if len(parts) == 2:
-                changes.append({
-                    "status": parts[0],
-                    "file": parts[1],
-                })
+                changes.append(
+                    {
+                        "status": parts[0],
+                        "file": parts[1],
+                    }
+                )
         return changes
 
-    def detect_conflicts(
-        self, wt_a: str, wt_b: str
-    ) -> dict:
+    def detect_conflicts(self, wt_a: str, wt_b: str) -> dict:
         """Detect potential conflicts between two worktrees.
 
         Compares the set of modified files in each worktree to identify
@@ -334,38 +336,36 @@ class ACFSWorktreeManager:
                     # Diff collection may fail for binary files or shallow clones
                     logger.debug(
                         "Failed to collect diff for %s in worktree %s",
-                        filepath, label,
+                        filepath,
+                        label,
                     )
 
             # If diff regions don't overlap, it's auto-resolvable
             if detail["regions_a"] and detail["regions_b"]:
-                detail["auto_resolvable"] = not self._regions_overlap(
-                    detail["regions_a"], detail["regions_b"]
-                )
+                detail["auto_resolvable"] = not self._regions_overlap(detail["regions_a"], detail["regions_b"])
 
             overlap_details.append(detail)
 
-        self._log_align("ACFS_CONFLICT_DETECTION", {
-            "wt_a": wt_a,
-            "wt_b": wt_b,
-            "conflicting_files": list(overlap),
-            "safe_a": len(safe_a),
-            "safe_b": len(safe_b),
-        })
+        self._log_align(
+            "ACFS_CONFLICT_DETECTION",
+            {
+                "wt_a": wt_a,
+                "wt_b": wt_b,
+                "conflicting_files": list(overlap),
+                "safe_a": len(safe_a),
+                "safe_b": len(safe_b),
+            },
+        )
 
         return {
             "conflicting_files": list(overlap),
             "safe_files_a": list(safe_a),
             "safe_files_b": list(safe_b),
             "overlap_details": overlap_details,
-            "all_auto_resolvable": all(
-                d["auto_resolvable"] for d in overlap_details
-            ) if overlap_details else True,
+            "all_auto_resolvable": all(d["auto_resolvable"] for d in overlap_details) if overlap_details else True,
         }
 
-    def merge_worktree(
-        self, worktree_path: str, target_branch: str = "main"
-    ) -> dict:
+    def merge_worktree(self, worktree_path: str, target_branch: str = "main") -> dict:
         """Merge a worktree branch into a target branch.
 
         Attempts a git merge. If conflicts occur, reports them
@@ -399,16 +399,17 @@ class ACFSWorktreeManager:
                 files_output = self._run_git(
                     ["diff", "--name-only", "HEAD~1..HEAD"],
                 )
-                files_changed = [
-                    f for f in files_output.strip().splitlines() if f.strip()
-                ]
+                files_changed = [f for f in files_output.strip().splitlines() if f.strip()]
 
-                self._log_align("ACFS_MERGE_SUCCESS", {
-                    "source": source_branch,
-                    "target": target_branch,
-                    "sha": sha,
-                    "files_changed": len(files_changed),
-                })
+                self._log_align(
+                    "ACFS_MERGE_SUCCESS",
+                    {
+                        "source": source_branch,
+                        "target": target_branch,
+                        "sha": sha,
+                        "files_changed": len(files_changed),
+                    },
+                )
 
                 return {
                     "success": True,
@@ -427,11 +428,14 @@ class ACFSWorktreeManager:
                 # Abort the merge to leave repo clean
                 self._run_git(["merge", "--abort"])
 
-                self._log_align("ACFS_MERGE_CONFLICT", {
-                    "source": source_branch,
-                    "target": target_branch,
-                    "conflicts": conflicts,
-                })
+                self._log_align(
+                    "ACFS_MERGE_CONFLICT",
+                    {
+                        "source": source_branch,
+                        "target": target_branch,
+                        "conflicts": conflicts,
+                    },
+                )
 
                 return {
                     "success": False,
@@ -516,6 +520,7 @@ class ACFSWorktreeManager:
         """Log an event to the ALIGN ledger."""
         try:
             from agents.core.als_logger import ALSLogger
+
             als = ALSLogger()
             als.log(event, data)
         except ImportError:

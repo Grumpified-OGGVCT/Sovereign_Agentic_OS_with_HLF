@@ -13,10 +13,7 @@ OPENCLAW_ENV = {"OPENCLAW_ENDPOINT": "http://test-openclaw:8000/api/tool"}
 def test_openclaw_opcode_dispatch():
     """Verify that the OPENCLAW_TOOL opcode executes and populates trace and scope."""
     rt = HLFInterpreter(tier="hearth")
-    node = {
-        "tool": "openclaw_test_tool",
-        "args": ["arg1", "arg2"]
-    }
+    node = {"tool": "openclaw_test_tool", "args": ["arg1", "arg2"]}
 
     with patch.dict(os.environ, OPENCLAW_ENV), patch("httpx.post") as mock_post:
         mock_resp = MagicMock()
@@ -67,8 +64,10 @@ def test_openclaw_error_not_masked():
         "args": [],
     }
 
-    with patch.dict(os.environ, OPENCLAW_ENV), \
-         patch("httpx.post", side_effect=httpx.ConnectError("Connection refused")):
+    with (
+        patch.dict(os.environ, OPENCLAW_ENV),
+        patch("httpx.post", side_effect=httpx.ConnectError("Connection refused")),
+    ):
         result = rt._exec_openclaw_tool(node)
 
         assert result["status"] == "error"

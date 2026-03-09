@@ -45,8 +45,7 @@ _DB_PATH = _JANUS_DIR / "data" / "vault.db"
 _CHROMA_PATH = _JANUS_DIR / "data" / "chroma_db"
 
 USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
 
 # Lazy-loaded ML state
@@ -88,6 +87,7 @@ def _init_web():
 
     try:
         from duckduckgo_search import DDGS
+
         _ddgs = DDGS
     except ImportError:
         _ddgs = None
@@ -167,20 +167,18 @@ def handle_deep_recall(query: str, n_results: int = 10, scope: str | None = None
         where_filter = {"source": {"$contains": scope}}
 
     results = _collection.query(
-        query_embeddings=[vector], n_results=n_results, where=where_filter,
+        query_embeddings=[vector],
+        n_results=n_results,
+        where=where_filter,
     )
 
     if not results["documents"][0]:
         return {"status": "ok", "result": [{"result": f"No deep recall results for: '{query}'"}]}
 
     output = f"--- DEEP RECALL: '{query}' ({len(results['documents'][0])} results) ---\n"
-    for i, (doc, meta) in enumerate(
-        zip(results["documents"][0], results["metadatas"][0], strict=False), 1
-    ):
+    for i, (doc, meta) in enumerate(zip(results["documents"][0], results["metadatas"][0], strict=False), 1):
         output += (
-            f"[{i}] Author: {meta.get('author', 'N/A')} "
-            f"| Source: {meta.get('source', 'N/A')}\n"
-            f"{doc}\n{'─' * 60}\n"
+            f"[{i}] Author: {meta.get('author', 'N/A')} | Source: {meta.get('source', 'N/A')}\n{doc}\n{'─' * 60}\n"
         )
     return {"status": "ok", "result": [{"result": output}]}
 
@@ -197,8 +195,7 @@ def handle_vault_similar(text_or_url: str, n_results: int = 5) -> dict:
     if text_or_url.startswith(("http://", "https://")):
         _init_web()
         try:
-            resp = _httpx.get(text_or_url, timeout=15, follow_redirects=True,
-                              headers={"User-Agent": USER_AGENT})
+            resp = _httpx.get(text_or_url, timeout=15, follow_redirects=True, headers={"User-Agent": USER_AGENT})
             soup = _bs4(resp.text, "html.parser")
             for tag in soup(["script", "style", "nav", "header", "footer"]):
                 tag.decompose()
@@ -213,9 +210,7 @@ def handle_vault_similar(text_or_url: str, n_results: int = 5) -> dict:
         return {"status": "ok", "result": [{"result": "No similar content found."}]}
 
     output = f"--- SIMILAR ({len(results['documents'][0])} results) ---\n"
-    for i, (doc, meta) in enumerate(
-        zip(results["documents"][0], results["metadatas"][0], strict=False), 1
-    ):
+    for i, (doc, meta) in enumerate(zip(results["documents"][0], results["metadatas"][0], strict=False), 1):
         output += (
             f"[{i}] Author: {meta.get('author', 'N/A')} "
             f"| Source: {meta.get('source', 'N/A')}\n"
@@ -234,15 +229,9 @@ def handle_vault_stats() -> dict:
             cur = conn.cursor()
             threads = cur.execute("SELECT COUNT(*) FROM threads").fetchone()[0]
             posts = cur.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
-            sources = cur.execute(
-                "SELECT source_type, COUNT(*) FROM posts GROUP BY source_type"
-            ).fetchall()
-            dates = cur.execute(
-                "SELECT MIN(snapshot_date), MAX(snapshot_date) FROM posts"
-            ).fetchone()
-            deleted = cur.execute(
-                "SELECT COUNT(*) FROM posts WHERE is_deleted = 1"
-            ).fetchone()[0]
+            sources = cur.execute("SELECT source_type, COUNT(*) FROM posts GROUP BY source_type").fetchall()
+            dates = cur.execute("SELECT MIN(snapshot_date), MAX(snapshot_date) FROM posts").fetchone()
+            deleted = cur.execute("SELECT COUNT(*) FROM posts WHERE is_deleted = 1").fetchone()[0]
 
             output += f"Threads:    {threads}\n"
             output += f"Posts:      {posts} ({deleted} flagged deleted)\n"
@@ -292,8 +281,11 @@ def handle_web_search(query: str, max_results: int = 10) -> dict:
 
 
 def handle_advanced_search(
-    query: str, max_results: int = 10,
-    region: str = "wt-wt", time_range: str | None = None, site: str | None = None,
+    query: str,
+    max_results: int = 10,
+    region: str = "wt-wt",
+    time_range: str | None = None,
+    site: str | None = None,
 ) -> dict:
     """Advanced web search with filters."""
     _init_web()
@@ -305,10 +297,14 @@ def handle_advanced_search(
 
     try:
         with _ddgs() as ddgs:
-            results = list(ddgs.text(
-                search_query, max_results=max_results,
-                region=region, timelimit=time_range,
-            ))
+            results = list(
+                ddgs.text(
+                    search_query,
+                    max_results=max_results,
+                    region=region,
+                    timelimit=time_range,
+                )
+            )
         if not results:
             return {"status": "ok", "result": [{"result": f"No results for: '{search_query}'"}]}
 
@@ -334,15 +330,15 @@ def handle_extract_page(url: str, max_chars: int = 8000) -> dict:
     """Extract clean readable text from any URL."""
     _init_web()
     try:
-        resp = _httpx.get(url, timeout=20, follow_redirects=True,
-                          headers={"User-Agent": USER_AGENT})
+        resp = _httpx.get(url, timeout=20, follow_redirects=True, headers={"User-Agent": USER_AGENT})
         resp.raise_for_status()
     except Exception as exc:
         return {"status": "error", "error": f"Failed to fetch: {exc}"}
 
     soup = _bs4(resp.text, "html.parser")
-    for tag in soup(["script", "style", "nav", "header", "footer", "aside",
-                      "form", "iframe", "noscript", "svg", "button"]):
+    for tag in soup(
+        ["script", "style", "nav", "header", "footer", "aside", "form", "iframe", "noscript", "svg", "button"]
+    ):
         tag.decompose()
 
     main = soup.find("main") or soup.find("article") or soup.find("body")
@@ -371,8 +367,7 @@ def handle_ingest_url(url: str, depth: int = 1, search_after: str | None = None)
         return {"status": "error", "error": "ML models not initialized"}
 
     try:
-        resp = _httpx.get(url, timeout=20, follow_redirects=True,
-                          headers={"User-Agent": USER_AGENT})
+        resp = _httpx.get(url, timeout=20, follow_redirects=True, headers={"User-Agent": USER_AGENT})
         resp.raise_for_status()
     except Exception as exc:
         return {"status": "error", "error": f"Failed to crawl: {exc}"}
@@ -393,7 +388,7 @@ def handle_ingest_url(url: str, depth: int = 1, search_after: str | None = None)
 
     for page_url, page_text in all_pages:
         chunk_size = 1000
-        chunks = [page_text[i: i + chunk_size] for i in range(0, len(page_text), chunk_size)]
+        chunks = [page_text[i : i + chunk_size] for i in range(0, len(page_text), chunk_size)]
         ids = []
         documents = []
         metadatas = []
@@ -401,16 +396,19 @@ def handle_ingest_url(url: str, depth: int = 1, search_after: str | None = None)
             doc_id = f"ingest_{hashlib.md5(page_url.encode()).hexdigest()[:12]}_{i}"
             ids.append(doc_id)
             documents.append(chunk)
-            metadatas.append({
-                "source": page_url, "author": "janus_ingest",
-                "title": title_text, "chunk_index": i,
-                "total_chunks": len(chunks),
-                "ingested_at": datetime.datetime.now(datetime.UTC).isoformat(),
-            })
+            metadatas.append(
+                {
+                    "source": page_url,
+                    "author": "janus_ingest",
+                    "title": title_text,
+                    "chunk_index": i,
+                    "total_chunks": len(chunks),
+                    "ingested_at": datetime.datetime.now(datetime.UTC).isoformat(),
+                }
+            )
 
         embeddings = [_embedder.encode(doc).tolist() for doc in documents]
-        _collection.upsert(ids=ids, documents=documents,
-                           metadatas=metadatas, embeddings=embeddings)
+        _collection.upsert(ids=ids, documents=documents, metadatas=metadatas, embeddings=embeddings)
         total_chunks += len(chunks)
 
     output = f"--- INGESTED: {title_text} ---\n"
@@ -420,9 +418,7 @@ def handle_ingest_url(url: str, depth: int = 1, search_after: str | None = None)
         vector = _embedder.encode(search_after).tolist()
         results = _collection.query(query_embeddings=[vector], n_results=5)
         output += f"\n--- SEARCH: '{search_after}' ---\n"
-        for i, (doc, meta) in enumerate(
-            zip(results["documents"][0], results["metadatas"][0], strict=False), 1
-        ):
+        for i, (doc, meta) in enumerate(zip(results["documents"][0], results["metadatas"][0], strict=False), 1):
             output += f"[{i}] {meta.get('source', 'N/A')}: {doc[:400]}...\n"
 
     return {"status": "ok", "result": [{"result": output}]}
@@ -462,22 +458,20 @@ def handle_summarize_text(text: str, max_sentences: int = 5) -> dict:
 COMMANDS = {
     "search_archives": lambda cmd: handle_search_archives(cmd.get("query", "")),
     "view_thread_history": lambda cmd: handle_view_thread_history(cmd.get("url", "")),
-    "deep_recall": lambda cmd: handle_deep_recall(
-        cmd.get("query", ""), cmd.get("n_results", 10), cmd.get("scope")),
-    "vault_similar": lambda cmd: handle_vault_similar(
-        cmd.get("text_or_url", ""), cmd.get("n_results", 5)),
+    "deep_recall": lambda cmd: handle_deep_recall(cmd.get("query", ""), cmd.get("n_results", 10), cmd.get("scope")),
+    "vault_similar": lambda cmd: handle_vault_similar(cmd.get("text_or_url", ""), cmd.get("n_results", 5)),
     "vault_stats": lambda cmd: handle_vault_stats(),
-    "web_search": lambda cmd: handle_web_search(
-        cmd.get("query", ""), cmd.get("max_results", 10)),
+    "web_search": lambda cmd: handle_web_search(cmd.get("query", ""), cmd.get("max_results", 10)),
     "advanced_search": lambda cmd: handle_advanced_search(
-        cmd.get("query", ""), cmd.get("max_results", 10),
-        cmd.get("region", "wt-wt"), cmd.get("time_range"), cmd.get("site")),
-    "extract_page": lambda cmd: handle_extract_page(
-        cmd.get("url", ""), cmd.get("max_chars", 8000)),
-    "ingest_url": lambda cmd: handle_ingest_url(
-        cmd.get("url", ""), cmd.get("depth", 1), cmd.get("search_after")),
-    "summarize_text": lambda cmd: handle_summarize_text(
-        cmd.get("text", ""), cmd.get("max_sentences", 5)),
+        cmd.get("query", ""),
+        cmd.get("max_results", 10),
+        cmd.get("region", "wt-wt"),
+        cmd.get("time_range"),
+        cmd.get("site"),
+    ),
+    "extract_page": lambda cmd: handle_extract_page(cmd.get("url", ""), cmd.get("max_chars", 8000)),
+    "ingest_url": lambda cmd: handle_ingest_url(cmd.get("url", ""), cmd.get("depth", 1), cmd.get("search_after")),
+    "summarize_text": lambda cmd: handle_summarize_text(cmd.get("text", ""), cmd.get("max_sentences", 5)),
 }
 
 
@@ -535,4 +529,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

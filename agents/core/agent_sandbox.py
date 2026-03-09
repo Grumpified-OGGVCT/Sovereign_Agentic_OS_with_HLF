@@ -59,6 +59,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class CommandResult:
     """Result of a terminal command execution."""
+
     exit_code: int
     stdout: str
     stderr: str
@@ -158,13 +159,17 @@ class AgentSandbox:
             )
         except PermissionError as e:
             return ToolResult(
-                success=False, error=str(e),
-                tool_id="file.read", duration=time.time() - start,
+                success=False,
+                error=str(e),
+                tool_id="file.read",
+                duration=time.time() - start,
             )
         except Exception as e:
             return ToolResult(
-                success=False, error=f"Read failed: {e}",
-                tool_id="file.read", duration=time.time() - start,
+                success=False,
+                error=f"Read failed: {e}",
+                tool_id="file.read",
+                duration=time.time() - start,
             )
 
     def write_file(self, path: str, content: str) -> ToolResult:
@@ -191,13 +196,17 @@ class AgentSandbox:
             )
         except PermissionError as e:
             return ToolResult(
-                success=False, error=str(e),
-                tool_id="file.write", duration=time.time() - start,
+                success=False,
+                error=str(e),
+                tool_id="file.write",
+                duration=time.time() - start,
             )
         except Exception as e:
             return ToolResult(
-                success=False, error=f"Write failed: {e}",
-                tool_id="file.write", duration=time.time() - start,
+                success=False,
+                error=f"Write failed: {e}",
+                tool_id="file.write",
+                duration=time.time() - start,
             )
 
     def delete_file(self, path: str) -> ToolResult:
@@ -207,19 +216,25 @@ class AgentSandbox:
             safe_path = self._resolve_safe_path(path)
             if not safe_path.exists():
                 return ToolResult(
-                    success=False, error=f"File not found: {path}",
-                    tool_id="file.delete", duration=time.time() - start,
+                    success=False,
+                    error=f"File not found: {path}",
+                    tool_id="file.delete",
+                    duration=time.time() - start,
                 )
             safe_path.unlink()
             self._log_action("file.delete", {"path": path})
             return ToolResult(
-                success=True, output=f"Deleted {path}",
-                tool_id="file.delete", duration=time.time() - start,
+                success=True,
+                output=f"Deleted {path}",
+                tool_id="file.delete",
+                duration=time.time() - start,
             )
         except PermissionError as e:
             return ToolResult(
-                success=False, error=str(e),
-                tool_id="file.delete", duration=time.time() - start,
+                success=False,
+                error=str(e),
+                tool_id="file.delete",
+                duration=time.time() - start,
             )
 
     def list_files(self, path: str = ".", pattern: str = "*") -> ToolResult:
@@ -234,24 +249,26 @@ class AgentSandbox:
             safe_path = self._resolve_safe_path(path)
             if not safe_path.is_dir():
                 return ToolResult(
-                    success=False, error=f"Not a directory: {path}",
-                    tool_id="file.list", duration=time.time() - start,
+                    success=False,
+                    error=f"Not a directory: {path}",
+                    tool_id="file.list",
+                    duration=time.time() - start,
                 )
-            files = [
-                str(f.relative_to(self.worktree_path))
-                for f in safe_path.rglob(pattern)
-                if f.is_file()
-            ]
+            files = [str(f.relative_to(self.worktree_path)) for f in safe_path.rglob(pattern) if f.is_file()]
             self._log_action("file.list", {"path": path, "count": len(files)})
             return ToolResult(
-                success=True, output=files,
-                tool_id="file.list", duration=time.time() - start,
+                success=True,
+                output=files,
+                tool_id="file.list",
+                duration=time.time() - start,
                 metadata={"count": len(files)},
             )
         except PermissionError as e:
             return ToolResult(
-                success=False, error=str(e),
-                tool_id="file.list", duration=time.time() - start,
+                success=False,
+                error=str(e),
+                tool_id="file.list",
+                duration=time.time() - start,
             )
 
     def search_files(self, query: str, file_pattern: str = "*.py") -> ToolResult:
@@ -271,24 +288,30 @@ class AgentSandbox:
                     content = filepath.read_text(encoding="utf-8")
                     for i, line in enumerate(content.splitlines(), 1):
                         if query in line:
-                            matches.append({
-                                "file": str(filepath.relative_to(self.worktree_path)),
-                                "line": i,
-                                "content": line.strip(),
-                            })
+                            matches.append(
+                                {
+                                    "file": str(filepath.relative_to(self.worktree_path)),
+                                    "line": i,
+                                    "content": line.strip(),
+                                }
+                            )
                 except (UnicodeDecodeError, PermissionError):
                     continue
 
             self._log_action("file.search", {"query": query, "matches": len(matches)})
             return ToolResult(
-                success=True, output=matches,
-                tool_id="file.search", duration=time.time() - start,
+                success=True,
+                output=matches,
+                tool_id="file.search",
+                duration=time.time() - start,
                 metadata={"match_count": len(matches)},
             )
         except Exception as e:
             return ToolResult(
-                success=False, error=f"Search failed: {e}",
-                tool_id="file.search", duration=time.time() - start,
+                success=False,
+                error=f"Search failed: {e}",
+                tool_id="file.search",
+                duration=time.time() - start,
             )
 
     # ------------------------------------------------------------------ #
@@ -331,11 +354,14 @@ class AgentSandbox:
             )
             duration = time.time() - start
 
-            self._log_action("terminal.exec", {
-                "command": command,
-                "exit_code": proc.returncode,
-                "duration": duration,
-            })
+            self._log_action(
+                "terminal.exec",
+                {
+                    "command": command,
+                    "exit_code": proc.returncode,
+                    "duration": duration,
+                },
+            )
 
             return CommandResult(
                 exit_code=proc.returncode,
@@ -346,11 +372,14 @@ class AgentSandbox:
             )
         except subprocess.TimeoutExpired:
             duration = time.time() - start
-            self._log_action("terminal.exec", {
-                "command": command,
-                "timed_out": True,
-                "duration": duration,
-            })
+            self._log_action(
+                "terminal.exec",
+                {
+                    "command": command,
+                    "timed_out": True,
+                    "duration": duration,
+                },
+            )
             return CommandResult(
                 exit_code=-1,
                 stdout="",
@@ -399,9 +428,7 @@ class AgentSandbox:
     # Build Operations
     # ------------------------------------------------------------------ #
 
-    def run_tests(
-        self, test_path: str = "tests/", extra_args: str = ""
-    ) -> ToolResult:
+    def run_tests(self, test_path: str = "tests/", extra_args: str = "") -> ToolResult:
         """Run pytest within the worktree."""
         cmd = f"python -m pytest {test_path} {extra_args} --tb=short"
         result = self.run_command(cmd, timeout=120)
@@ -465,6 +492,7 @@ class AgentSandbox:
 
         try:
             from agents.core.als_logger import ALSLogger
+
             als = ALSLogger()
             als.log("SANDBOX_ACTION", entry)
         except ImportError:

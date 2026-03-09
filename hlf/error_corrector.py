@@ -34,9 +34,26 @@ from hlf.hlfc import compile as hlfc_compile
 # --------------------------------------------------------------------------- #
 
 VALID_TAGS = [
-    "INTENT", "THOUGHT", "OBSERVATION", "PLAN", "CONSTRAINT", "EXPECT",
-    "ACTION", "SET", "FUNCTION", "DELEGATE", "VOTE", "ASSERT", "RESULT",
-    "MODULE", "IMPORT", "DATA", "MEMORY", "RECALL", "DEFINE", "CALL",
+    "INTENT",
+    "THOUGHT",
+    "OBSERVATION",
+    "PLAN",
+    "CONSTRAINT",
+    "EXPECT",
+    "ACTION",
+    "SET",
+    "FUNCTION",
+    "DELEGATE",
+    "VOTE",
+    "ASSERT",
+    "RESULT",
+    "MODULE",
+    "IMPORT",
+    "DATA",
+    "MEMORY",
+    "RECALL",
+    "DEFINE",
+    "CALL",
 ]
 
 VALID_GLYPHS = {
@@ -91,9 +108,11 @@ TYPO_MAP = {
 # Correction result
 # --------------------------------------------------------------------------- #
 
+
 @dataclass
 class CorrectionResult:
     """Result of an error correction attempt."""
+
     original_source: str
     error_message: str
     diagnosis: str
@@ -106,6 +125,7 @@ class CorrectionResult:
 # --------------------------------------------------------------------------- #
 # Error Corrector
 # --------------------------------------------------------------------------- #
+
 
 class HLFErrorCorrector:
     """Structured error correction for HLF programs.
@@ -177,7 +197,7 @@ class HLFErrorCorrector:
             )
 
         # Unknown tag detection
-        tag_match = re.search(r'\[([A-Z_]+)\]', error_msg)
+        tag_match = re.search(r"\[([A-Z_]+)\]", error_msg)
         if tag_match:
             bad_tag = tag_match.group(1)
             if bad_tag not in VALID_TAGS:
@@ -230,7 +250,7 @@ class HLFErrorCorrector:
 
         # Fix: common bracket issues
         # Missing closing bracket: [INTENT → [INTENT]
-        fixed = re.sub(r'\[([A-Z_]+)(?!\])\s', r'[\1] ', fixed)
+        fixed = re.sub(r"\[([A-Z_]+)(?!\])\s", r"[\1] ", fixed)
 
         return fixed if fixed != source else None
 
@@ -276,7 +296,8 @@ def verify_roundtrip(source: str) -> dict[str, Any]:
     node_count = sum(1 for n in program_original if n is not None)
     # Count substantive lines in decompiled output (skip headers/footers)
     decompiled_lines = [
-        line for line in decompiled.split("\n")
+        line
+        for line in decompiled.split("\n")
         if line.strip() and not line.startswith("Program (") and line.strip() != "[Program terminates]"
     ]
 

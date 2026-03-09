@@ -1,0 +1,5 @@
+[HLF-v2]
+[TOOL] WRITE path="tests/fixtures/demo_output.txt" data="hello HLF"
+[TOOL] READ path="tests/fixtures/demo_output.txt"
+[RESULT] 0 "Success"
+Ω

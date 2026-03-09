@@ -25,6 +25,7 @@ import pytest
 def _reload_registry():
     """Force registry reload before each test to avoid stale cache."""
     from agents.core.crew_orchestrator import reload_registry
+
     reload_registry()
     yield
     reload_registry()
@@ -44,9 +45,7 @@ class TestRegistryLoading:
         personas = list_personas()
         # Should have at minimum these 7 agents
         expected = {"sentinel", "scribe", "arbiter", "steward", "cove", "palette", "consolidator"}
-        assert expected.issubset(set(personas.keys())), (
-            f"Missing personas: {expected - set(personas.keys())}"
-        )
+        assert expected.issubset(set(personas.keys())), f"Missing personas: {expected - set(personas.keys())}"
 
     def test_each_persona_has_required_fields(self) -> None:
         from agents.core.crew_orchestrator import list_personas
@@ -182,9 +181,7 @@ class TestReportStructures:
     def test_persona_response_defaults(self) -> None:
         from agents.core.crew_orchestrator import PersonaResponse
 
-        resp = PersonaResponse(
-            persona="test", role="Test", hat="blue", model="m", content="stuff"
-        )
+        resp = PersonaResponse(persona="test", role="Test", hat="blue", model="m", content="stuff")
         assert resp.duration_seconds == 0.0
         assert resp.token_estimate == 0
         assert resp.timestamp > 0
@@ -220,6 +217,7 @@ def _make_crew_db(path: Path) -> sqlite3.Connection:
     conn = sqlite3.connect(str(path))
     conn.execute("PRAGMA journal_mode=WAL")
     from agents.core.crew_orchestrator import _ensure_crew_tables
+
     _ensure_crew_tables(conn)
     return conn
 
@@ -297,8 +295,7 @@ class TestEnsureCrewTables:
 
         # Verify tables exist
         conn.execute(
-            "INSERT INTO crew_discussions (timestamp, topic, personas_used) "
-            "VALUES (?, ?, ?)",
+            "INSERT INTO crew_discussions (timestamp, topic, personas_used) VALUES (?, ?, ?)",
             (time.time(), "test", '["a"]'),
         )
         conn.execute(

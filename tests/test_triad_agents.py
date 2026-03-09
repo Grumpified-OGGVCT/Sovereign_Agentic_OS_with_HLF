@@ -38,8 +38,7 @@ class TestScribeAgent:
         conn = sqlite3.connect(":memory:")
         # Provide the expected schema for memory.db as requested by audit_budget
         conn.execute(
-            "CREATE TABLE rolling_context "
-            "(id INTEGER PRIMARY KEY, role TEXT, content TEXT, token_count INTEGER)"
+            "CREATE TABLE rolling_context (id INTEGER PRIMARY KEY, role TEXT, content TEXT, token_count INTEGER)"
         )
         yield conn
         conn.close()
@@ -103,13 +102,15 @@ class TestArbiterAgent:
     def test_adjudicate_json_string_payload(self):
         # Arbiter must handle a pre-serialised JSON string (Redis stream path).
         # When given a string, severity cannot be extracted → defaults to HIGH → ESCALATE.
-        payload_str = json.dumps({
-            "source_agent": "sentinel",
-            "rule_id": "PRIVESC-003",
-            "severity": "CRITICAL",
-            "preview": "setuid detected",
-            "ts": time.time(),
-        })
+        payload_str = json.dumps(
+            {
+                "source_agent": "sentinel",
+                "rule_id": "PRIVESC-003",
+                "severity": "CRITICAL",
+                "preview": "setuid detected",
+                "ts": time.time(),
+            }
+        )
         verdict = adjudicate("SECURITY_ALERT", payload_str)
         assert isinstance(verdict, ArbiterVerdict)
         assert verdict.verdict == "ESCALATE"

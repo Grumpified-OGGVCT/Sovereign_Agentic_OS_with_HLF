@@ -56,6 +56,7 @@ class AgentStep:
         reasoning: Why the agent chose this action (from LLM).
         timestamp: When this step occurred.
     """
+
     step_number: int
     action: str
     tool_id: str
@@ -78,6 +79,7 @@ class AgentExecutionTrace:
         final_output: The node's return value.
         success: Whether execution completed without error.
     """
+
     agent_id: str
     node_id: str
     steps: list[AgentStep] = field(default_factory=list)
@@ -144,10 +146,7 @@ class SpindleToolBridge:
                 tool_registry=self.tool_registry,
             )
             self._sandboxes[agent_id] = sandbox
-            logger.info(
-                f"ToolBridge: created sandbox for {agent_id} "
-                f"at {worktree_path}"
-            )
+            logger.info(f"ToolBridge: created sandbox for {agent_id} at {worktree_path}")
         return self._sandboxes[agent_id]
 
     def execute_node(
@@ -183,18 +182,23 @@ class SpindleToolBridge:
 
         # Create sandbox and inject into context
         sandbox = self.get_or_create_sandbox(
-            agent_id, agent_role, worktree_path,
+            agent_id,
+            agent_role,
+            worktree_path,
         )
         context["_sandbox"] = sandbox
         context["_agent_id"] = agent_id
         context["_available_tools"] = self.tool_registry.list_tool_ids()
 
         # Publish start event
-        self._publish_event("TOOL_BRIDGE_NODE_START", {
-            "node_id": node_id,
-            "agent_id": agent_id,
-            "worktree": worktree_path,
-        })
+        self._publish_event(
+            "TOOL_BRIDGE_NODE_START",
+            {
+                "node_id": node_id,
+                "agent_id": agent_id,
+                "worktree": worktree_path,
+            },
+        )
 
         try:
             # Execute the node function with sandbox in context
@@ -204,9 +208,7 @@ class SpindleToolBridge:
         except Exception as e:
             trace.success = False
             trace.error = str(e)
-            logger.warning(
-                f"ToolBridge: node '{node_id}' failed: {e}"
-            )
+            logger.warning(f"ToolBridge: node '{node_id}' failed: {e}")
 
         # Collect sandbox actions into trace steps
         for i, action in enumerate(sandbox.action_log):
@@ -215,8 +217,7 @@ class SpindleToolBridge:
                 action=action.get("tool_id", "unknown"),
                 tool_id=action.get("tool_id", "unknown"),
                 input_args={
-                    k: v for k, v in action.items()
-                    if k not in ("agent_id", "agent_role", "tool_id", "timestamp")
+                    k: v for k, v in action.items() if k not in ("agent_id", "agent_role", "tool_id", "timestamp")
                 },
                 timestamp=action.get("timestamp", 0),
             )
@@ -226,24 +227,30 @@ class SpindleToolBridge:
         trace.total_duration = time.time() - start
 
         # Publish completion event
-        self._publish_event("TOOL_BRIDGE_NODE_COMPLETE", {
-            "node_id": node_id,
-            "agent_id": agent_id,
-            "success": trace.success,
-            "tool_calls": trace.total_tool_calls,
-            "duration": trace.total_duration,
-        })
+        self._publish_event(
+            "TOOL_BRIDGE_NODE_COMPLETE",
+            {
+                "node_id": node_id,
+                "agent_id": agent_id,
+                "success": trace.success,
+                "tool_calls": trace.total_tool_calls,
+                "duration": trace.total_duration,
+            },
+        )
 
         self._traces.append(trace)
 
         # Log to ALIGN
-        self._log_align("TOOL_BRIDGE_EXECUTION", {
-            "node_id": node_id,
-            "agent_id": agent_id,
-            "success": trace.success,
-            "tool_calls": trace.total_tool_calls,
-            "duration": trace.total_duration,
-        })
+        self._log_align(
+            "TOOL_BRIDGE_EXECUTION",
+            {
+                "node_id": node_id,
+                "agent_id": agent_id,
+                "success": trace.success,
+                "tool_calls": trace.total_tool_calls,
+                "duration": trace.total_duration,
+            },
+        )
 
         return trace
 
@@ -260,6 +267,7 @@ class SpindleToolBridge:
             SpindleExecutor with event_bus wired.
         """
         from agents.core.spindle import SpindleExecutor
+
         return SpindleExecutor(dag, event_bus=self._event_bus)
 
     @property
@@ -286,11 +294,14 @@ class SpindleToolBridge:
             return
         try:
             from agents.core.event_bus import EventType, SpindleEvent
-            self._event_bus.publish(SpindleEvent(
-                event_type=EventType.NODE_COMPLETED,
-                source=f"tool_bridge:{payload.get('node_id', 'unknown')}",
-                payload=payload,
-            ))
+
+            self._event_bus.publish(
+                SpindleEvent(
+                    event_type=EventType.NODE_COMPLETED,
+                    source=f"tool_bridge:{payload.get('node_id', 'unknown')}",
+                    payload=payload,
+                )
+            )
         except ImportError:
             # Event bus integration is optional
             logger.debug("Event bus not available; skipping event publish")
@@ -301,6 +312,7 @@ class SpindleToolBridge:
         """Log to ALIGN ledger."""
         try:
             from agents.core.als_logger import ALSLogger
+
             als = ALSLogger()
             als.log(event, data)
         except ImportError:

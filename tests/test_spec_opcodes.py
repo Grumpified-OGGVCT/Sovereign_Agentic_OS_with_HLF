@@ -43,11 +43,13 @@ class TestSpecDefine:
     def test_execute_spec_define(self) -> None:
         """SPEC_DEFINE populates the spec registry."""
         ast = {
-            "program": [{
-                "tag": "SPEC_DEFINE",
-                "section": "auth_module",
-                "constraints": ["must use mTLS", "no plaintext"],
-            }]
+            "program": [
+                {
+                    "tag": "SPEC_DEFINE",
+                    "section": "auth_module",
+                    "constraints": ["must use mTLS", "no plaintext"],
+                }
+            ]
         }
         interp = HLFInterpreter(max_gas=50)
         result = interp.execute(ast)
@@ -69,10 +71,12 @@ class TestSpecGate:
     def test_spec_gate_passes(self) -> None:
         """SPEC_GATE passes when condition is truthy."""
         ast = {
-            "program": [{
-                "tag": "SPEC_GATE",
-                "condition": {"op": "COMPARE", "operator": "==", "left": 1, "right": 1},
-            }]
+            "program": [
+                {
+                    "tag": "SPEC_GATE",
+                    "condition": {"op": "COMPARE", "operator": "==", "left": 1, "right": 1},
+                }
+            ]
         }
         interp = HLFInterpreter(max_gas=50)
         result = interp.execute(ast)
@@ -84,10 +88,12 @@ class TestSpecGate:
     def test_spec_gate_halts_on_violation(self) -> None:
         """SPEC_GATE raises HlfRuntimeError when condition is falsy."""
         ast = {
-            "program": [{
-                "tag": "SPEC_GATE",
-                "condition": {"op": "COMPARE", "operator": "==", "left": 1, "right": 2},
-            }]
+            "program": [
+                {
+                    "tag": "SPEC_GATE",
+                    "condition": {"op": "COMPARE", "operator": "==", "left": 1, "right": 2},
+                }
+            ]
         }
         interp = HLFInterpreter(max_gas=50)
         with pytest.raises(HlfRuntimeError, match="SPEC_GATE violation"):
@@ -142,11 +148,13 @@ class TestSpecUpdate:
     def test_spec_update_auto_registers_section(self) -> None:
         """SPEC_UPDATE auto-registers a section if it doesn't exist."""
         ast = {
-            "program": [{
-                "tag": "SPEC_UPDATE",
-                "section": "new_section",
-                "updates": ["initial scaffolding"],
-            }]
+            "program": [
+                {
+                    "tag": "SPEC_UPDATE",
+                    "section": "new_section",
+                    "updates": ["initial scaffolding"],
+                }
+            ]
         }
         interp = HLFInterpreter(max_gas=50)
         result = interp.execute(ast)
@@ -228,12 +236,14 @@ class TestSpecInsAIts:
         ast = {
             "version": "0.4.0",
             "compiler": "HLFC-v0.4.0",
-            "program": [{
-                "tag": "SPEC_DEFINE",
-                "section": "auth_module",
-                "constraints": ["must use mTLS", "no plaintext"],
-                "human_readable": "Define spec section 'auth_module'",
-            }],
+            "program": [
+                {
+                    "tag": "SPEC_DEFINE",
+                    "section": "auth_module",
+                    "constraints": ["must use mTLS", "no plaintext"],
+                    "human_readable": "Define spec section 'auth_module'",
+                }
+            ],
         }
         prose = decompile(ast)
         assert "spec section" in prose.lower()
@@ -244,11 +254,13 @@ class TestSpecInsAIts:
         ast = {
             "version": "0.4.0",
             "compiler": "HLFC-v0.4.0",
-            "program": [{
-                "tag": "SPEC_GATE",
-                "condition": {"op": "COMPARE", "operator": "==", "left": "x", "right": 1},
-                "human_readable": "Spec gate: assert x == 1",
-            }],
+            "program": [
+                {
+                    "tag": "SPEC_GATE",
+                    "condition": {"op": "COMPARE", "operator": "==", "left": "x", "right": 1},
+                    "human_readable": "Spec gate: assert x == 1",
+                }
+            ],
         }
         prose = decompile(ast)
         assert "gate" in prose.lower() or "ASSERT" in prose
@@ -258,10 +270,12 @@ class TestSpecInsAIts:
         ast = {
             "version": "0.4.0",
             "compiler": "HLFC-v0.4.0",
-            "program": [{
-                "tag": "SPEC_SEAL",
-                "human_readable": "Seal spec",
-            }],
+            "program": [
+                {
+                    "tag": "SPEC_SEAL",
+                    "human_readable": "Seal spec",
+                }
+            ],
         }
         prose = decompile(ast)
         assert "seal" in prose.lower() or "SEAL" in prose

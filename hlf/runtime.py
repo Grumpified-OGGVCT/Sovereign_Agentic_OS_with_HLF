@@ -235,6 +235,40 @@ def _builtin_dispatch(func_name: str, args: dict[str, Any]) -> Any:
     return f"<builtin:{func_name} executed>"
 
 
+def _dapr_file_read_dispatch(func_name: str, args: dict[str, Any]) -> Any:
+    """Handle dapr_file_read host function."""
+    path = args.get("path")
+    if not path:
+        raise HlfHostFunctionError(f"Host function {func_name}: missing required argument 'path'")
+
+    resolved_path = Path(path).resolve()
+    if not resolved_path.is_relative_to(_PROJECT_ROOT.resolve()):
+        raise HlfHostFunctionError(f"Path traversal detected: {path} escapes project root.")
+
+    try:
+        return resolved_path.read_text(encoding="utf-8")
+    except Exception as e:
+        raise HlfHostFunctionError(f"Failed to read file {path}: {e}") from e
+
+
+def _dapr_file_write_dispatch(func_name: str, args: dict[str, Any]) -> Any:
+    """Handle dapr_file_write host function."""
+    path = args.get("path")
+    if not path:
+        raise HlfHostFunctionError(f"Host function {func_name}: missing required argument 'path'")
+    data = args.get("data", "")
+
+    resolved_path = Path(path).resolve()
+    if not resolved_path.is_relative_to(_PROJECT_ROOT.resolve()):
+        raise HlfHostFunctionError(f"Path traversal detected: {path} escapes project root.")
+
+    try:
+        resolved_path.write_text(data, encoding="utf-8")
+        return True
+    except Exception as e:
+        raise HlfHostFunctionError(f"Failed to write file {path}: {e}") from e
+
+
 # ─── Gas Metering ────────────────────────────────────────────────────────────
 
 
@@ -535,7 +569,7 @@ class HLFRuntime:
     ):
         self.tier = tier or _DEPLOYMENT_TIER
         self.gas = GasMeter(limit=gas_limit)
-        self.host_registry = host_registry or HostFunctionRegistry.from_json()
+        self.host_registry = host_registry or get_host_registry()
         self.module_loader = module_loader or ModuleLoader(tier=self.tier)
         self.env: dict[str, Any] = {}
         self._result: ExecutionResult = ExecutionResult(gas_limit=gas_limit)
@@ -644,4 +678,6 @@ def get_host_registry() -> HostFunctionRegistry:
     global _host_registry
     if _host_registry is None:
         _host_registry = HostFunctionRegistry.from_json()
+        _host_registry.register_dispatcher("dapr_file_read", _dapr_file_read_dispatch)
+        _host_registry.register_dispatcher("dapr_file_write", _dapr_file_write_dispatch)
     return _host_registry

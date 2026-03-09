@@ -222,7 +222,7 @@ class TestGetContextBundle:
         bundle = engine.get_context_bundle(
             ["core"],
             budget_tokens=5000,
-            full_depth=0,     # only core gets full
+            full_depth=0,  # only core gets full
             signature_depth=1,  # mid gets signature
         )
 

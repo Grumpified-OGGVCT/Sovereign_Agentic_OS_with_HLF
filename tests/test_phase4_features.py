@@ -23,8 +23,7 @@ class TestComplexityRouting(unittest.TestCase):
         profile = route_request("simple hello", {}, complexity=0.1)
         # Should short-circuit to SLM
         assert any(
-            t.get("step") == "complexity_shortcircuit" and t.get("target") == "slm"
-            for t in profile.routing_trace
+            t.get("step") == "complexity_shortcircuit" and t.get("target") == "slm" for t in profile.routing_trace
         ), f"Expected complexity_shortcircuit/slm in trace, got: {profile.routing_trace}"
 
     @patch("agents.gateway.router._try_import_db", return_value=None)
@@ -32,27 +31,24 @@ class TestComplexityRouting(unittest.TestCase):
         """complexity > 0.7 should select the primary (frontier) model."""
         profile = route_request("complex multi-step reasoning", {}, complexity=0.85)
         assert any(
-            t.get("step") == "complexity_shortcircuit" and t.get("target") == "frontier"
-            for t in profile.routing_trace
+            t.get("step") == "complexity_shortcircuit" and t.get("target") == "frontier" for t in profile.routing_trace
         ), f"Expected complexity_shortcircuit/frontier in trace, got: {profile.routing_trace}"
 
     @patch("agents.gateway.router._try_import_db", return_value=None)
     def test_mid_complexity_proceeds_to_tier_walk(self, _mock_db):
         """0.3–0.7 complexity should proceed with normal routing (no shortcircuit)."""
         profile = route_request("medium difficulty query", {}, complexity=0.5)
-        assert any(
-            t.get("step") == "complexity_midrange"
-            for t in profile.routing_trace
-        ), f"Expected complexity_midrange in trace, got: {profile.routing_trace}"
+        assert any(t.get("step") == "complexity_midrange" for t in profile.routing_trace), (
+            f"Expected complexity_midrange in trace, got: {profile.routing_trace}"
+        )
 
     @patch("agents.gateway.router._try_import_db", return_value=None)
     def test_negative_complexity_skips_shortcircuit(self, _mock_db):
         """Default complexity=-1.0 should skip Phase 0 entirely."""
         profile = route_request("anything", {})
-        assert not any(
-            t.get("step", "").startswith("complexity")
-            for t in profile.routing_trace
-        ), f"Unexpected complexity step in trace: {profile.routing_trace}"
+        assert not any(t.get("step", "").startswith("complexity") for t in profile.routing_trace), (
+            f"Unexpected complexity step in trace: {profile.routing_trace}"
+        )
 
 
 class TestModelAllowlist(unittest.TestCase):

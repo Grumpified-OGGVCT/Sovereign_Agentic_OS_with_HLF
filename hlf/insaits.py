@@ -150,7 +150,7 @@ def _decompile_node(
                     code = arg["code"]
                 if "message" in arg:
                     message = arg["message"]
-        yield f"{indent}{prefix}Return code {code}: \"{message}\""
+        yield f'{indent}{prefix}Return code {code}: "{message}"'
 
     elif tag == "MEMORY":
         entity = node.get("entity", "?")
@@ -388,4 +388,3 @@ if __name__ == "__main__":
         source = Path(sys.argv[1]).read_text(encoding="utf-8")
         ast = hlfc_compile(source)
         print(decompile(ast))
-
