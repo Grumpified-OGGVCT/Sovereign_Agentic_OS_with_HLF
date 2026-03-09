@@ -81,7 +81,7 @@
 - [x] MAESTRO Intent Classification system — `maestro_router.py` (20 tests) ✅
 - [x] Architecture Decision Record (ADR) system — `governance/adr.py` (19 tests) ✅
 - [x] InsAIts V2 daemon (continuous, not just compile-time) — `insaits_daemon.py` (30 tests) ✅
-- [ ] SPIFFE/SPIRE upgrade (replace self-signed KYA certs)
+- [x] SPIFFE/SPIRE upgrade (replace self-signed KYA certs) — `spiffe_identity.py` (30 tests) ✅
 
 ---
 
