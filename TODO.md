@@ -87,7 +87,7 @@
 
 ## ⬜ Priority 6: SAFE Architecture Tier 2 Backfill
 
-- [ ] Z3 Formal Verification integration
+- [x] Z3 Formal Verification integration — `formal_verifier.py` (34 tests) ✅
 - [ ] ALIGN Live Ledger (real-time rule editing with human approval)
 - [ ] Full ALS Schema enforcement
 
