@@ -1,5 +1,5 @@
 # Session Handover — HLF 4.0 Delta Analysis & SAFE Backfill
-> Created: 2026-03-02 | Updated: 2026-03-08 | Conversation: 17bf5fb7-8201-4b97-b2db-5f9e35e348ef
+> Created: 2026-03-02 | Updated: 2026-03-08 20:20 CST | Conversation: b67d2a36-ae6c-4b3b-a755-c53587c4407e
 
 ## INSTRUCTIONS FOR NEXT SESSION
 
@@ -105,6 +105,7 @@ Read this file FIRST. It contains everything you need to continue the HLF delta 
 - **z.AI Video Polling** — `poll_video_status()`, `get_video_result()`, `zai.video_status` tool (37 tests) *(shipped 2026-03-08)*
 - **HLF stdlib modules** — 5 core modules in `hlf/stdlib/` (math, string, io, crypto, collections) + `hlf/modules/` for user modules (28 tests) *(shipped 2026-03-08)*
 - **Intent Capsules** — Wired into Gateway Bus step 4a, tier factories (hearth/forge/sovereign), CapsuleViolation → HTTP 403 (18 tests) *(shipped 2026-03-08)*
+- **Native OS Bridge** — Enterprise platform abstraction (Windows/macOS/Linux), structured errors, rate limiter, health checks, 12 files (56 tests) *(shipped 2026-03-08)*
 
 ### 🟡 CONFIGURED / STUB
 - `bytecode_spec.yaml` — spec exists, bytecode VM implemented (stack-machine)
@@ -125,12 +126,14 @@ Read this file FIRST. It contains everything you need to continue the HLF delta 
 
 ## 6. Priority Actions for Next Session
 
-1. **🔴 Fix 67 broken tests** — `test_tool_forge` (30), `test_hlf` (9), `test_policy` (9), `test_e2e_pipeline` (6), `test_aegis_nexus` (5), `test_installation` (4), `test_grammar_roundtrip` (2), `test_hat_engine` (1), `test_phase4_phase5` (1)
-2. **Update TODO.md** with new gap items: HLF-Anchored Memory Nodes, EGL/DGM phase, hieroglyphic paper reference
-3. **Phase 5.1 completion** — OCI module distribution + checksums (~30% remaining)
+1. ~~**Fix 67 broken tests**~~ ✅ All **1,075 tests** passing (100% rate)
+2. ~~**Update TODO.md**~~ ✅ Comprehensive rewrite with 7 priority tiers (2026-03-08)
+3. **Phase 5.1 completion** — OCI module distribution + checksums (~5% remaining)
 4. ~~**SAFE Tier 1 backfill** — Intent Capsules~~ ✅ DONE (2026-03-08)
-5. **Investigate copilot_changes.diff** — some features from Copilot PRs may have landed partially
-6. **Commit Native Bridge work** — `agents/core/native/`, `sovereign_tray.py`, `test_native_bridge.py` still unstaged
+5. ~~**Investigate copilot_changes.diff**~~ — deferred; broken tests already resolved
+6. ~~**Commit Native Bridge work**~~ ✅ Committed as `7f0857f` (2026-03-08)
+7. **GitHub Issue #17** — Aegis-Nexus Sentinel/Scribe/Arbiter runtime daemons
+8. **GitHub Issue #14** — GUI Cognitive SOC (backend data sources ready)
 
 ---
 
