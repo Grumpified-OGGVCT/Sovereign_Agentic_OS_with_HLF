@@ -1,0 +1,39 @@
+[HLF-v3]
+[SET] name = "decision_matrix"
+[MODULE] decision_matrix
+[INTENT] evaluate "multi-criteria decision using voting and assertions"
+
+[THOUGHT] "Evaluate a set of criteria and produce a weighted decision"
+
+[SET] criteria_count = 5
+[SET] weight_security = 3
+[SET] weight_performance = 2
+[SET] weight_cost = 1
+[SET] threshold = 7
+
+[PLAN] "1. Define criteria" "2. Score each option" "3. Vote" "4. Assert threshold" "5. Report"
+
+[CONSTRAINT] "min_voters" 3
+[CONSTRAINT] "consensus_pct" 66
+
+[OBSERVATION] "Decision criteria initialized"
+
+[SET] score_option_a = 8
+[SET] score_option_b = 6
+[SET] score_option_c = 5
+
+[OBSERVATION] "All options scored against weighted criteria"
+
+[VOTE] true "Option A scores above threshold"
+[VOTE] false "Option B below threshold — needs improvement"
+[VOTE] false "Option C rejected — cost too high"
+
+[ASSERT] true "At least one option meets threshold"
+
+[SET] selected = "option_a"
+[SET] final_score = 8
+
+[OBSERVATION] "Decision matrix resolved — ${selected} selected with score ${final_score}"
+
+[RESULT] 0 "Decision: ${selected} (score=${final_score}, threshold=${threshold})"
+Ω

@@ -1,0 +1,27 @@
+[HLF-v2]
+[SET] name = "system_health_check"
+[INTENT] monitor "system health via host function calls"
+
+[THOUGHT] "Gather system info and verify all services are operational"
+
+[SET] target_tier = "hearth"
+[SET] max_gas = 20
+
+[PLAN] "1. Read system info" "2. Check config" "3. Report status"
+
+[CONSTRAINT] "gas_limit" 20
+[CONSTRAINT] "tier" "hearth"
+
+[ACTION] check_system "gathering system information"
+[SET] check_result = "ok"
+[OBSERVATION] "System info gathered"
+
+[ACTION] verify_config "checking settings.json"
+[SET] config_status = "valid"
+[OBSERVATION] "Configuration verified"
+
+[ACTION] report "compiling health report"
+[SET] report_summary = "all systems operational"
+
+[RESULT] 0 "System health check passed — ${report_summary}"
+Ω

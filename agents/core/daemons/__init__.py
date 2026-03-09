@@ -135,9 +135,10 @@ class DaemonManager:
         )
 
         self._daemons = [self.sentinel, self.scribe, self.arbiter]
+        self._bridge = None  # set via attach_bridge()
 
     def start_all(self) -> dict[str, str]:
-        """Start all enabled daemons. Returns status dict."""
+        """Start all enabled daemons and the bridge (if attached). Returns status dict."""
         results = {}
         for daemon in self._daemons:
             name = daemon.name
@@ -147,11 +148,30 @@ class DaemonManager:
             except Exception as e:
                 results[name] = f"error: {e}"
                 _logger.error("Failed to start %s: %s", name, e)
+
+        # Auto-start bridge if attached
+        if self._bridge is not None:
+            try:
+                self._bridge.start()
+                results["bridge"] = "running"
+            except Exception as e:
+                results["bridge"] = f"error: {e}"
+                _logger.error("Failed to start DaemonBridge: %s", e)
+
         return results
 
     def stop_all(self) -> dict[str, str]:
-        """Gracefully stop all daemons."""
+        """Gracefully stop all daemons and the bridge."""
         results = {}
+
+        # Stop bridge first
+        if self._bridge is not None:
+            try:
+                self._bridge.stop()
+                results["bridge"] = "stopped"
+            except Exception as e:
+                results["bridge"] = f"error: {e}"
+
         for daemon in self._daemons:
             name = daemon.name
             try:
@@ -163,7 +183,10 @@ class DaemonManager:
 
     def status(self) -> dict[str, str]:
         """Get status of all daemons."""
-        return {d.name: d.status.value for d in self._daemons}
+        s = {d.name: d.status.value for d in self._daemons}
+        if self._bridge is not None:
+            s["bridge"] = "running" if self._bridge.is_running else "stopped"
+        return s
 
     def health_check(self) -> dict[str, Any]:
         """Run health check across all daemons."""
@@ -175,6 +198,45 @@ class DaemonManager:
                 for d in self._daemons
             ),
         }
+
+    def attach_bridge(
+        self,
+        spindle_bus: Any,
+        *,
+        default_gas_budget: int = 10_000,
+    ) -> Any:
+        """Attach a DaemonBridge for SpindleEventBus integration.
+
+        Args:
+            spindle_bus: SpindleEventBus instance.
+            default_gas_budget: Per-agent gas budget.
+
+        Returns:
+            The created DaemonBridge instance.
+        """
+        from agents.core.daemons.daemon_bridge import DaemonBridge
+
+        self._bridge = DaemonBridge(
+            spindle_bus=spindle_bus,
+            daemon_manager=self,
+            default_gas_budget=default_gas_budget,
+        )
+        return self._bridge
+
+    @property
+    def bridge(self) -> Any:
+        """Access the attached DaemonBridge (or None)."""
+        return self._bridge
+
+    def get_gas_report(self) -> dict[str, Any]:
+        """Get per-agent gas utilization report from the bridge.
+
+        Returns:
+            Gas report dict, or empty dict if no bridge attached.
+        """
+        if self._bridge is not None:
+            return self._bridge.get_gas_report()
+        return {"error": "no bridge attached"}
 
 
 __all__ = [

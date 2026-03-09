@@ -1,0 +1,28 @@
+[HLF-v2]
+[SET] name = "agent_delegation"
+[INTENT] orchestrate "multi-agent task delegation"
+
+[THOUGHT] "Delegate subtasks to specialist agents and collect results"
+
+[SET] task_id = "AGT-001"
+[SET] strategy = "parallel"
+[SET] vote_threshold = 2
+
+[PLAN] "1. Define delegation targets" "2. Delegate tasks" "3. Collect votes" "4. Resolve"
+
+[CONSTRAINT] "max_agents" 3
+[CONSTRAINT] "timeout_ms" 12000
+
+[DELEGATE] sentinel "scan for injection patterns"
+[DELEGATE] scribe "translate decision into prose"
+[DELEGATE] arbiter "adjudicate any disputes"
+
+[OBSERVATION] "All agents delegated and tasks dispatched"
+
+[VOTE] true "sentinel confirms no threats detected"
+[VOTE] true "scribe confirms translation complete"
+
+[ASSERT] true "All delegates responded within timeout"
+
+[RESULT] 0 "Multi-agent delegation completed — ${strategy} strategy, task ${task_id}"
+Ω

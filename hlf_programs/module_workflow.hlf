@@ -1,0 +1,30 @@
+[HLF-v2]
+[SET] name = "module_workflow"
+[INTENT] demonstrate "module import and function usage"
+
+[THOUGHT] "Show how to use stdlib modules in a real workflow"
+
+[IMPORT] math
+[IMPORT] string
+[IMPORT] io
+
+[SET] input_text = "Hello World"
+[SET] max_retries = 3
+[SET] pi_approx = 3.14
+
+[PLAN] "1. Import modules" "2. Process data" "3. Output results"
+
+[OBSERVATION] "Modules loaded: math, string, io"
+
+[ACTION] process "${input_text}"
+[SET] processed = "HELLO WORLD"
+[OBSERVATION] "String processed to uppercase"
+
+[SET] area = 31
+[OBSERVATION] "Computed area using pi approximation"
+
+[CONSTRAINT] "output_format" "json"
+[EXPECT] "formatted output with computation results"
+
+[RESULT] 0 "Module workflow completed — processed ${processed}, area=${area}"
+Ω

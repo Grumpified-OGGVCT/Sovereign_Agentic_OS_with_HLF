@@ -60,6 +60,12 @@
     "analysis_model": "kimi-k2.5:cloud"
   },
   "gas_buckets": { "hearth": 1000, "forge": 10000, "sovereign": 100000 },
+  "gas_agent_budgets": {
+    "sentinel": 5000,
+    "scribe": 3000,
+    "arbiter": 8000
+  },
+  "gas_alert_threshold_pct": 80,
   "max_context_tokens": { "hearth": 8192, "forge": 16384, "sovereign": 32768 },
   "rate_limits": { "external_rpm": 50, "websearch_capacity": 10 },
   "circuit_breaker": { "timeout_ms": 12000, "dead_man_threshold": 3, "dead_man_window_sec": 300 },
@@ -106,5 +112,26 @@
     "sentinel": { "enabled": true, "check_interval_ms": 5000 },
     "scribe": { "enabled": true, "token_budget_pct": 0.80 },
     "arbiter": { "enabled": true, "escalation_timeout_ms": 12000 }
+  },
+  "credential_vault": {
+    "enabled": true,
+    "auto_discover": true,
+    "vault_dir": "~/.sovereign/vault"
+  },
+  "gateway": {
+    "enabled": true,
+    "port": 4000,
+    "host": "127.0.0.1",
+    "default_model": "gemini/gemini-3-pro",
+    "fallback_model": "ollama/qwen3:8b",
+    "providers": {
+      "google": { "enabled": true, "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/" },
+      "openai": { "enabled": false, "base_url": "https://api.openai.com/v1/" },
+      "anthropic": { "enabled": false, "base_url": "https://api.anthropic.com/v1/" },
+      "groq": { "enabled": false, "base_url": "https://api.groq.com/openai/v1/" },
+      "ollama": { "enabled": true, "base_url": "http://localhost:11434/v1/" }
+    },
+    "rate_limit_rpm": 60,
+    "log_requests": true
   }
 }

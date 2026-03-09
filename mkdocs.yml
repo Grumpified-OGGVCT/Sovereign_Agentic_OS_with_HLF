@@ -1,0 +1,58 @@
+site_name: HLF Language Documentation
+site_description: Hieroglyphic Logic Framework — deterministic agent instruction language
+site_author: Sovereign Agentic OS Team
+
+docs_dir: docs
+exclude_docs: |
+  index.html
+
+repo_url: https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF
+repo_name: Sovereign_Agentic_OS_with_HLF
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.expand
+    - search.suggest
+    - toc.integrate
+
+nav:
+  - Home: index.md
+  - Language Reference: language-reference.md
+  - Standard Library: stdlib.md
+  - CLI Tools: cli-tools.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - def_list
+  - toc:
+      permalink: true

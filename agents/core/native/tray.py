@@ -65,6 +65,16 @@ class SovereignTray:
                     TrayMenuItem(label="Run Preflight", action="run_preflight"),
                 ],
             ),
+            TrayMenuItem(
+                label="Gateway",
+                action="gateway",
+                children=[
+                    TrayMenuItem(label="Start Gateway", action="gateway_start"),
+                    TrayMenuItem(label="Stop Gateway", action="gateway_stop"),
+                    TrayMenuItem(label="Restart Gateway", action="gateway_restart"),
+                    TrayMenuItem(label="Health Check", action="gateway_health"),
+                ],
+            ),
             TrayMenuItem(label="Settings", action="settings", separator_before=True),
             TrayMenuItem(label="Restart Services", action="restart"),
             TrayMenuItem(label="Quit", action="quit", separator_before=True),

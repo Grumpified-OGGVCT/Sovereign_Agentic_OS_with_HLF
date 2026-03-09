@@ -1,0 +1,20 @@
+[HLF-v2]
+[SET] name = "hello_world"
+[INTENT] demonstrate "basic HLF program structure"
+
+[THOUGHT] "This program demonstrates the fundamental HLF syntax"
+
+[SET] greeting = "Hello, Sovereign OS!"
+[SET] version = "0.4.0"
+
+[OBSERVATION] "Program initialized with greeting and version"
+
+[PLAN] "1. Set up variables" "2. Output greeting" "3. Return success"
+
+[CONSTRAINT] "max_retries" 3
+[EXPECT] "successful demonstration of HLF syntax"
+
+[ACTION] display "${greeting}"
+
+[RESULT] 0 "Hello World completed successfully"
+Ω
