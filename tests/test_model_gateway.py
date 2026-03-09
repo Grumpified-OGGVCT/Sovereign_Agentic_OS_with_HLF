@@ -1,0 +1,251 @@
+"""
+Tests for ModelGateway — unified OpenAI-compatible proxy.
+
+Tests cover:
+  - Config loading from settings.json
+  - Model registry (register, unregister, list)
+  - Request routing (default, fallback, explicit model)
+  - Chat completion handling
+  - Model listing (OpenAI format)
+  - Health endpoint
+  - Rate limiting tracking
+  - Vault integration for API key lookup
+  - FastAPI app creation
+"""
+
+from __future__ import annotations
+
+import json
+import pytest
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+from typing import Any
+
+from agents.core.model_gateway import (
+    GatewayConfig,
+    ModelGateway,
+    ModelInfo,
+    ModelRegistry,
+    RequestRouter,
+    RoutingDecision,
+)
+
+
+# ─── Fixtures ────────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def config() -> GatewayConfig:
+    return GatewayConfig(
+        port=4001,
+        default_model="gemini/gemini-3-pro",
+        fallback_model="ollama/qwen3:8b",
+        providers={
+            "google": {"enabled": True, "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
+            "ollama": {"enabled": True, "base_url": "http://localhost:11434/v1/"},
+        },
+    )
+
+
+@pytest.fixture
+def registry() -> ModelRegistry:
+    r = ModelRegistry()
+    r.register(ModelInfo(id="gemini/gemini-3-pro", provider="google", base_url="https://api.google.com"))
+    r.register(ModelInfo(id="ollama/qwen3:8b", provider="ollama", base_url="http://localhost:11434/v1/", is_local=True))
+    return r
+
+
+@pytest.fixture
+def gateway(config: GatewayConfig) -> ModelGateway:
+    return ModelGateway(config=config)
+
+
+@pytest.fixture
+def config_file(tmp_path: Path) -> Path:
+    cfg = {
+        "gateway": {
+            "enabled": True,
+            "port": 5000,
+            "host": "0.0.0.0",
+            "default_model": "openai/gpt-4o",
+            "fallback_model": "ollama/llama3:8b",
+            "rate_limit_rpm": 30,
+            "providers": {
+                "openai": {"enabled": True, "base_url": "https://api.openai.com/v1/"},
+            },
+        }
+    }
+    path = tmp_path / "settings.json"
+    path.write_text(json.dumps(cfg), encoding="utf-8")
+    return path
+
+
+# ─── Config ──────────────────────────────────────────────────────────────────
+
+class TestConfig:
+    def test_defaults(self) -> None:
+        cfg = GatewayConfig()
+        assert cfg.port == 4000
+        assert cfg.host == "127.0.0.1"
+        assert cfg.default_model == "gemini/gemini-3-pro"
+
+    def test_from_settings(self, config_file: Path) -> None:
+        cfg = GatewayConfig.from_settings(config_file)
+        assert cfg.port == 5000
+        assert cfg.host == "0.0.0.0"
+        assert cfg.default_model == "openai/gpt-4o"
+        assert cfg.rate_limit_rpm == 30
+
+    def test_from_missing_file(self) -> None:
+        cfg = GatewayConfig.from_settings(Path("/nonexistent"))
+        assert cfg.port == 4000  # defaults
+
+
+# ─── Model Registry ─────────────────────────────────────────────────────────
+
+class TestModelRegistry:
+    def test_register(self) -> None:
+        r = ModelRegistry()
+        r.register(ModelInfo(id="test/model", provider="test"))
+        assert r.count == 1
+
+    def test_unregister(self, registry: ModelRegistry) -> None:
+        registry.unregister("gemini/gemini-3-pro")
+        assert registry.count == 1
+
+    def test_get(self, registry: ModelRegistry) -> None:
+        m = registry.get("gemini/gemini-3-pro")
+        assert m is not None
+        assert m.provider == "google"
+
+    def test_get_missing(self, registry: ModelRegistry) -> None:
+        assert registry.get("nonexistent") is None
+
+    def test_list_models_openai_format(self, registry: ModelRegistry) -> None:
+        models = registry.list_models()
+        assert len(models) == 2
+        assert all(m["object"] == "model" for m in models)
+        ids = [m["id"] for m in models]
+        assert "gemini/gemini-3-pro" in ids
+
+    def test_find_by_provider(self, registry: ModelRegistry) -> None:
+        google_models = registry.find_by_provider("google")
+        assert len(google_models) == 1
+        assert google_models[0].id == "gemini/gemini-3-pro"
+
+
+# ─── Request Router ─────────────────────────────────────────────────────────
+
+class TestRequestRouter:
+    def test_route_default(self, config: GatewayConfig, registry: ModelRegistry) -> None:
+        router = RequestRouter(config, registry)
+        decision = router.route()
+        assert decision.model_id == "gemini/gemini-3-pro"
+        assert decision.is_fallback is False
+
+    def test_route_explicit(self, config: GatewayConfig, registry: ModelRegistry) -> None:
+        router = RequestRouter(config, registry)
+        decision = router.route("ollama/qwen3:8b")
+        assert decision.model_id == "ollama/qwen3:8b"
+        assert decision.provider == "ollama"
+
+    def test_route_fallback(self, config: GatewayConfig, registry: ModelRegistry) -> None:
+        router = RequestRouter(config, registry)
+        decision = router.route("nonexistent/model")
+        assert decision.model_id == "ollama/qwen3:8b"
+        assert decision.is_fallback is True
+
+    def test_route_tracks_requests(self, config: GatewayConfig, registry: ModelRegistry) -> None:
+        router = RequestRouter(config, registry)
+        router.route()
+        router.route()
+        assert router.stats["total_requests"] == 2
+
+    def test_route_with_vault(self, config: GatewayConfig, registry: ModelRegistry) -> None:
+        mock_vault = MagicMock()
+        mock_vault.find_by_provider.return_value = [MagicMock(key_hash="abc")]
+        mock_vault.get_key.return_value = "AIzaFakeKey"
+        router = RequestRouter(config, registry, vault=mock_vault)
+        decision = router.route("gemini/gemini-3-pro")
+        assert decision.api_key == "AIzaFakeKey"
+
+
+# ─── Gateway ─────────────────────────────────────────────────────────────────
+
+class TestGateway:
+    def test_create(self, gateway: ModelGateway) -> None:
+        assert gateway.is_running is False
+        assert gateway.stats["models"] > 0
+
+    def test_from_config(self, config_file: Path) -> None:
+        gw = ModelGateway.from_config(config_file)
+        assert gw.stats["config"]["port"] == 5000
+
+    def test_register_model(self, gateway: ModelGateway) -> None:
+        initial = gateway.stats["models"]
+        gateway.register_model(ModelInfo(id="custom/model", provider="custom"))
+        assert gateway.stats["models"] == initial + 1
+
+
+# ─── Chat Completion ─────────────────────────────────────────────────────────
+
+class TestChatCompletion:
+    def test_handle_chat(self, gateway: ModelGateway) -> None:
+        req = {
+            "model": "gemini/gemini-3-pro",
+            "messages": [{"role": "user", "content": "Hello"}],
+        }
+        resp = gateway.handle_chat_completion(req)
+        assert resp["object"] == "chat.completion"
+        assert "choices" in resp
+        assert resp["_gateway"]["provider"] in ("google", "ollama")
+
+    def test_handle_chat_no_model(self, gateway: ModelGateway) -> None:
+        req = {"messages": [{"role": "user", "content": "Hello"}]}
+        resp = gateway.handle_chat_completion(req)
+        # Should resolve to some model (default or fallback)
+        assert resp["model"] is not None
+        assert "/" in resp["model"]  # provider/model format
+
+    def test_handle_chat_unknown_model(self, gateway: ModelGateway) -> None:
+        req = {"model": "unknown/model", "messages": []}
+        resp = gateway.handle_chat_completion(req)
+        assert resp["_gateway"]["is_fallback"] is True
+
+
+# ─── List Models ─────────────────────────────────────────────────────────────
+
+class TestListModels:
+    def test_handle_list(self, gateway: ModelGateway) -> None:
+        resp = gateway.handle_list_models()
+        assert resp["object"] == "list"
+        assert len(resp["data"]) > 0
+        assert all(m["object"] == "model" for m in resp["data"])
+
+
+# ─── Health ──────────────────────────────────────────────────────────────────
+
+class TestHealth:
+    def test_handle_health(self, gateway: ModelGateway) -> None:
+        resp = gateway.handle_health()
+        assert resp["status"] == "healthy"
+        assert resp["gateway_port"] == 4001
+        assert resp["models_registered"] > 0
+
+    def test_health_disabled(self) -> None:
+        cfg = GatewayConfig(enabled=False)
+        gw = ModelGateway(config=cfg)
+        resp = gw.handle_health()
+        assert resp["status"] == "disabled"
+
+
+# ─── FastAPI App ─────────────────────────────────────────────────────────────
+
+class TestFastAPIApp:
+    def test_create_app(self, gateway: ModelGateway) -> None:
+        app = gateway.create_app()
+        assert app is not None
+        # Check routes exist
+        routes = [r.path for r in app.routes if hasattr(r, "path")]
+        assert "/v1/models" in routes
+        assert "/v1/chat/completions" in routes
+        assert "/v1/health" in routes

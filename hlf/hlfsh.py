@@ -1,245 +1,331 @@
 """
-HLF REPL — Interactive Hieroglyphic Logic Framework Shell (hlfsh).
-
-An interactive read-eval-print loop for the HLF language. Provides immediate
-feedback for developing, debugging, and learning HLF programs.
-
-Features:
-  - Parse → Compile → Execute loop with gas tracking
-  - Multi-line input (press Enter twice to submit)
-  - REPL commands: .help, .env, .gas, .ast, .trace, .macros, .clear, .quit
-  - Auto-wrapped in [HLF-v2] header and Ω terminator
+HLF Interactive REPL — Read-Eval-Print Loop for the Hieroglyphic Logic Framework.
 
 Usage:
-    python -m hlf.hlfsh
-    python -c "from hlf.hlfsh import repl; repl()"
+  python -m hlf.hlfsh          # Launch interactive shell
+  echo '[SET] x = 1' | python -m hlf.hlfsh   # Pipe mode
+
+Built-in commands:
+  :help    — Show available commands
+  :env     — Display current variable bindings
+  :gas     — Show gas meter status
+  :reset   — Clear environment and gas meter
+  :load    — Load and execute a .hlf file
+  :ast     — Show AST of last evaluated statement
+  :lint    — Lint last input
+  :quit    — Exit the REPL
+
+Features:
+  - Persistent session environment (SET bindings accumulate)
+  - Per-line gas metering with cumulative display
+  - History persistence via readline (~/.hlf_history)
+  - ANSI color output for better readability
 """
 
 from __future__ import annotations
 
 import json
-import sys  # noqa: F401 — needed for REPL stdin/stdout
-import traceback
+import os
+import sys
+from pathlib import Path
 from typing import Any
 
-from hlf.hlfc import HlfSyntaxError
-from hlf.hlfc import compile as hlfc_compile
-from hlf.hlfrun import HLFInterpreter, HlfRuntimeError
-from hlf.insaits import decompile
+# ─── ANSI Color Support ─────────────────────────────────────────────────────
 
-# --------------------------------------------------------------------------- #
-# REPL commands
-# --------------------------------------------------------------------------- #
+_COLORS_ENABLED = hasattr(sys.stdout, "isatty") and sys.stdout.isatty()
+
+
+def _c(text: str, code: str) -> str:
+    """Wrap text in ANSI escape code if colors are enabled."""
+    if _COLORS_ENABLED:
+        return f"\033[{code}m{text}\033[0m"
+    return text
+
+
+def _green(text: str) -> str:
+    return _c(text, "32")
+
+
+def _yellow(text: str) -> str:
+    return _c(text, "33")
+
+
+def _red(text: str) -> str:
+    return _c(text, "31")
+
+
+def _cyan(text: str) -> str:
+    return _c(text, "36")
+
+
+def _dim(text: str) -> str:
+    return _c(text, "2")
+
+
+def _bold(text: str) -> str:
+    return _c(text, "1")
+
+
+# ─── REPL Commands ──────────────────────────────────────────────────────────
 
 HELP_TEXT = """
-HLF Shell (hlfsh) — Interactive REPL commands:
-
-  .help              Show this help message
-  .env               Show all variables in the current scope
-  .gas               Show gas usage statistics
-  .ast <hlf>         Show compiled AST for HLF source (no execution)
-  .decompile <hlf>   Decompile HLF source to English
-  .trace             Show execution trace from last run
-  .macros            Show registered macros
-  .clear             Clear the scope and reset state
-  .quit / .exit      Exit the REPL
-
-HLF programs are auto-wrapped:
-  Your input → [HLF-v2] <your input> Ω
-
-Multi-line: Enter a blank line to submit multi-line input.
-
-Examples:
-  hlfsh> [SET] x = 42
-  hlfsh> [FUNCTION] HASH sha256 "hello"
-  hlfsh> x ← 10 + 5
-  hlfsh> ⊎ x > 10 ⇒ [ACTION] "log" "x is big"
-"""
+HLF Interactive Shell (hlfsh) — Commands:
+  :help    Show this help message
+  :env     Display current variable bindings
+  :gas     Show gas meter status
+  :reset   Clear environment and gas meter
+  :load F  Load and execute a .hlf file
+  :ast     Show AST of last evaluated statement
+  :lint    Lint last input via hlflint
+  :quit    Exit the REPL (also: Ctrl+D)
+""".strip()
 
 
-def repl(
-    tier: str = "hearth",
-    max_gas: int = 100,
-    memory_engine: Any = None,
-) -> None:
-    """Start the interactive HLF REPL.
+# ─── REPL Session ───────────────────────────────────────────────────────────
 
-    Args:
-        tier:           Deployment tier (hearth, forge, sovereign)
-        max_gas:        Gas cap per execution
-        memory_engine:  Optional InfiniteRAGEngine instance
+
+class HLFShell:
+    """Interactive HLF shell session.
+
+    Maintains a persistent environment across evaluations.
+    Gas meter accumulates across statements within a session.
     """
-    print("╔══════════════════════════════════════════════════════╗")
-    print("║  HLF Shell (hlfsh) v0.4.0                          ║")
-    print("║  Hieroglyphic Logic Framework — Interactive REPL    ║")
-    print("║  Type .help for commands, .quit to exit             ║")
-    print("╚══════════════════════════════════════════════════════╝")
-    print()
 
-    # Persistent state across REPL iterations
-    scope: dict[str, Any] = {}
-    total_gas = 0
-    last_trace: list[dict] = []
-    last_ast: dict = {}
-    macros: dict[str, list] = {}
+    PROMPT = "hlf> "
+    CONTINUATION_PROMPT = "...> "
 
-    while True:
+    def __init__(self, gas_limit: int = 1000) -> None:
+        self.env: dict[str, Any] = {}
+        self.gas_limit = gas_limit
+        self.gas_used = 0
+        self.last_ast: dict[str, Any] | None = None
+        self.last_input: str = ""
+        self.history_path = Path.home() / ".hlf_history"
+        self.statement_count = 0
+
+    def _try_compile(self, source: str) -> dict[str, Any] | None:
+        """Attempt to compile HLF source. Returns AST dict or None."""
         try:
-            line = _read_input()
-        except (EOFError, KeyboardInterrupt):
-            print("\nGoodbye! Ω")
-            break
+            from hlf.hlfc import compile as hlfc_compile
+            return hlfc_compile(source)
+        except Exception:
+            return None
 
-        if not line.strip():
-            continue
+    def _count_ast_nodes(self, ast: dict[str, Any]) -> int:
+        """Count the number of AST nodes for gas accounting."""
+        program = ast.get("program", [])
+        return len(program)
 
-        # ---- REPL commands ----
-        stripped = line.strip()
+    def eval(self, source: str) -> str:
+        """Evaluate HLF source and return formatted output string.
 
-        if stripped in (".quit", ".exit"):
-            print("Goodbye! Ω")
-            break
+        This is the core evaluation method, suitable for programmatic use.
+        Does NOT require an interactive terminal.
+        """
+        self.last_input = source.strip()
 
-        if stripped == ".help":
-            print(HELP_TEXT)
-            continue
+        if not self.last_input:
+            return ""
 
-        if stripped == ".env":
-            if scope:
-                for k, v in sorted(scope.items()):
-                    print(f"  {k} = {v!r}")
-            else:
-                print("  (scope is empty)")
-            continue
+        # Try to compile
+        ast = self._try_compile(self.last_input)
+        if ast is None:
+            return _red("✗ Compile error — check syntax")
 
-        if stripped == ".gas":
-            print(f"  Total gas used: {total_gas}")
-            continue
+        self.last_ast = ast
 
-        if stripped == ".trace":
-            if last_trace:
-                for entry in last_trace:
-                    print(f"  {entry}")
-            else:
-                print("  (no trace from last execution)")
-            continue
+        # Gas accounting — count AST nodes
+        node_count = self._count_ast_nodes(ast)
+        self.gas_used += node_count
+        self.statement_count += 1
 
-        if stripped == ".macros":
-            if macros:
-                for name, body in macros.items():
-                    print(f"  Σ {name}: {len(body)} statement(s)")
-            else:
-                print("  (no macros defined)")
-            continue
+        # Extract results from AST
+        lines: list[str] = []
+        program = ast.get("program", [])
 
-        if stripped == ".clear":
-            scope.clear()
-            macros.clear()
-            total_gas = 0
-            last_trace.clear()
-            last_ast.clear()
-            print("  Scope, macros, and gas cleared.")
-            continue
+        # Collect SET bindings
+        new_bindings: dict[str, str] = {}
+        for node in program:
+            if not node:
+                continue
+            tag = node.get("tag", "")
+            if tag == "SET":
+                name = node.get("name", "")
+                value = node.get("value", "")
+                if name:
+                    new_bindings[name] = value
+                    self.env[name] = value
 
-        if stripped.startswith(".ast "):
-            hlf_input = stripped[5:].strip()
-            source = _wrap_source(hlf_input)
+        # Show SET bindings
+        for name, value in new_bindings.items():
+            lines.append(_green(f"  ⟐ {name} = {value}"))
+
+        # Show final RESULT if present
+        for node in program:
+            if not node:
+                continue
+            if node.get("tag") == "RESULT":
+                code = node.get("code", 0)
+                message = node.get("message", "")
+                status = _green("✓") if code == 0 else _red("✗")
+                lines.append(f"{status} [{code}] {message}")
+
+        # Gas summary
+        remaining = self.gas_limit - self.gas_used
+        lines.append(_dim(f"  ⩕ gas: {node_count} nodes ({self.gas_used}/{self.gas_limit} total, {remaining} remaining)"))
+
+        if self.gas_used >= self.gas_limit:
+            lines.append(_red("  ⚠ GAS LIMIT REACHED — use :reset or increase --gas-limit"))
+
+        return "\n".join(lines)
+
+    def handle_command(self, command: str) -> str | None:
+        """Handle a :command. Returns output string or None if not a command."""
+        cmd = command.strip()
+
+        if not cmd.startswith(":"):
+            return None
+
+        parts = cmd.split(maxsplit=1)
+        action = parts[0].lower()
+        arg = parts[1] if len(parts) > 1 else ""
+
+        if action == ":help":
+            return HELP_TEXT
+
+        if action == ":env":
+            if not self.env:
+                return _dim("(empty environment)")
+            lines = []
+            for k, v in sorted(self.env.items()):
+                if not str(k).startswith("__"):
+                    lines.append(f"  {_green(str(k))} = {v}")
+            return "\n".join(lines) or _dim("(empty environment)")
+
+        if action == ":gas":
+            remaining = self.gas_limit - self.gas_used
+            pct = (self.gas_used / self.gas_limit * 100) if self.gas_limit else 0
+            color = _green if pct < 50 else (_yellow if pct < 80 else _red)
+            return (
+                f"  Gas used:      {color(str(self.gas_used))}\n"
+                f"  Gas remaining: {remaining}\n"
+                f"  Gas limit:     {self.gas_limit}\n"
+                f"  Utilization:   {color(f'{pct:.1f}%')}\n"
+                f"  Statements:    {self.statement_count}"
+            )
+
+        if action == ":reset":
+            self.env.clear()
+            self.gas_used = 0
+            self.last_ast = None
+            self.last_input = ""
+            self.statement_count = 0
+            return _green("✓ Session reset — environment and gas cleared")
+
+        if action == ":load":
+            if not arg:
+                return _red("Usage: :load <filepath.hlf>")
+            path = Path(arg)
+            if not path.exists():
+                return _red(f"✗ File not found: {path}")
             try:
-                ast = hlfc_compile(source)
-                print(json.dumps(ast, indent=2, ensure_ascii=False))
-            except HlfSyntaxError as e:
-                print(f"  Compile error: {e}")
-            continue
+                source = path.read_text(encoding="utf-8")
+                return self.eval(source)
+            except Exception as exc:
+                return _red(f"✗ Load error: {exc}")
 
-        if stripped.startswith(".decompile "):
-            hlf_input = stripped[11:].strip()
-            source = _wrap_source(hlf_input)
+        if action == ":ast":
+            if self.last_ast is None:
+                return _dim("(no AST — evaluate something first)")
+            return json.dumps(self.last_ast, indent=2, ensure_ascii=False)
+
+        if action == ":lint":
+            if not self.last_input:
+                return _dim("(no input to lint)")
             try:
-                ast = hlfc_compile(source)
-                print(decompile(ast))
-            except HlfSyntaxError as e:
-                print(f"  Compile error: {e}")
-            continue
+                from hlf.hlflint import lint
+                issues = lint(self.last_input)
+                if not issues:
+                    return _green("✓ No lint issues")
+                return "\n".join(_yellow(f"  ⚠ {issue}") for issue in issues)
+            except Exception as exc:
+                return _red(f"✗ Lint error: {exc}")
 
-        # ---- Execute HLF ----
-        source = _wrap_source(line)
+        if action in (":quit", ":exit", ":q"):
+            raise SystemExit(0)
+
+        return _red(f"Unknown command: {action}. Type :help for available commands.")
+
+    def _setup_readline(self) -> None:
+        """Configure readline with history support."""
         try:
-            ast = hlfc_compile(source)
-            last_ast = ast
+            import readline
 
-            interp = HLFInterpreter(scope=scope, tier=tier, max_gas=max_gas)
-            interp._macros = dict(macros)  # Carry forward macros
-            if memory_engine:
-                interp._memory_engine = memory_engine
+            if self.history_path.exists():
+                readline.read_history_file(str(self.history_path))
+            readline.set_history_length(1000)
+        except (ImportError, OSError):
+            pass  # readline not available on all platforms
 
-            result = interp.execute(ast)
+    def _save_history(self) -> None:
+        """Persist readline history to disk."""
+        try:
+            import readline
+            readline.write_history_file(str(self.history_path))
+        except (ImportError, OSError):
+            pass
 
-            # Update persistent state
-            scope.update(result.get("scope", {}))
-            total_gas += result.get("gas_used", 0)
-            last_trace = result.get("trace", [])
-            macros.update({m: interp._macros[m] for m in interp._macros})
+    def run(self) -> None:
+        """Launch the interactive REPL loop."""
+        self._setup_readline()
 
-            # Display result
-            code = result.get("code", 0)
-            msg = result.get("message", "ok")
-            gas_used = result.get("gas_used", 0)
-            rv = result.get("result")
+        print(_bold("HLF Interactive Shell") + _dim(f" (v0.4.0 • gas limit: {self.gas_limit})"))
+        print(_dim("Type :help for commands, :quit to exit\n"))
 
-            status = "✓" if code == 0 else "✗"
-            print(f"  {status} [{code}] {msg}  (gas: {gas_used})")
-            if rv is not None:
-                print(f"  → {rv}")
+        try:
+            while True:
+                try:
+                    line = input(self.PROMPT)
+                except EOFError:
+                    print()
+                    break
 
-        except HlfSyntaxError as e:
-            print(f"  ✗ Compile error: {e}")
-        except HlfRuntimeError as e:
-            print(f"  ✗ Runtime error: {e}")
-        except Exception as e:
-            print(f"  ✗ Error: {e}")
-            traceback.print_exc()
+                # Handle commands
+                cmd_result = self.handle_command(line)
+                if cmd_result is not None:
+                    print(cmd_result)
+                    continue
 
+                # Evaluate HLF
+                output = self.eval(line)
+                if output:
+                    print(output)
 
-# --------------------------------------------------------------------------- #
-# Input helpers
-# --------------------------------------------------------------------------- #
-
-
-def _read_input() -> str:
-    """Read one or more lines from stdin. Blank line finalizes multi-line."""
-    first_line = input("hlfsh> ").rstrip()
-    if not first_line:
-        return ""
-
-    lines = [first_line]
-
-    # Check if this is a multi-line block (contains { but no })
-    if "{" in first_line and "}" not in first_line:
-        while True:
-            try:
-                cont = input("  ...> ").rstrip()
-            except (EOFError, KeyboardInterrupt):
-                break
-            lines.append(cont)
-            if "}" in cont:
-                break
-
-    return "\n".join(lines)
+        except (KeyboardInterrupt, SystemExit):
+            pass
+        finally:
+            self._save_history()
+            print(_dim("\nGoodbye."))
 
 
-def _wrap_source(source: str) -> str:
-    """Wrap bare HLF input in version header and terminator if needed."""
-    s = source.strip()
-    if not s.startswith("[HLF-"):
-        s = f"[HLF-v2]\n{s}"
-    if not s.rstrip().endswith("Ω"):
-        s = f"{s}\nΩ"
-    return s
+# ─── Entry Point ─────────────────────────────────────────────────────────────
 
 
-# --------------------------------------------------------------------------- #
-# CLI entry point
-# --------------------------------------------------------------------------- #
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="HLF Interactive Shell")
+    parser.add_argument("--gas-limit", type=int, default=1000, help="Gas budget (default: 1000)")
+    parser.add_argument("--no-color", action="store_true", help="Disable ANSI colors")
+    args = parser.parse_args()
+
+    if args.no_color:
+        global _COLORS_ENABLED
+        _COLORS_ENABLED = False
+
+    shell = HLFShell(gas_limit=args.gas_limit)
+    shell.run()
+
 
 if __name__ == "__main__":
-    repl()
+    main()

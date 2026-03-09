@@ -81,7 +81,7 @@ class TestHostFunctionRegistry:
         assert "WEB_SEARCH" in host_registry.functions
 
     def test_registry_version(self, host_registry: HostFunctionRegistry) -> None:
-        assert host_registry.version == "1.0.0"
+        assert host_registry.version == "1.2.0"
 
     def test_function_attributes(self, host_registry: HostFunctionRegistry) -> None:
         read_fn = host_registry.functions["READ"]
@@ -378,3 +378,152 @@ class TestHLFRuntime:
         assert result.code == 0
         assert "math_utils" in result.modules_loaded
         assert runtime.env.get("pi") == 3
+
+
+# ─── Expression Evaluator (Expanded) ─────────────────────────────────────────
+
+
+class TestExprEvaluator:
+    """Tests for the expanded _eval_expr function with new operators."""
+
+    def test_modulo(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        node = {"op": "MATH", "operator": "%", "left": 10, "right": 3}
+        assert _eval_expr(node, {}) == 1
+
+    def test_floor_division(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        node = {"op": "MATH", "operator": "//", "left": 7, "right": 2}
+        assert _eval_expr(node, {}) == 3
+
+    def test_power(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        node = {"op": "MATH", "operator": "**", "left": 2, "right": 10}
+        assert _eval_expr(node, {}) == 1024
+
+    def test_unary_neg(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        node = {"op": "UNARY_NEG", "operand": 42}
+        assert _eval_expr(node, {}) == -42
+
+    def test_func_call_abs(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        node = {"op": "FUNC_CALL", "name": "abs", "args": [-5]}
+        assert _eval_expr(node, {}) == 5
+
+    def test_func_call_max(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        node = {"op": "FUNC_CALL", "name": "max", "args": [3, 7, 1]}
+        assert _eval_expr(node, {}) == 7
+
+    def test_func_call_sqrt(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        node = {"op": "FUNC_CALL", "name": "sqrt", "args": [16]}
+        assert _eval_expr(node, {}) == 4.0
+
+    def test_func_call_sum(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        node = {"op": "FUNC_CALL", "name": "sum", "args": [1, 2, 3, 4]}
+        assert _eval_expr(node, {}) == 10
+
+    def test_member_access(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        scope = {"agent": {"hat": {"name": "Gold"}}}
+        node = {"op": "MEMBER_ACCESS", "object": "agent", "path": ["hat", "name"]}
+        assert _eval_expr(node, scope) == "Gold"
+
+    def test_member_access_missing(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        node = {"op": "MEMBER_ACCESS", "object": "x", "path": ["y"]}
+        assert _eval_expr(node, {}) is None
+
+    def test_division_by_zero_raises(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        from hlf.hlfc import HlfRuntimeError
+        node = {"op": "MATH", "operator": "/", "left": 10, "right": 0}
+        with pytest.raises(HlfRuntimeError, match="Division by zero"):
+            _eval_expr(node, {})
+
+    def test_nested_math(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        # (2 + 3) * 4 = 20
+        inner = {"op": "MATH", "operator": "+", "left": 2, "right": 3}
+        outer = {"op": "MATH", "operator": "*", "left": inner, "right": 4}
+        assert _eval_expr(outer, {}) == 20
+
+    def test_variable_resolve_in_math(self) -> None:
+        from hlf.hlfrun import _eval_expr
+        scope = {"x": 10}
+        node = {"op": "MATH", "operator": "+", "left": "x", "right": 5}
+        assert _eval_expr(node, scope) == 15
+
+
+# ─── ASSERT / RETURN / WHILE Execution ────────────────────────────────────────
+
+
+class TestRuntimeAssert:
+    """Tests for ASSERT execution — Gold Hat verification gate."""
+
+    def test_assert_pass(self) -> None:
+        ast = {
+            "program": [
+                {"tag": "ASSERT", "args": [True, "condition_holds"], "human_readable": "Assert"},
+                {"tag": "RESULT", "code": 0, "message": "ok", "human_readable": "ok"},
+            ]
+        }
+        runtime = HLFRuntime(gas_limit=50)
+        result = runtime.execute(ast)
+        assert result.code == 0
+
+    def test_assert_fail_raises(self) -> None:
+        from hlf.hlfc import HlfRuntimeError
+        ast = {
+            "program": [
+                {"tag": "ASSERT", "args": [False, "should_fail"], "human_readable": "Assert"},
+            ]
+        }
+        runtime = HLFRuntime(gas_limit=50)
+        result = runtime.execute(ast)
+        # Runtime catches HlfRuntimeError and returns error code
+        assert result.code != 0
+
+
+class TestRuntimeReturn:
+    """Tests for RETURN execution — value propagation."""
+
+    def test_return_stores_value(self) -> None:
+        ast = {
+            "program": [
+                {"tag": "RETURN", "args": [42], "human_readable": "Return 42"},
+            ]
+        }
+        runtime = HLFRuntime(gas_limit=50)
+        runtime.execute(ast)
+        assert runtime.env.get("_RETURN_VALUE") == 42
+
+    def test_return_terminates_with_code_zero(self) -> None:
+        ast = {
+            "program": [
+                {"tag": "RETURN", "args": ["done"], "human_readable": "Return done"},
+                {"tag": "INTENT", "args": ["should_not_run"], "human_readable": "skip"},
+            ]
+        }
+        runtime = HLFRuntime(gas_limit=50)
+        result = runtime.execute(ast)
+        assert result.code == 0
+
+
+class TestRuntimeWhile:
+    """Tests for WHILE execution — Blue Hat process flow."""
+
+    def test_while_false_condition_no_iterations(self) -> None:
+        ast = {
+            "program": [
+                {"tag": "WHILE", "args": ["nonexistent_var", "body"], "human_readable": "While"},
+                {"tag": "RESULT", "code": 0, "message": "ok", "human_readable": "ok"},
+            ]
+        }
+        runtime = HLFRuntime(gas_limit=50)
+        result = runtime.execute(ast)
+        assert result.code == 0
+

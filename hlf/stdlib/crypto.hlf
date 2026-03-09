@@ -1,0 +1,16 @@
+[HLF-v3]
+[MODULE] crypto
+[INTENT] provide "cryptographic hashing and verification utilities"
+
+[FUNCTION] sha256 "data"
+[FUNCTION] sha512 "data"
+[FUNCTION] md5 "data"
+[FUNCTION] hmac_sign "key" "data"
+[FUNCTION] hmac_verify "key" "data" "signature"
+[FUNCTION] uuid4 "prefix"
+[FUNCTION] random_bytes "count"
+[FUNCTION] base64_encode "data"
+[FUNCTION] base64_decode "data"
+
+[RESULT] code=0 message="crypto stdlib loaded"
+Ω

@@ -35,6 +35,7 @@ import datetime
 import hashlib
 import logging
 import re
+import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -45,6 +46,9 @@ logger = logging.getLogger(__name__)
 
 # Regex for ${VAR} expansion at runtime (supplements compile-time Pass 2)
 _VAR_RE = re.compile(r"\$\{(\w+)\}")
+
+# Enterprise hardening: macro recursion ceiling
+MAX_MACRO_DEPTH = 16
 
 
 # --------------------------------------------------------------------------- #
@@ -87,6 +91,37 @@ _BUILTIN_FUNCTIONS: dict[str, Any] = {
     "NOW": _builtin_now,
     "UUID": _builtin_uuid,
 }
+
+
+# --------------------------------------------------------------------------- #
+# Expression-level function calls (abs, min, max, len, etc.)
+# --------------------------------------------------------------------------- #
+
+import math as _math
+
+_EXPR_FUNCTIONS: dict[str, Any] = {
+    "abs": lambda args: abs(_to_number(args[0])),
+    "min": lambda args: min(_to_number(a) for a in args),
+    "max": lambda args: max(_to_number(a) for a in args),
+    "len": lambda args: len(args[0]) if hasattr(args[0], "__len__") else 0,
+    "round": lambda args: round(_to_number(args[0]), int(args[1]) if len(args) > 1 else 0),
+    "int": lambda args: int(_to_number(args[0])),
+    "float": lambda args: float(_to_number(args[0])),
+    "str": lambda args: str(args[0]),
+    "sqrt": lambda args: _math.sqrt(_to_number(args[0])),
+    "ceil": lambda args: _math.ceil(_to_number(args[0])),
+    "floor": lambda args: _math.floor(_to_number(args[0])),
+    "log": lambda args: _math.log(_to_number(args[0]), _to_number(args[1]) if len(args) > 1 else _math.e),
+    "pow": lambda args: _to_number(args[0]) ** _to_number(args[1]),
+    "sum": lambda args: sum(_to_number(a) for a in args),
+}
+
+
+def _eval_func_call(func_name: str, args: list) -> Any:
+    """Dispatch built-in function calls in expressions."""
+    if func_name in _EXPR_FUNCTIONS:
+        return _EXPR_FUNCTIONS[func_name](args)
+    raise HlfRuntimeError(f"Unknown function: {func_name}()")
 
 
 # --------------------------------------------------------------------------- #
@@ -140,7 +175,7 @@ def _eval_expr(node: Any, scope: dict[str, Any]) -> Any:
             return scope[ref_name]
         return node  # return as-is if not yet bound
 
-    # Math expression: +, -, *, /
+    # Math expression: +, -, *, /, %, //, **
     if op == "MATH":
         left = _eval_expr(node.get("left"), scope)
         right = _eval_expr(node.get("right"), scope)
@@ -158,8 +193,45 @@ def _eval_expr(node: Any, scope: dict[str, Any]) -> Any:
             if right == 0:
                 raise HlfRuntimeError("Division by zero")
             return left / right
+        elif operator == "%":
+            if right == 0:
+                raise HlfRuntimeError("Modulo by zero")
+            return left % right
+        elif operator == "//":
+            if right == 0:
+                raise HlfRuntimeError("Floor division by zero")
+            return left // right
+        elif operator == "**":
+            if right > 1000:
+                raise HlfRuntimeError(f"Exponent too large: {right} (max 1000)")
+            return left ** right
         else:
             raise HlfRuntimeError(f"Unknown math operator: {operator}")
+
+    # Unary negation
+    if op == "UNARY_NEG":
+        operand = _eval_expr(node.get("operand"), scope)
+        return -_to_number(operand)
+
+    # Function call: abs(x), min(a, b), etc.
+    if op == "FUNC_CALL":
+        func_name = node.get("name", "")
+        args = [_eval_expr(a, scope) for a in node.get("args", [])]
+        return _eval_func_call(func_name, args)
+
+    # Member access: node.confidence → scope["node"]["confidence"]
+    if op == "MEMBER_ACCESS":
+        obj_name = node.get("object", "")
+        path = node.get("path", [])
+        result = scope.get(obj_name)
+        for key in path:
+            if isinstance(result, dict):
+                result = result.get(key)
+            elif hasattr(result, key):
+                result = getattr(result, key)
+            else:
+                return None
+        return result
 
     # Comparison: ==, !=, >, <, >=, <=
     if op == "COMPARE":
@@ -268,6 +340,8 @@ class HLFInterpreter:
         self.tier = tier
         self.max_gas = max_gas
         self.gas_used: int = 0
+        # Enterprise: thread-safe gas metering (prevents TOCTOU races in PARALLEL)
+        self._gas_lock = threading.Lock()
         self._result_code: int | None = None
         self._result_message: str = ""
         self._result_value: Any = None
@@ -286,6 +360,8 @@ class HLFInterpreter:
         # Living Spec registry (Instinct integration)
         self._spec_registry: dict[str, dict[str, Any]] = {}
         self._spec_sealed: bool = False
+        # Enterprise: macro recursion depth tracker
+        self._macro_depth: int = 0
 
     def execute(self, ast: dict) -> dict:
         """
@@ -306,9 +382,7 @@ class HLFInterpreter:
         for node in program:
             if node is None:
                 continue
-            if self.gas_used >= self.max_gas:
-                raise HlfRuntimeError(f"Gas limit exceeded: {self.gas_used}/{self.max_gas}")
-            self.gas_used += 1
+            self._consume_gas(1)
             self._execute_node(node)
             if self._result_code is not None:
                 break  # [RESULT] terminates execution
@@ -370,10 +444,17 @@ class HLFInterpreter:
             self._exec_define(node)
         elif tag == "CALL":
             result = self._exec_call(node)
+        elif tag == "WHILE":
+            result = self._exec_while(node)
+        elif tag == "ASSERT":
+            self._exec_assert(node)
+        elif tag == "RETURN":
+            result = self._exec_return(node)
         elif tag in (
             "INTENT", "CONSTRAINT", "EXPECT", "OBSERVATION",
-            "THOUGHT", "PLAN", "DELEGATE", "VOTE", "ASSERT",
+            "THOUGHT", "PLAN", "DELEGATE", "VOTE",
             "MODULE", "DATA", "EPISTEMIC",
+            "TRY", "CATCH",
         ):
             # Structural/declarative tags — log and continue
             self._trace.append({
@@ -488,11 +569,11 @@ class HLFInterpreter:
 
         if condition_result:
             if then_branch:
-                self.gas_used += 1
+                self._consume_gas(1)
                 return self._execute_node(then_branch)
         else:
             if else_branch:
-                self.gas_used += 1
+                self._consume_gas(1)
                 return self._execute_node(else_branch)
 
         return None
@@ -531,7 +612,7 @@ class HLFInterpreter:
                     task_result = future.result()
                     results.append(task_result)
                     # Track gas from sub-interpreters
-                    self.gas_used += task_result.get("gas_used", 0)
+                    self._consume_gas(task_result.get("gas_used", 0))
                     # Store result by task tag/name if available
                     task_tag = tasks[idx].get("tag", f"task_{idx}")
                     task_name = tasks[idx].get("args", [task_tag])[0] if tasks[idx].get("args") else task_tag
@@ -571,7 +652,7 @@ class HLFInterpreter:
 
         # Execute the continuation action
         if action:
-            self.gas_used += 1
+            self._consume_gas(1)
             return self._execute_node(action)
 
         return None
@@ -631,7 +712,7 @@ class HLFInterpreter:
         # Execute inner statement (may itself be another GLYPH_MODIFIED for nesting)
         result = None
         if inner:
-            self.gas_used += 1
+            self._consume_gas(1)
             result = self._execute_node(inner)
 
         self._active_glyphs.pop()
@@ -697,13 +778,24 @@ class HLFInterpreter:
             "operator": "↦ τ",
         })
 
+        # Parse arguments into keyword dictionary for dispatch
+        # (Jules PR #22 fix — host functions expect named kwargs, not raw args list)
+        call_args = {}
+        for arg in args:
+            if isinstance(arg, dict):
+                for k, v in arg.items():
+                    if k != "ref":
+                        call_args[k] = self._expand(v)
+            else:
+                call_args[f"arg_{len(call_args)}"] = self._expand(arg)
+
         # Try to dispatch via runtime.py HostFunctionRegistry first
         try:
             from hlf.runtime import HostFunctionRegistry
             registry = HostFunctionRegistry.from_json()
             result_obj = registry.dispatch(
                 tool_name,
-                {"args": args},
+                call_args,
                 tier=self.tier,
             )
             result = result_obj.value if hasattr(result_obj, 'value') else result_obj
@@ -732,6 +824,19 @@ class HLFInterpreter:
         # Module loading is handled by HLFRuntime in runtime.py which
         # wraps this interpreter. If running standalone, log and continue.
         logger.info(f"IMPORT requested: {module_name} (handled by HLFRuntime)")
+
+    # ------------------------------------------------------------------ #
+    # Gas metering (enterprise thread-safe)
+    # ------------------------------------------------------------------ #
+
+    def _consume_gas(self, cost: int) -> None:
+        """Atomically consume gas — thread-safe for PARALLEL execution."""
+        with self._gas_lock:
+            if self.gas_used + cost > self.max_gas:
+                raise HlfRuntimeError(
+                    f"Gas limit exceeded: {self.gas_used}+{cost}/{self.max_gas}"
+                )
+            self.gas_used += cost
 
     # ------------------------------------------------------------------ #
     # Helpers
@@ -865,6 +970,8 @@ class HLFInterpreter:
 
         Positional arguments ($1, $2, ...) are substituted into the
         macro body before execution.
+
+        Enterprise guard: MAX_MACRO_DEPTH prevents infinite recursion.
         """
         name = node.get("name", "")
         args = self._flatten_args(node.get("args", []))
@@ -872,21 +979,30 @@ class HLFInterpreter:
         if name not in self._macros:
             raise HlfRuntimeError(f"CALL: macro '{name}' not defined")
 
+        # Enterprise: recursion depth guard
+        if self._macro_depth >= MAX_MACRO_DEPTH:
+            raise HlfRuntimeError(
+                f"CALL: macro recursion depth exceeded ({MAX_MACRO_DEPTH}) "
+                f"while calling '{name}' — possible infinite recursion"
+            )
+        self._macro_depth += 1
+
         macro_body = self._macros[name]
         result = None
 
-        # Execute each statement in the macro body
-        for stmt in macro_body:
-            if stmt is None:
-                continue
-            # Substitute positional $1, $2, etc.
-            expanded_stmt = self._substitute_params(stmt, args)
-            if self.gas_used >= self.max_gas:
-                raise HlfRuntimeError(f"Gas limit exceeded in macro '{name}': {self.gas_used}/{self.max_gas}")
-            self.gas_used += 1
-            result = self._execute_node(expanded_stmt)
-            if self._result_code is not None:
-                break
+        try:
+            # Execute each statement in the macro body
+            for stmt in macro_body:
+                if stmt is None:
+                    continue
+                # Substitute positional $1, $2, etc.
+                expanded_stmt = self._substitute_params(stmt, args)
+                self._consume_gas(1)
+                result = self._execute_node(expanded_stmt)
+                if self._result_code is not None:
+                    break
+        finally:
+            self._macro_depth -= 1
 
         self._trace.append({
             "tag": "CALL", "name": name,
@@ -1014,6 +1130,100 @@ class HLFInterpreter:
             "sections": list(self._spec_registry.keys()),
             "action": "sealed",
         })
+
+    # ------------------------------------------------------------------- #
+    # WHILE execution — Blue Hat process flow (gas-guarded)
+    # ------------------------------------------------------------------- #
+
+    def _exec_while(self, node: dict) -> Any:
+        """Execute WHILE — loop while condition arg is truthy.
+
+        The first arg is treated as the condition key (variable name);
+        subsequent args are logged as the loop body descriptors.
+        Gas is consumed each iteration to prevent infinite loops.
+        """
+        args = self._flatten_args(node.get("args", []))
+        condition_key = args[0] if args else None
+        max_iterations = 1000
+        iteration = 0
+
+        while iteration < max_iterations:
+            # Evaluate condition from scope
+            if condition_key and condition_key in self.scope:
+                cond_val = _eval_expr(self.scope[condition_key], self.scope)
+                if not cond_val:
+                    break
+            elif condition_key:
+                # If the key doesn't exist in scope, treat as false
+                break
+
+            self._consume_gas(1)
+            iteration += 1
+            self._trace.append({
+                "tag": "WHILE",
+                "iteration": iteration,
+                "action": "loop_iteration",
+            })
+
+        self._trace.append({
+            "tag": "WHILE",
+            "total_iterations": iteration,
+            "action": "loop_complete",
+            "human_readable": f"While loop completed after {iteration} iteration(s)",
+        })
+        return iteration
+
+    # ------------------------------------------------------------------- #
+    # ASSERT execution — Gold Hat verification gate
+    # ------------------------------------------------------------------- #
+
+    def _exec_assert(self, node: dict) -> None:
+        """Execute ASSERT — evaluate condition and raise on failure.
+
+        First arg is the condition (bool or evaluable string).
+        Second arg (optional) is the error message on failure.
+        """
+        args = self._flatten_args(node.get("args", []))
+        if not args:
+            raise HlfRuntimeError("[ASSERT] missing condition argument")
+
+        condition = _eval_expr(args[0], self.scope)
+        error_msg = args[1] if len(args) > 1 else "Assertion failed"
+
+        if not condition:
+            raise HlfRuntimeError(f"[ASSERT] {error_msg}")
+
+        self._trace.append({
+            "tag": "ASSERT",
+            "condition": str(condition),
+            "action": "assertion_passed",
+            "human_readable": f"Assertion passed: {error_msg}",
+        })
+
+    # ------------------------------------------------------------------- #
+    # RETURN execution — propagate return value
+    # ------------------------------------------------------------------- #
+
+    def _exec_return(self, node: dict) -> Any:
+        """Execute RETURN — store value and signal termination.
+
+        Sets _RETURN_VALUE in scope and sets result code/message
+        to terminate execution cleanly.
+        """
+        args = self._flatten_args(node.get("args", []))
+        value = _eval_expr(args[0], self.scope) if args else None
+        # Store return value
+        self.scope["_RETURN_VALUE"] = value
+        self._result_code = 0
+        self._result_message = f"Return: {value}"
+
+        self._trace.append({
+            "tag": "RETURN",
+            "value": value,
+            "action": "return_value",
+            "human_readable": f"Return value: {value}",
+        })
+        return value
 
 
 # --------------------------------------------------------------------------- #

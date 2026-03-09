@@ -1,0 +1,19 @@
+[HLF-v3]
+[MODULE] io
+[INTENT] provide "file and stream IO utility functions"
+
+[FUNCTION] read_file "path"
+[FUNCTION] write_file "path" "content"
+[FUNCTION] append_file "path" "content"
+[FUNCTION] file_exists "path"
+[FUNCTION] list_dir "path"
+[FUNCTION] delete_file "path"
+[FUNCTION] copy_file "source" "destination"
+[FUNCTION] file_size "path"
+
+[SET] STDIN="stdin"
+[SET] STDOUT="stdout"
+[SET] STDERR="stderr"
+
+[RESULT] code=0 message="io stdlib loaded"
+Ω

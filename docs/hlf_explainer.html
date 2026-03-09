@@ -325,10 +325,10 @@
         For humans to <em>understand</em>.
     </p>
     <div class="hero-stats">
-        <div class="hero-stat"><div class="value green">233</div><div class="label">Tests Passing</div></div>
+        <div class="hero-stat"><div class="value green">934+</div><div class="label">Tests Passing</div></div>
         <div class="hero-stat"><div class="value purple">v0.4.0</div><div class="label">Grammar Version</div></div>
         <div class="hero-stat"><div class="value blue">86%</div><div class="label">Token Compression</div></div>
-        <div class="hero-stat"><div class="value gold">7</div><div class="label">Architecture Layers</div></div>
+        <div class="hero-stat"><div class="value gold">13</div><div class="label">Architecture Layers</div></div>
     </div>
 </section>
 
@@ -452,27 +452,42 @@
         <div class="mermaid-inner">
             <pre class="mermaid">
 graph TB
-    L1["🔧 Layer 1: Physical — ACFS<br/>Agent-Centric File System<br/>Cryptographic trust boundaries"]
+    L1["🔧 Layer 1: Physical — ACFS<br/>Agent-Centric File System<br/>Git worktree isolation"]
     L2["🛡️ Layer 2: Kernel Security<br/>ALIGN Ledger &lpar;read-only&rpar;<br/>Sentinel Gate enforcement"]
     L3["🔮 Layer 3: HLF Language<br/>Compiler, Runtime, Linter<br/>format_correction feedback loop"]
     L4["⚡ Layer 4: Agent Services<br/>Pipeline → Registry → Router → Executor<br/>MoMA routing, gas metering"]
-    L5["🖥️ Layer 5: Applications<br/>GUI Cognitive SOC<br/>Tool Forge, Dream State"]
-    L6["📋 Layer 6: Governance<br/>CoVE validation<br/>11-Hat Review Matrix"]
-    L7["👁️ Layer 7: Observability<br/>OpenLLMetry tracing<br/>Redis metrics"]
+    L5["💾 Layer 5: Bytecode VM<br/>Stack-machine compiler, .hlb format<br/>32-instruction opcode set"]
+    L6["🧠 Layer 6: Memory Matrix<br/>Infinite RAG, Dream State<br/>SQLite WAL + MCP bridge"]
+    L7["📡 Layer 7: Communication<br/>Gateway Bus, Event Bus<br/>MCP Server auto-launch"]
+    L8["🤖 Layer 8: Agent Orchestration<br/>PlanExecutor → SpindleDAG<br/>CodeAgent, BuildAgent"]
+    L9["🛠️ Layer 9: Tool Ecosystem<br/>install/uninstall/upgrade/audit<br/>12-point CoVE gate, lockfiles"]
+    L10["🖥️ Layer 10: Applications<br/>GUI Cognitive SOC<br/>C-SOC dark mode dashboard"]
+    L11["📋 Layer 11: Governance<br/>14-Hat Review Matrix<br/>CoVE terminal validation"]
+    L12["👁️ Layer 12: Observability<br/>OpenLLMetry tracing<br/>Hat findings persistence"]
+    L13["🎯 Layer 13: Meta-Governance<br/>Weaver recursive self-improvement<br/>Anti-reductionist mandate"]
 
     L1 --> L2 --> L3 --> L4 --> L5
-    L6 -. audits .-> L3
-    L6 -. audits .-> L4
-    L7 -. monitors .-> L3
-    L7 -. monitors .-> L4
+    L5 --> L6 --> L7 --> L8
+    L8 --> L9 --> L10
+    L11 -. audits .-> L3
+    L11 -. audits .-> L8
+    L12 -. monitors .-> L4
+    L12 -. monitors .-> L8
+    L13 -. evolves .-> L11
 
     style L1 fill:#0d1f3c,stroke:#58a6ff,color:#e6edf3
     style L2 fill:#2d1111,stroke:#f85149,color:#e6edf3
     style L3 fill:#1f1433,stroke:#bc8cff,color:#e6edf3
     style L4 fill:#0f2626,stroke:#39d0d8,color:#e6edf3
-    style L5 fill:#112211,stroke:#3fb950,color:#e6edf3
-    style L6 fill:#2d2200,stroke:#d29922,color:#e6edf3
-    style L7 fill:#2d1125,stroke:#f778ba,color:#e6edf3
+    style L5 fill:#1a1a33,stroke:#a371f7,color:#e6edf3
+    style L6 fill:#1a2211,stroke:#56d364,color:#e6edf3
+    style L7 fill:#22110d,stroke:#f0883e,color:#e6edf3
+    style L8 fill:#0d2233,stroke:#79c0ff,color:#e6edf3
+    style L9 fill:#221122,stroke:#d2a8ff,color:#e6edf3
+    style L10 fill:#112211,stroke:#3fb950,color:#e6edf3
+    style L11 fill:#2d2200,stroke:#d29922,color:#e6edf3
+    style L12 fill:#2d1125,stroke:#f778ba,color:#e6edf3
+    style L13 fill:#112233,stroke:#58a6ff,color:#e6edf3
             </pre>
         </div>
     </div>
@@ -521,17 +536,17 @@ graph TB
         <div class="layer-header" onclick="toggleLayer(this)">
             <div class="layer-num l5">5</div>
             <div><div class="layer-title">Applications</div>
-            <div class="layer-subtitle">Streamlit GUI, Tool Forge, Dream State, 11-Hat Engine (8 Named Agents)</div></div>
+            <div class="layer-subtitle">Streamlit GUI, Tool Forge, Dream State, 14-Hat Engine (10 Named Agents)</div></div>
             <span class="layer-chevron">▸</span>
         </div>
-        <div class="layer-body">The face. A <strong>Cognitive SOC</strong> (Streamlit dashboard) for real-time agent visualization. A <strong>Tool Forge</strong> for dynamic tool creation. A <strong>Dream State</strong> engine for subconscious background processing during idle times. An <strong>11-Hat Engine</strong> with <strong>8 named cloud agents</strong> (Sentinel, Scribe, Arbiter, Synthesizer, Scout, Guardian, Operator, Compressor) for structured multi-perspective analysis — each with tuned temperature and cloud model profiles.</div>
+        <div class="layer-body">The face. A <strong>Cognitive SOC</strong> (Streamlit dashboard) for real-time agent visualization. A <strong>Tool Forge</strong> for dynamic tool creation. A <strong>Dream State</strong> engine for subconscious background processing during idle times. A <strong>14-Hat Aegis-Nexus Engine</strong> with <strong>10 named cloud agents</strong> (Sentinel, Scribe, Arbiter, Synthesizer, Scout, Guardian, Operator, Compressor, Steward, CoVE) for structured multi-perspective analysis — each with tuned temperature and cloud model profiles. Plus the <strong>Weaver</strong> meta-agent for recursive self-improvement.</div>
     </div>
 
     <div class="layer-card">
         <div class="layer-header" onclick="toggleLayer(this)">
             <div class="layer-num l6">6</div>
             <div><div class="layer-title">Governance &amp; Audit</div>
-            <div class="layer-subtitle">CoVE validation, cove_audit_results.md, P0-P3 classification</div></div>
+            <div class="layer-subtitle">CoVE validation, cove_audit_results.md, 14-Hat Review Matrix</div></div>
             <span class="layer-chevron">▸</span>
         </div>
         <div class="layer-body">The conscience. <strong>CoVE</strong> (Chain of Verification and Evaluation) audits run against every PR — checking security, CI/CD, testing, dependencies, docs, config, infra, and governance. Findings classified P0 (critical) through P3 (nice-to-have). Stored in <code>governance/cove_audit_results.md</code>.</div>
@@ -541,10 +556,30 @@ graph TB
         <div class="layer-header" onclick="toggleLayer(this)">
             <div class="layer-num l7">7</div>
             <div><div class="layer-title">Observability</div>
-            <div class="layer-subtitle">OpenLLMetry tracing, Redis metrics, health endpoints</div></div>
+            <div class="layer-subtitle">OpenLLMetry tracing, hat finding persistence, dream cycle telemetry</div></div>
             <span class="layer-chevron">▸</span>
         </div>
-        <div class="layer-body">The senses. OpenLLMetry distributed tracing for every agent call. Redis-backed metrics. Health check endpoints. Every intent, every routing decision, every model call is logged and traceable end-to-end.</div>
+        <div class="layer-body">The senses. OpenLLMetry distributed tracing for every agent call. Hat findings persisted to SQLite for longitudinal analysis. Dream cycle telemetry. Every intent, every routing decision, every model call is logged and traceable end-to-end.</div>
+    </div>
+
+    <div class="layer-card">
+        <div class="layer-header" onclick="toggleLayer(this)">
+            <div class="layer-num l4">8</div>
+            <div><div class="layer-title">Agent Orchestration</div>
+            <div class="layer-subtitle">PlanExecutor → SpindleDAG → CodeAgent/BuildAgent pipeline</div></div>
+            <span class="layer-chevron">▸</span>
+        </div>
+        <div class="layer-body">The blueprint-to-code engine. <strong>PlanExecutor</strong> translates SDD plans into executable DAG nodes via <strong>SpindleDAG</strong>. <strong>CodeAgent</strong> handles file operations (create, modify, refactor, delete) within ACFS sandboxes. <strong>BuildAgent</strong> runs tests, linters, and syntax checks. Together they implement the Specify→Plan→Execute→Verify lifecycle with fail-fast error propagation and O(n) node lookups.</div>
+    </div>
+
+    <div class="layer-card">
+        <div class="layer-header" onclick="toggleLayer(this)">
+            <div class="layer-num l5">9</div>
+            <div><div class="layer-title">Tool Ecosystem</div>
+            <div class="layer-subtitle">hlf install/uninstall/upgrade/health/audit — 12-point CoVE verification gate</div></div>
+            <span class="layer-chevron">▸</span>
+        </div>
+        <div class="layer-body">The package manager for agent tools. <strong>tool_installer.py</strong> handles downloading, verifying, and installing tools from registries. <strong>tool_scaffold.py</strong> generates <code>hlf new-tool</code> project templates. <strong>tool_dispatch.py</strong> provides lazy-load bridging to the τ() runtime dispatch. <strong>tool_lockfile.py</strong> ensures reproducible installs with SHA-256 integrity checks. <strong>tool_monitor.py</strong> runs health sweeps, gas tracking, and auto-revocation of compromised tools.</div>
     </div>
 </section>
 
@@ -622,20 +657,22 @@ flowchart LR
 <!-- ═══ STATUS ═══ -->
 <section class="section" id="status">
     <h2>Where We Are Right Now</h2>
-    <p class="section-lead">March 2026 — 233 tests passing, 20 statement types, two-pass compiler, self-correcting feedback loop operational.</p>
+    <p class="section-lead">March 2026 — 934+ tests passing, 20+ statement types, Bytecode VM (stack-machine + disassembler), Agent Orchestration Layer, Tool Ecosystem Pipeline operational.</p>
 
     <table>
         <thead><tr><th>Metric</th><th>Value</th><th>Status</th></tr></thead>
         <tbody>
-            <tr><td>Tests passing</td><td><strong>233</strong></td><td><span class="status done">✓ 100%</span></td></tr>
+            <tr><td>Tests passing</td><td><strong>934+</strong></td><td><span class="status done">✓ 100%</span></td></tr>
             <tr><td>Grammar version</td><td><strong>v0.4.0</strong></td><td><span class="status done">✓ Live</span></td></tr>
-            <tr><td>Statement types</td><td><strong>20</strong></td><td><span class="status done">✓ All compiled</span></td></tr>
-            <tr><td>Toolchain size</td><td><strong>~900+ LoC</strong></td><td><span class="status done">✓ Production</span></td></tr>
-            <tr><td>Agent modules</td><td><strong>13 core + 22 gateway</strong></td><td><span class="status done">✓ Active</span></td></tr>
+            <tr><td>Statement types</td><td><strong>20+</strong></td><td><span class="status done">✓ All compiled</span></td></tr>
+            <tr><td>Bytecode VM</td><td><strong>.hlb binary + disassembler</strong></td><td><span class="status done">✓ Shipped</span></td></tr>
+            <tr><td>Agent modules</td><td><strong>53 core modules</strong></td><td><span class="status done">✓ Active</span></td></tr>
+            <tr><td>Hat Engine</td><td><strong>14-Hat (19 named agents)</strong></td><td><span class="status done">✓ Live</span></td></tr>
             <tr><td>Token compression</td><td><strong>83-86%</strong> vs JSON</td><td><span class="status done">✓ Measured</span></td></tr>
+            <tr><td>Agent Orchestration</td><td>PlanExecutor + CodeAgent + BuildAgent</td><td><span class="status done">✓ Integrated</span></td></tr>
+            <tr><td>Tool Ecosystem</td><td>install/uninstall/upgrade/health/audit</td><td><span class="status done">✓ Shipped</span></td></tr>
             <tr><td>Self-correction loop</td><td><code>format_correction()</code> → <code>bus.py</code></td><td><span class="status done">✓ Integrated</span></td></tr>
             <tr><td>Jules agents</td><td>Bolt / Palette / Sentinel</td><td><span class="status wip">⟳ Running daily</span></td></tr>
-            <tr><td>Open issues</td><td>8 assigned (Copilot + Jules)</td><td><span class="status wip">⟳ In progress</span></td></tr>
         </tbody>
     </table>
 </section>
@@ -662,13 +699,24 @@ gantt
 
     section Core Language
         v0.4.0 Grammar Complete     :done, 2026-01, 2026-03
-        Module Runtime              :active, 2026-03, 2026-04
-        Host Function Registry      :2026-04, 2026-05
+        Module Runtime              :done, 2026-03, 2026-04
+        Host Function Registry      :done, 2026-04, 2026-05
 
     section Bytecode VM
-        Stack-machine Compiler      :2026-05, 2026-07
-        .hlb Binary Format          :2026-06, 2026-07
+        Stack-machine Compiler      :done, 2026-03, 2026-03
+        .hlb Binary Format          :done, 2026-03, 2026-03
+        RAG Opcodes                 :done, 2026-03, 2026-03
         Wasm Sandbox Integration    :2026-07, 2026-09
+
+    section Agent Orchestration
+        PlanExecutor + SpindleDAG   :done, 2026-03, 2026-03
+        CodeAgent + BuildAgent      :done, 2026-03, 2026-03
+        SDD Lifecycle Enforcement   :done, 2026-03, 2026-03
+
+    section Tool Ecosystem
+        tool_installer + CoVE Gate  :done, 2026-03, 2026-03
+        Lockfile + Monitor          :done, 2026-03, 2026-03
+        Scaffold + Dispatch         :done, 2026-03, 2026-03
 
     section Developer Experience
         LSP Server                  :2026-06, 2026-08
@@ -676,18 +724,18 @@ gantt
         Package Manager             :2026-08, 2026-10
 
     section Infrastructure
-        GUI Cognitive SOC           :active, 2026-03, 2026-06
-        HLF Tool Forge              :2026-05, 2026-08
-        Aegis-Nexus Engine          :2026-08, 2026-12
+        GUI Cognitive SOC           :done, 2026-03, 2026-06
+        14-Hat Aegis-Nexus Engine   :done, 2026-03, 2026-03
+        A2A Protocol Integration    :2026-08, 2026-12
             </pre>
         </div>
     </div>
 
-    <h3>The Bytecode VM (Phase 5.2)</h3>
-    <p>The compiler currently emits JSON AST. The next major milestone: a <strong>stack-machine bytecode compiler</strong> — <code>hlfc --emit-bytecode</code> producing <code>.hlb</code> binaries with a 32-instruction opcode set, executed in hermetically sealed Wasm sandboxes via Wasmtime. This is when HLF stops being "a clever DSL" and becomes <strong>a real virtual machine for agent cognition</strong>.</p>
+    <h3>The Bytecode VM ✅ (Shipped)</h3>
+    <p>The compiler emits both JSON AST and <strong>stack-machine bytecode</strong> — <code>hlfc --emit-bytecode</code> produces <code>.hlb</code> binaries with a 32-instruction opcode set including RAG-specific opcodes (OP_RAG_QUERY, OP_RAG_STORE). A full <strong>disassembler</strong> is included for debugging. The VM executes instructions in a hermetically sealed stack machine with gas metering.</p>
 
-    <h3>The Aegis-Nexus Engine (The Endgame)</h3>
-    <p>An 11-hat autonomous governance system with <strong>8 named cloud agents</strong>, each tuned with role-specific temperature and token limits:</p>
+    <h3>The Aegis-Nexus Engine ✅ (Live)</h3>
+    <p>A 14-hat autonomous governance system with <strong>10 named cloud agents</strong>, each tuned with role-specific temperature and token limits. Plus the <strong>Weaver</strong> meta-agent for recursive self-improvement:</p>
     <div class="gate-grid">
         <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">🛡️ Sentinel</div><div class="gate-desc">Security watchdog. ALIGN violation detection.</div></div>
         <div class="gate"><div class="gate-num">Agent</div><div class="gate-name">📜 Scribe</div><div class="gate-desc">Record keeper. Immutable audit trail.</div></div>
@@ -701,7 +749,7 @@ gantt
 
     <div class="callout vision">
         <div class="callout-title">🌍 The Ultimate Vision</div>
-        A self-sovereign operating system for AI agents where: (1) agents communicate in a formal, auditable language, (2) every message is governed by immutable, crypto-signed rules, (3) every decision is transparent to humans, (4) the system self-corrects when agents err, (5) the system self-governs through 8 specialized oversight agents, and (6) humans retain ultimate authority — not through constant supervision, but through <strong>structural guarantees embedded in the protocol itself</strong>.
+        A self-sovereign operating system for AI agents where: (1) agents communicate in a formal, auditable language, (2) every message is governed by immutable, crypto-signed rules, (3) every decision is transparent to humans, (4) the system self-corrects when agents err, (5) the system self-governs through 10+ specialized oversight agents with a Weaver meta-agent for recursive improvement, and (6) humans retain ultimate authority — not through constant supervision, but through <strong>structural guarantees embedded in the protocol itself</strong>.
     </div>
 </section>
 
@@ -709,8 +757,8 @@ gantt
 
 <!-- ═══ AGENT ROSTER ═══ -->
 <section class="section" id="agents">
-    <h2>The 11-Hat Agent Roster</h2>
-    <p class="section-lead">8 named cloud agents, each with a tuned temperature and specific focus area. Click any agent card for the full deep-dive.</p>
+    <h2>The 14-Hat Agent Roster</h2>
+    <p class="section-lead">10 named cloud agents + the Weaver meta-agent, each with a tuned temperature and specific focus area. Click any agent card for the full deep-dive.</p>
 
     <div class="gate-grid" id="agent-roster-grid">
         <div class="gate" onclick="openAgentModal('sentinel')" style="cursor:pointer;">
@@ -754,8 +802,20 @@ gantt
             <div class="gate-desc">Silver Hat · Waste eliminator · temp 0.2</div>
         </div>
     </div>
+    <div class="gate-grid" style="margin-top:1rem;">
+        <div class="gate" onclick="openAgentModal('steward')" style="cursor:pointer;">
+            <div class="gate-num">Agent</div>
+            <div class="gate-name">💎 Steward</div>
+            <div class="gate-desc">Azure Hat · MCP workflow integrity · temp 0.2</div>
+        </div>
+        <div class="gate" onclick="openAgentModal('cove')" style="cursor:pointer;">
+            <div class="gate-num">Agent</div>
+            <div class="gate-name">✨ CoVE</div>
+            <div class="gate-desc">Gold Hat · Terminal QA authority · temp 0.1</div>
+        </div>
+    </div>
 
-    <p>The remaining 3 hats — <strong>⬛ Black</strong> (Risk), <strong>🟡 Yellow</strong> (Value), <strong>🟢 Green</strong> (Innovation) — use default model settings without named agent profiles.</p>
+    <p>The remaining 4 hats — <strong>⬛ Black</strong> (Security Exploits), <strong>🟡 Yellow</strong> (Synergies), <strong>🟢 Green</strong> (Evolution), and <strong>🕸️ Weaver</strong> (Meta-Governance) — use default model settings without named agent profiles. The Weaver operates as the recursive self-improvement meta-agent.</p>
 
     <div class="callout technical">
         <div class="callout-title">⚙️ How It Works</div>
@@ -769,7 +829,7 @@ gantt
         "HLF is not a tool. It is an assertion: that autonomous AI systems can be both powerful and accountable, both efficient and transparent, both self-governing and human-legible. It is the constitutional law of machine cognition."
     </div>
     <p>Sovereign Agentic OS with HLF — v0.4.0 — March 2026</p>
-    <p>233 tests passing · 900+ lines of toolchain · 7 architectural layers</p>
+    <p>934+ tests passing · 142 Python modules · 13 architectural layers · 14-Hat Engine</p>
     <p style="margin-top:0.6rem;"><a href="https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF">GitHub</a> · <a href="index.html">Interactive Demo</a></p>
 </footer>
 

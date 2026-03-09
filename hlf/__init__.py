@@ -5,10 +5,51 @@ from __future__ import annotations
 import re
 
 # Export core utilities
-from .hlfc import HlfRuntimeError, HlfSyntaxError, compile
+from .hlfc import (
+    HlfAlignViolation,
+    HlfArityError,
+    HlfRuntimeError,
+    HlfSyntaxError,
+    HlfTypeError,
+    compile,
+)
 from .hlffmt import format_hlf
+from .insaits import decompile, decompile_bytecode, decompile_live
+from .intent_capsule import (
+    CapsuleViolation,
+    IntentCapsule,
+    forge_capsule,
+    hearth_capsule,
+    sovereign_capsule,
+)
+from .memory_node import HLFMemoryNode
 
-__all__ = ["compile", "format_hlf", "validate_hlf", "validate_hlf_heuristic", "HlfSyntaxError", "HlfRuntimeError"]
+__all__ = [
+    # Compiler
+    "compile",
+    "HlfSyntaxError",
+    "HlfRuntimeError",
+    "HlfAlignViolation",
+    "HlfArityError",
+    "HlfTypeError",
+    # Formatter
+    "format_hlf",
+    # Validation
+    "validate_hlf",
+    "validate_hlf_heuristic",
+    # InsAIts translation layer
+    "decompile",
+    "decompile_live",
+    "decompile_bytecode",
+    # Memory
+    "HLFMemoryNode",
+    # Intent Capsules
+    "IntentCapsule",
+    "CapsuleViolation",
+    "hearth_capsule",
+    "forge_capsule",
+    "sovereign_capsule",
+]
 
 # Fast pre-validation regex for Agent Service Bus (ASB)
 # Rejects grossly malformed text before handing off to Lark parser to save CPU/gas

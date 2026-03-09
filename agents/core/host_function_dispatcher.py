@@ -102,6 +102,8 @@ def _dispatch_backend(backend: str, name: str, args: list, meta: dict) -> Any:
         return _dapr_container_spawn(name, args, meta)
     if backend == "tool_forge":
         return _tool_forge(args)
+    if backend == "native_bridge":
+        return _native_bridge(name, args, meta)
     raise RuntimeError(f"Unknown backend: {backend}")
 
 
@@ -318,3 +320,80 @@ def _dapr_container_spawn(name: str, args: list, meta: dict) -> str:
             anomaly_score=0.4,
         )
         return f"{name}_UNAVAILABLE: Neither Dapr container nor Ollama OpenClaw reachable"
+
+
+def _native_bridge(name: str, args: list, meta: dict) -> Any:
+    """Dispatch native OS operations via the Platform Abstraction Layer.
+
+    Security model (lightweight, zero-overhead):
+      - Tier enforcement: handled by dispatch() above — O(1) set lookup
+      - Command allowlist: O(1) frozenset membership test in bridge
+      - ACFS confinement: reuses existing _acfs_path() for any file ops
+      - Gas metering: handled by the HLF runtime — no cost here
+      - Audit: dispatch() logs every call via ALSLogger
+    """
+    from agents.core.native import get_bridge
+    from agents.core.native.bridge import NotificationRequest, NotificationUrgency
+
+    bridge = get_bridge()
+
+    if name == "SYS_INFO":
+        info = bridge.system_info()
+        return json.dumps({
+            "platform": info.platform,
+            "version": info.platform_version,
+            "hostname": info.hostname,
+            "cpu_count": info.cpu_count,
+            "cpu_percent": info.cpu_percent,
+            "memory_total_mb": info.memory_total_mb,
+            "memory_available_mb": info.memory_available_mb,
+            "disk_total_gb": info.disk_total_gb,
+            "disk_free_gb": info.disk_free_gb,
+            "uptime_seconds": info.uptime_seconds,
+        })
+
+    if name == "CLIPBOARD_READ":
+        content = bridge.clipboard_read()
+        return content.text
+
+    if name == "CLIPBOARD_WRITE":
+        text = str(args[0]) if args else ""
+        return bridge.clipboard_write(text)
+
+    if name == "NOTIFY":
+        title = str(args[0]) if args else "Sovereign OS"
+        body = str(args[1]) if len(args) > 1 else ""
+        return bridge.notify(NotificationRequest(
+            title=title,
+            body=body,
+            urgency=NotificationUrgency.NORMAL,
+        ))
+
+    if name == "SHELL_EXEC":
+        command = str(args[0]) if args else ""
+        cmd_args = list(args[1]) if len(args) > 1 and args[1] else []
+        result = bridge.shell_exec(command, cmd_args, timeout_seconds=30.0)
+        return json.dumps({
+            "exit_code": result.exit_code,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "duration_ms": result.duration_ms,
+            "timed_out": result.timed_out,
+        })
+
+    if name == "APP_LAUNCH":
+        app = str(args[0]) if args else ""
+        app_args = list(args[1]) if len(args) > 1 and args[1] else None
+        pid = bridge.launch_app(app, app_args)
+        return str(pid) if pid else "APP_LAUNCH_FAILED"
+
+    if name == "PROCESS_LIST":
+        filter_name = str(args[0]) if args else None
+        processes = bridge.list_processes(filter_name)
+        return json.dumps([
+            {"pid": p.pid, "name": p.name, "status": p.status,
+             "cpu_percent": p.cpu_percent, "memory_mb": p.memory_mb}
+            for p in processes[:50]  # Cap at 50 entries
+        ])
+
+    raise RuntimeError(f"Unknown native_bridge function: {name}")

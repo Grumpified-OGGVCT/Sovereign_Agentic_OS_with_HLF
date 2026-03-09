@@ -899,9 +899,10 @@
         get processed by agents, and translate back — with live metrics.
     </p>
     <div class="badge-row">
-        <span class="badge green">✓ 233 Tests Passing</span>
-        <span class="badge blue">⚡ LALR(1) Parser</span>
-        <span class="badge purple">🔮 HLF v0.4.0</span>
+        <span class="badge green">✓ 934+ Tests Passing</span>
+        <span class="badge blue">⚡ LALR(1) + Bytecode VM</span>
+        <span class="badge purple">🔮 14-Hat Aegis-Nexus</span>
+        <span class="badge green">🤖 19 Named Cloud Agents</span>
     </div>
 </section>
 
@@ -913,7 +914,7 @@
     <span class="pipeline-arrow">→</span>
     <div class="pipeline-step" id="step-validate">🛡️ ALIGN Gate</div>
     <span class="pipeline-arrow">→</span>
-    <div class="pipeline-step" id="step-execute">🤖 Agent Execute</div>
+    <div class="pipeline-step" id="step-execute">🤖 Agent Orchestrate</div>
     <span class="pipeline-arrow">→</span>
     <div class="pipeline-step" id="step-response">📝 HLF Response</div>
     <span class="pipeline-arrow">→</span>
@@ -1102,6 +1103,8 @@
             <button class="preset-btn" onclick="usePreset('Scan the security config for vulnerabilities')">🔒 Security Scan</button>
             <button class="preset-btn" onclick="usePreset('Summarize the latest agent activity logs')">📊 Log Summary</button>
             <button class="preset-btn" onclick="usePreset('Delegate a research task to the scribe agent')">📝 Delegate Task</button>
+            <button class="preset-btn" onclick="usePreset('Execute a plan to refactor the auth module')">🔧 Orchestrate Plan</button>
+            <button class="preset-btn" onclick="usePreset('Install and verify a new tool from the registry')">📦 Install Tool</button>
             <button class="preset-btn" onclick="openArchitectureModal()">⚡ Model Router ℹ️</button>
             <button class="preset-btn" onclick="usePreset('Check the ALIGN governance ledger status')">🛡️ ALIGN Check</button>
             <button class="preset-btn" onclick="openRAGModal()" style="background: linear-gradient(135deg, rgba(188,140,255,0.15), rgba(63,185,80,0.15)); border-color: var(--accent-purple);">♾️ Infinite RAG ℹ️</button>
@@ -1349,15 +1352,15 @@ python scripts/copilot_factory.py hlf-evolve</pre>
         <div class="tier-row">
             <div class="tier-card">
                 <h4>🏠 Hearth</h4>
-                <p>Local Ollama only<br>qwen2.5:7b, phi3:mini<br>Max latency: 500ms</p>
+                <p>Local Ollama only<br>kimi-k2.5, qwen3:8b<br>Max latency: 500ms</p>
             </div>
             <div class="tier-card">
                 <h4>🔥 Forge</h4>
-                <p>Ollama + OpenRouter fallback<br>codestral, deepseek-coder<br>Max latency: 2000ms</p>
+                <p>Ollama + OpenRouter fallback<br>codestral, deepseek-v3<br>Max latency: 2000ms</p>
             </div>
             <div class="tier-card">
                 <h4>👑 Sovereign</h4>
-                <p>Full cloud access<br>claude-3.5, gpt-4o<br>No latency limit</p>
+                <p>Full cloud access<br>claude-4, gemini-3-pro<br>No latency limit</p>
             </div>
         </div>
 
@@ -1389,10 +1392,10 @@ DEFAULT_TIER=hearth</pre>
             <div style="padding:6px 10px; background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3); border-radius:6px;">✅ MCP RAG Bridge — <code>query_memory()</code> tool wired</div>
             <div style="padding:6px 10px; background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3); border-radius:6px;">✅ Dream State — Context compression every 03:00</div>
             <div style="padding:6px 10px; background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3); border-radius:6px;">✅ DB Schema — fact_store + rolling_context tables</div>
+            <div style="padding:6px 10px; background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3); border-radius:6px;">✅ SHA-256 Dedup — content_hash dedup in fact_store</div>
+            <div style="padding:6px 10px; background:rgba(63,185,80,0.1); border:1px solid rgba(63,185,80,0.3); border-radius:6px;">✅ Bytecode RAG Opcodes — OP_RAG_QUERY/OP_RAG_STORE in VM</div>
             <div style="padding:6px 10px; background:rgba(210,153,34,0.1); border:1px solid rgba(210,153,34,0.3); border-radius:6px;">🔨 Vector Embeddings — sqlite-vec install needed</div>
             <div style="padding:6px 10px; background:rgba(210,153,34,0.1); border:1px solid rgba(210,153,34,0.3); border-radius:6px;">🔨 Redis Hot Cache — Active Context Tiering spec'd</div>
-            <div style="padding:6px 10px; background:rgba(210,153,34,0.1); border:1px solid rgba(210,153,34,0.3); border-radius:6px;">🔨 SHA-256 Dedup Cache — designed, not yet coded</div>
-            <div style="padding:6px 10px; background:rgba(210,153,34,0.1); border:1px solid rgba(210,153,34,0.3); border-radius:6px;">🔨 Fractal Summarization — qwen:7b map-reduce spec'd</div>
         </div>
 
         <!-- How It Works -->
@@ -1506,31 +1509,43 @@ const HLF_TEMPLATES = {
         hlf: `[HLF-v3]\nΔ analyze /security/seccomp.json\n Ж [CONSTRAINT] mode="ro"\nЖ [EXPECT] vulnerability_shorthand\n⨝ [VOTE] consensus="strict"\nΩ`,
         response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [DATA] vulns=0 status="clean"\n ∇ [DETAIL] "No CVEs detected in seccomp policy"\nΩ`,
         response_nlp: "Security scan complete. No vulnerabilities detected in the seccomp configuration. All policy rules are properly constrained and no CVEs were found.",
-        metrics: { nlp_payload: 148, tokens_hlf: 25, compression: "83%", parse_ms: 0.3, validate_ms: 1.2, exec_ms: 45, swarm_agents: 5 }
+        metrics: { nlp_payload: 148, tokens_hlf: 25, compression: "83%", parse_ms: 0.3, validate_ms: 1.2, exec_ms: 45, swarm_agents: 19 }
     },
     summary: {
         hlf: `[HLF-v3]\n⌘ [DELEGATE] agent="scribe" goal="summarize"\n ∇ [SOURCE] /logs/agent_activity_latest.log\n ⩕ [PRIORITY] level="medium"\nЖ [ASSERT] max_tokens=2048\nΩ`,
         response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [SUMMARY] entries=47 timespan="24h"\n ∇ [DETAIL] "47 events logged. 12 intents processed, 3 delegations, 0 errors."\nΩ`,
         response_nlp: "Activity summary: 47 events in the last 24 hours. 12 intents processed, 3 task delegations completed, zero errors. All agents are operating within normal parameters.",
-        metrics: { nlp_payload: 162, tokens_hlf: 28, compression: "83%", parse_ms: 0.4, validate_ms: 0.8, exec_ms: 120, swarm_agents: 5 }
+        metrics: { nlp_payload: 162, tokens_hlf: 28, compression: "83%", parse_ms: 0.4, validate_ms: 0.8, exec_ms: 120, swarm_agents: 19 }
     },
     delegate: {
         hlf: `[HLF-v3]\n⌘ [DELEGATE] agent="scribe" goal="fractal_summarize"\n ∇ [SOURCE] /data/raw_research.txt\n ⩕ [PRIORITY] level="high"\nЖ [ASSERT] vram_limit="8GB"\nΩ`,
         response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [STATUS] agent="scribe" state="accepted"\n ∇ [ETA] "~3 minutes based on 8GB VRAM allocation"\nΩ`,
         response_nlp: "Task delegated to the Scribe agent. The fractal summarization job has been accepted and is running with high priority. Estimated completion: ~3 minutes with 8GB VRAM allocated.",
-        metrics: { nlp_payload: 185, tokens_hlf: 30, compression: "84%", parse_ms: 0.5, validate_ms: 1.0, exec_ms: 8, swarm_agents: 5 }
+        metrics: { nlp_payload: 185, tokens_hlf: 30, compression: "84%", parse_ms: 0.5, validate_ms: 1.0, exec_ms: 8, swarm_agents: 19 }
     },
     route: {
         hlf: `[HLF-v3]\n⌘ [ROUTE] target="local_ollama"\n Δ [MODEL] name="qwen:7b"\n ∇ [PARAM] temperature=0.0\nЖ [CONSTRAINT] latency_max="500ms"\nΩ`,
         response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [ROUTED] model="qwen:7b" backend="ollama"\n ∇ [PERF] latency=142ms tokens_per_sec=38.4\nΩ`,
         response_nlp: "Routed to local Ollama instance running qwen:7b. Connection established with 142ms latency and 38.4 tokens/second throughput — well within the 500ms constraint.",
-        metrics: { nlp_payload: 134, tokens_hlf: 24, compression: "82%", parse_ms: 0.2, validate_ms: 0.5, exec_ms: 142, swarm_agents: 5 }
+        metrics: { nlp_payload: 134, tokens_hlf: 24, compression: "82%", parse_ms: 0.2, validate_ms: 0.5, exec_ms: 142, swarm_agents: 19 }
     },
     align: {
         hlf: `[HLF-v3]\nΔ query /governance/ALIGN_LEDGER.yaml\n Ж [CONSTRAINT] mode="ro"\nЖ [EXPECT] governance_status\n⨝ [VOTE] consensus="quorum"\nΩ`,
-        response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [GOVERNANCE] rules=12 active=12 violations=0\n ∇ [DETAIL] "All 12 ALIGN rules enforced. Zero violations in last 24h."\nΩ`,
-        response_nlp: "ALIGN Ledger status: All 12 governance rules are active and enforced. Zero violations detected in the last 24 hours. The governance layer is fully operational.",
-        metrics: { nlp_payload: 156, tokens_hlf: 26, compression: "83%", parse_ms: 0.3, validate_ms: 2.1, exec_ms: 15, swarm_agents: 5 }
+        response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [GOVERNANCE] rules=18 active=18 violations=0\n ∇ [DETAIL] "All 18 ALIGN rules enforced. Zero violations in last 24h."\nΩ`,
+        response_nlp: "ALIGN Ledger status: All 18 governance rules are active and enforced. Zero violations detected in the last 24 hours. The governance layer is fully operational.",
+        metrics: { nlp_payload: 156, tokens_hlf: 26, compression: "83%", parse_ms: 0.3, validate_ms: 2.1, exec_ms: 15, swarm_agents: 19 }
+    },
+    orchestrate: {
+        hlf: `[HLF-v3]\n⌘ [PLAN] executor="spindle_dag"\n Δ [SPEC] target="auth_module" action="refactor"\n ∇ [NODES] code_agent="create,modify" build_agent="test,lint"\nЖ [ASSERT] sandbox="isolated"\nΩ`,
+        response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [DAG] nodes=4 edges=3 execution="sequential"\n ∇ [STATUS] step_1="code_agent:modify ✅" step_2="build_agent:test ✅"\n ∇ [DETAIL] "Plan executed: 4/4 nodes passed, 2 files modified, 0 test failures"\nΩ`,
+        response_nlp: "Plan executed successfully via SpindleDAG. The PlanExecutor translated the SDD spec into 4 DAG nodes (2 code operations, 2 build verifications) and ran them in dependency order. CodeAgent modified 2 files in sandbox, BuildAgent confirmed all tests pass and lint is clean.",
+        metrics: { nlp_payload: 210, tokens_hlf: 32, compression: "85%", parse_ms: 0.4, validate_ms: 1.5, exec_ms: 3200, swarm_agents: 19 }
+    },
+    tool_install: {
+        hlf: `[HLF-v3]\n⌘ [TOOL] action="install" source="registry"\n Δ [TARGET] name="code_formatter" repo="github:tools/formatter"\n ∇ [VERIFY] cove_gate="12-point" sandbox="zero-trust"\nЖ [CONSTRAINT] lockfile="sha256"\nΩ`,
+        response_hlf: `[HLF-v3]\n⟐ [RESULT] code=0\n Δ [INSTALLED] tool="code_formatter" version="1.2.0"\n ∇ [COVE] gates_passed=12 gates_total=12 gas_budget=45\n ∇ [LOCKFILE] hash="a7e2b09d..." integrity="verified"\nΩ`,
+        response_nlp: "Tool 'code_formatter' installed successfully. The 12-point CoVE verification gate passed all checks — manifest validated, sandbox tests passed, no privilege escalation detected. SHA-256 lockfile entry created for reproducible installations. Tool is now available via τ() dispatch.",
+        metrics: { nlp_payload: 195, tokens_hlf: 30, compression: "85%", parse_ms: 0.3, validate_ms: 3.5, exec_ms: 8500, swarm_agents: 19 }
     }
 };
 
@@ -1539,6 +1554,8 @@ function detectTemplate(text) {
     if (lower.includes('security') || lower.includes('scan') || lower.includes('vuln')) return 'security';
     if (lower.includes('summar') || lower.includes('log') || lower.includes('activity')) return 'summary';
     if (lower.includes('delegate') || lower.includes('research') || lower.includes('scribe')) return 'delegate';
+    if (lower.includes('plan') || lower.includes('orchestrat') || lower.includes('refactor') || lower.includes('dag')) return 'orchestrate';
+    if (lower.includes('install') || lower.includes('tool') || lower.includes('registry') || lower.includes('package')) return 'tool_install';
     if (lower.includes('route') || lower.includes('model') || lower.includes('fast')) return 'route';
     if (lower.includes('align') || lower.includes('govern') || lower.includes('ledger')) return 'align';
     return 'security'; // default

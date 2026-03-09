@@ -208,6 +208,104 @@ class TestHlfV04MathExpressions:
         assert cond["left"] == 10
         assert cond["right"] == 5
 
+    def test_math_modulo(self) -> None:
+        ast = hlfc_compile(_prog('⊎ 10 % 3 == 1 ⇒ [INTENT] ok "mod"'))
+        cond = ast["program"][0]["condition"]
+        assert cond["left"]["operator"] == "%"
+
+    def test_math_floor_division(self) -> None:
+        ast = hlfc_compile(_prog('⊎ 7 // 2 == 3 ⇒ [INTENT] ok "fdiv"'))
+        cond = ast["program"][0]["condition"]
+        assert cond["left"]["operator"] == "//"
+
+    def test_math_power(self) -> None:
+        ast = hlfc_compile(_prog('⊎ 2 ** 3 == 8 ⇒ [INTENT] ok "pow"'))
+        cond = ast["program"][0]["condition"]
+        assert cond["left"]["operator"] == "**"
+
+    def test_math_power_human_readable(self) -> None:
+        ast = hlfc_compile(_prog('⊎ 2 ** 3 == 8 ⇒ [INTENT] ok "pow"'))
+        math_node = ast["program"][0]["condition"]["left"]
+        assert "**" in math_node["human_readable"]
+
+    def test_math_power_right_associative(self) -> None:
+        """2 ** 3 ** 2 should be 2 ** (3 ** 2) = 2 ** 9, not (2 ** 3) ** 2 = 64."""
+        ast = hlfc_compile(_prog('⊎ 2 ** 3 ** 2 == 512 ⇒ [INTENT] ok "rpow"'))
+        cond = ast["program"][0]["condition"]
+        pow_node = cond["left"]
+        assert pow_node["operator"] == "**"
+        # Right child should also be a power node (right-associative)
+        assert pow_node["right"]["operator"] == "**"
+
+    def test_math_unary_negation(self) -> None:
+        """Unary negation of a variable (not literal — lexer absorbs -42 as NUMBER)."""
+        ast = hlfc_compile(_prog('result ← -(2 + 3)'))
+        node = ast['program'][0]
+        assert node['tag'] == 'ASSIGN'
+        assert node['value']['op'] == 'UNARY_NEG'
+
+    def test_math_unary_neg_human_readable(self) -> None:
+        ast = hlfc_compile(_prog('result ← -(2 + 3)'))
+        assert '-' in ast['program'][0]['value']['human_readable']
+
+    def test_math_precedence_mul_before_add(self) -> None:
+        """2 + 3 * 4 should produce (2 + (3 * 4)) not ((2 + 3) * 4)."""
+        ast = hlfc_compile(_prog('⊎ 2 + 3 * 4 == 14 ⇒ [INTENT] ok "prec"'))
+        cond = ast["program"][0]["condition"]
+        add_node = cond["left"]
+        assert add_node["operator"] == "+"
+        assert add_node["right"]["operator"] == "*"
+
+    def test_math_precedence_power_before_mul(self) -> None:
+        """2 * 3 ** 2 should produce (2 * (3 ** 2)) not ((2 * 3) ** 2)."""
+        ast = hlfc_compile(_prog('⊎ 2 * 3 ** 2 == 18 ⇒ [INTENT] ok "ppow"'))
+        cond = ast["program"][0]["condition"]
+        mul_node = cond["left"]
+        assert mul_node["operator"] == "*"
+        assert mul_node["right"]["operator"] == "**"
+
+    def test_math_subtraction(self) -> None:
+        ast = hlfc_compile(_prog('⊎ 10 - 3 == 7 ⇒ [INTENT] ok "sub"'))
+        cond = ast["program"][0]["condition"]
+        assert cond["left"]["operator"] == "-"
+
+    def test_math_division(self) -> None:
+        ast = hlfc_compile(_prog('⊎ 10 / 2 == 5 ⇒ [INTENT] ok "div"'))
+        cond = ast["program"][0]["condition"]
+        assert cond["left"]["operator"] == "/"
+
+    def test_math_complex_expression(self) -> None:
+        """(2 + 3) * 4 should produce ((2 + 3) * 4)."""
+        ast = hlfc_compile(_prog('⊎ (2 + 3) * 4 == 20 ⇒ [INTENT] ok "complex"'))
+        cond = ast["program"][0]["condition"]
+        mul_node = cond["left"]
+        assert mul_node["operator"] == "*"
+        assert mul_node["left"]["operator"] == "+"
+
+    def test_math_modulo_human_readable(self) -> None:
+        ast = hlfc_compile(_prog('⊎ 10 % 3 == 1 ⇒ [INTENT] ok "mod"'))
+        math_node = ast["program"][0]["condition"]["left"]
+        assert "%" in math_node["human_readable"]
+
+    def test_math_floor_division_human_readable(self) -> None:
+        ast = hlfc_compile(_prog('⊎ 7 // 2 == 3 ⇒ [INTENT] ok "fdiv"'))
+        math_node = ast["program"][0]["condition"]["left"]
+        assert "//" in math_node["human_readable"]
+
+    def test_math_multi_operator_chain(self) -> None:
+        """a + b - c should be left-associative: ((a + b) - c)."""
+        ast = hlfc_compile(_prog('⊎ 10 + 5 - 3 == 12 ⇒ [INTENT] ok "chain"'))
+        cond = ast["program"][0]["condition"]
+        sub_node = cond["left"]
+        assert sub_node["operator"] == "-"
+        assert sub_node["left"]["operator"] == "+"
+
+    def test_assignment_from_power_expression(self) -> None:
+        ast = hlfc_compile(_prog("result ← 2 ** 10"))
+        node = ast["program"][0]
+        assert node["tag"] == "ASSIGN"
+        assert node["value"]["operator"] == "**"
+
 
 class TestHlfV04Assignment:
     """RFC 9005 §5.1 assignment operator ←."""
@@ -577,3 +675,120 @@ class TestFormatCorrection:
     def test_suggestion_is_string(self) -> None:
         result = format_correction("bad hlf", self._make_error())
         assert isinstance(result["suggestion"], str)
+
+
+# ---------------------------------------------------------------------------
+# v0.4 Language Expansion Tests (Hat-Driven)
+# ---------------------------------------------------------------------------
+
+
+class TestHlfV04FuncCall:
+    """Function calls in expressions — Crimson Hat needs len(), abs(), etc."""
+
+    def test_func_call_in_assignment(self) -> None:
+        ast = hlfc_compile(_prog('result ← abs(42)'))
+        node = ast['program'][0]
+        assert node['tag'] == 'ASSIGN'
+        assert node['value']['op'] == 'FUNC_CALL'
+        assert node['value']['name'] == 'abs'
+
+    def test_func_call_with_multiple_args(self) -> None:
+        ast = hlfc_compile(_prog('result ← min(10, 20)'))
+        node = ast['program'][0]
+        assert node['value']['op'] == 'FUNC_CALL'
+        assert len(node['value']['args']) == 2
+
+    def test_func_call_human_readable(self) -> None:
+        ast = hlfc_compile(_prog('result ← max(1, 2)'))
+        assert 'max' in ast['program'][0]['value']['human_readable']
+
+
+class TestHlfV04MemberAccess:
+    """Member access — Silver Hat needs node.confidence, point.x."""
+
+    def test_member_access_in_condition(self) -> None:
+        ast = hlfc_compile(_prog('⊎ node.confidence > 0 ⇒ [INTENT] ok "valid"'))
+        cond = ast['program'][0]['condition']
+        assert cond['left']['op'] == 'MEMBER_ACCESS'
+        assert cond['left']['object'] == 'node'
+
+    def test_member_access_path(self) -> None:
+        ast = hlfc_compile(_prog('result ← agent.hat.name'))
+        node = ast['program'][0]['value']
+        assert node['path'] == ['hat', 'name']
+
+
+class TestHlfV04WhileLoop:
+    """While loops — Blue Hat process flow."""
+
+    def test_while_parses(self) -> None:
+        ast = hlfc_compile(_prog('[WHILE] active "loop_body"'))
+        assert ast['program'][0]['tag'] == 'WHILE'
+
+    def test_while_has_args(self) -> None:
+        ast = hlfc_compile(_prog('[WHILE] active "loop_body"'))
+        node = ast['program'][0]
+        assert 'args' in node
+        assert len(node['args']) == 2
+
+    def test_while_human_readable(self) -> None:
+        ast = hlfc_compile(_prog('[WHILE] active "loop_body"'))
+        assert 'WHILE' in ast['program'][0]['human_readable']
+
+
+class TestHlfV04TryCatch:
+    """Try/catch — Black Hat error handling."""
+
+    def test_try_parses(self) -> None:
+        ast = hlfc_compile(_prog('[TRY] "risky_operation"'))
+        assert ast['program'][0]['tag'] == 'TRY'
+
+    def test_catch_parses(self) -> None:
+        ast = hlfc_compile(_prog('[CATCH] "error_handler"'))
+        assert ast['program'][0]['tag'] == 'CATCH'
+
+
+class TestHlfV04Assert:
+    """Assertions — Gold Hat verification."""
+
+    def test_assert_parses(self) -> None:
+        ast = hlfc_compile(_prog('[ASSERT] true "condition_holds"'))
+        assert ast['program'][0]['tag'] == 'ASSERT'
+
+    def test_assert_has_args(self) -> None:
+        ast = hlfc_compile(_prog('[ASSERT] true "condition_holds"'))
+        node = ast['program'][0]
+        assert len(node['args']) == 2
+
+    def test_assert_human_readable(self) -> None:
+        ast = hlfc_compile(_prog('[ASSERT] true "condition_holds"'))
+        assert 'ASSERT' in ast['program'][0]['human_readable']
+
+
+class TestHlfV04Return:
+    """Return values from functions."""
+
+    def test_return_parses(self) -> None:
+        ast = hlfc_compile(_prog('[RETURN] 42'))
+        assert ast['program'][0]['tag'] == 'RETURN'
+
+    def test_return_value(self) -> None:
+        ast = hlfc_compile(_prog('[RETURN] 42'))
+        assert 42 in ast['program'][0]['args']
+
+    def test_return_string(self) -> None:
+        ast = hlfc_compile(_prog('[RETURN] "done"'))
+        assert ast['program'][0]['tag'] == 'RETURN'
+
+
+class TestHlfV04Comments:
+    """Single-line comments."""
+
+    def test_comment_ignored(self) -> None:
+        ast = hlfc_compile(_prog('# this is a comment\n[INTENT] do "thing"'))
+        tags = [n['tag'] for n in ast['program'] if n]
+        assert 'INTENT' in tags
+
+    def test_inline_comment_after_statement(self) -> None:
+        ast = hlfc_compile(_prog('[SET] x = 42 # set x to 42'))
+        assert ast['program'][0]['tag'] == 'SET'

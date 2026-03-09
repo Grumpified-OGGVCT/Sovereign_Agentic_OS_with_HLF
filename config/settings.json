@@ -6,6 +6,42 @@
     "summarization": "qwen:7b",
     "embedding": "nomic-embed-text"
   },
+  "providers": {
+    "ollama": {
+      "enabled": true,
+      "primary_host": "http://localhost:11434",
+      "secondary_host": "http://localhost:11435",
+      "strategy": "round_robin",
+      "cloud_models_synced": 31
+    },
+    "zai": {
+      "enabled": true,
+      "base_url": "https://api.z.ai/api/paas/v4/",
+      "env_key": "ZAI_API_KEY",
+      "default_model": "glm-4.7",
+      "models": {
+        "reasoning": "glm-5",
+        "general": "glm-4.7",
+        "fast": "glm-4.7-flash",
+        "vision": "glm-4.6v",
+        "vision_fast": "glm-4.6v-flash",
+        "image": "cogview-4-250304",
+        "image_alt": "glm-image",
+        "video": "cogvideox-3",
+        "ocr": "glm-ocr",
+        "high_concurrency": "glm-4-plus",
+        "long_context": "glm-4-32b-0414-128k"
+      },
+      "rate_limits": {
+        "glm-5": 5,
+        "glm-4.7": 3,
+        "glm-4.6v": 10,
+        "glm-4-plus": 20,
+        "cogview-4-250304": 5,
+        "glm-ocr": 2
+      }
+    }
+  },
   "features": {
     "enable_mtls": false,
     "enable_honeypot": false,
@@ -24,9 +60,37 @@
     "analysis_model": "kimi-k2.5:cloud"
   },
   "gas_buckets": { "hearth": 1000, "forge": 10000, "sovereign": 100000 },
+  "gas_agent_budgets": {
+    "sentinel": 5000,
+    "scribe": 3000,
+    "arbiter": 8000
+  },
+  "gas_alert_threshold_pct": 80,
   "max_context_tokens": { "hearth": 8192, "forge": 16384, "sovereign": 32768 },
   "rate_limits": { "external_rpm": 50, "websearch_capacity": 10 },
   "circuit_breaker": { "timeout_ms": 12000, "dead_man_threshold": 3, "dead_man_window_sec": 300 },
+  "native": {
+    "enabled": true,
+    "features": {
+      "clipboard": true,
+      "notifications": true,
+      "shell": true,
+      "tray": true,
+      "sysinfo": true,
+      "app_launch": true,
+      "process_list": true
+    },
+    "shell": {
+      "rate_limit_per_minute": 10,
+      "timeout_seconds": 30.0,
+      "max_stdout_bytes": 10000,
+      "max_stderr_bytes": 5000
+    },
+    "tray": {
+      "auto_start": false,
+      "ipc_port": 9377
+    }
+  },
   "semantic_cache": { "similarity_threshold": 0.99, "ttl_seconds": 3600, "min_confidence": 0.95 },
   "ollama_allowed_models": {
     "hearth": ["qwen-7b"],
@@ -38,11 +102,36 @@
     "interval_hours": 6,
     "promote": true
   },
-  "ollama_dual": {
+  "modules": {
+    "oci_registry": "ghcr.io",
+    "oci_namespace": "Grumpified-OGGVCT/hlf-modules",
+    "oci_enabled": false,
+    "cache_dir": "hlf/.oci_cache"
+  },
+  "daemons": {
+    "sentinel": { "enabled": true, "check_interval_ms": 5000 },
+    "scribe": { "enabled": true, "token_budget_pct": 0.80 },
+    "arbiter": { "enabled": true, "escalation_timeout_ms": 12000 }
+  },
+  "credential_vault": {
     "enabled": true,
-    "primary_host": "http://localhost:11434",
-    "secondary_host": "http://localhost:11435",
-    "strategy": "round_robin",
-    "cloud_models_synced": 31
+    "auto_discover": true,
+    "vault_dir": "~/.sovereign/vault"
+  },
+  "gateway": {
+    "enabled": true,
+    "port": 4000,
+    "host": "127.0.0.1",
+    "default_model": "gemini/gemini-3-pro",
+    "fallback_model": "ollama/qwen3:8b",
+    "providers": {
+      "google": { "enabled": true, "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/" },
+      "openai": { "enabled": false, "base_url": "https://api.openai.com/v1/" },
+      "anthropic": { "enabled": false, "base_url": "https://api.anthropic.com/v1/" },
+      "groq": { "enabled": false, "base_url": "https://api.groq.com/openai/v1/" },
+      "ollama": { "enabled": true, "base_url": "http://localhost:11434/v1/" }
+    },
+    "rate_limit_rpm": 60,
+    "log_requests": true
   }
 }

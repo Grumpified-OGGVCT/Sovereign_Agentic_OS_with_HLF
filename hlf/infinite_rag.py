@@ -26,6 +26,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -57,6 +58,8 @@ class InfiniteRAGEngine:
         self.db_path = str(db_path)
         self.hot_capacity = hot_capacity
         self._hot_cache: dict[str, HLFMemoryNode] = {}
+        # Enterprise: thread-safe hot cache (prevents race conditions in parallel agent access)
+        self._hot_lock = threading.Lock()
         self._conn: sqlite3.Connection | None = None
 
     # ------------------------------------------------------------------ #
@@ -128,14 +131,30 @@ class InfiniteRAGEngine:
             self._conn.close()
             self._conn = None
 
+    def __enter__(self) -> "InfiniteRAGEngine":
+        """Context manager: ensure schema is initialized."""
+        self.init_schema()
+        return self
+
+    def __exit__(self, *exc: Any) -> None:
+        """Context manager: close connection on exit."""
+        self.close()
+
     # ------------------------------------------------------------------ #
     # Store
     # ------------------------------------------------------------------ #
 
-    def store(self, node: HLFMemoryNode) -> str:
+    def store(
+        self,
+        node: HLFMemoryNode,
+        confidence_override: bool = False,
+    ) -> str:
         """Store an HLF memory node. Auto-deduplicates by content_hash.
 
         Pipeline: Check hot cache → Check warm (SQLite) → Insert if new.
+
+        Enterprise security: Rejects confidence downgrades on existing nodes
+        unless ``confidence_override=True`` (memory poisoning prevention).
 
         Returns:
             node_id of the stored (or existing duplicate) node.
@@ -144,12 +163,20 @@ class InfiniteRAGEngine:
             raise ValueError("Cannot store empty memory node")
 
         # Dedup check: hot cache first
-        for cached in self._hot_cache.values():
-            if cached.content_hash == node.content_hash:
-                cached.last_accessed = time.time()
-                if node.confidence > cached.confidence:
-                    cached.confidence = node.confidence
-                return cached.node_id
+        with self._hot_lock:
+            for cached in self._hot_cache.values():
+                if cached.content_hash == node.content_hash:
+                    cached.last_accessed = time.time()
+                    if node.confidence > cached.confidence:
+                        cached.confidence = node.confidence
+                    elif node.confidence < cached.confidence and not confidence_override:
+                        # Memory poisoning prevention: reject confidence downgrade
+                        logger.warning(
+                            f"Rejected confidence downgrade on {cached.node_id[:8]} "
+                            f"({cached.confidence:.2f} → {node.confidence:.2f}) — "
+                            f"set confidence_override=True to force"
+                        )
+                    return cached.node_id
 
         # Dedup check: warm tier (SQLite)
         conn = self._get_conn()
@@ -159,12 +186,24 @@ class InfiniteRAGEngine:
         ).fetchone()
 
         if row:
-            # Update confidence if higher, and bump last_accessed
             existing_id = row["node_id"]
-            if node.confidence > row["confidence"]:
+            existing_conf = row["confidence"]
+            if node.confidence > existing_conf:
+                # Upgrade confidence
                 conn.execute(
                     "UPDATE hlf_memory_nodes SET confidence = ?, last_accessed = ? WHERE node_id = ?",
                     (node.confidence, time.time(), existing_id),
+                )
+                conn.commit()
+            elif node.confidence < existing_conf and not confidence_override:
+                # Memory poisoning prevention: reject confidence downgrade
+                logger.warning(
+                    f"Rejected confidence downgrade on {existing_id[:8]} "
+                    f"({existing_conf:.2f} → {node.confidence:.2f})"
+                )
+                conn.execute(
+                    "UPDATE hlf_memory_nodes SET last_accessed = ? WHERE node_id = ?",
+                    (time.time(), existing_id),
                 )
                 conn.commit()
             else:
@@ -214,11 +253,12 @@ class InfiniteRAGEngine:
         """
         results: list[HLFMemoryNode] = []
 
-        # Hot cache scan
-        for node in self._hot_cache.values():
-            if node.entity_id == entity_id and node.confidence >= min_confidence:
-                node.last_accessed = time.time()
-                results.append(node)
+        # Hot cache scan (thread-safe)
+        with self._hot_lock:
+            for node in self._hot_cache.values():
+                if node.entity_id == entity_id and node.confidence >= min_confidence:
+                    node.last_accessed = time.time()
+                    results.append(node)
 
         # Warm tier query
         conn = self._get_conn()
@@ -302,7 +342,8 @@ class InfiniteRAGEngine:
                 archived_count += 1
 
                 # Remove from hot cache too
-                self._hot_cache.pop(row["node_id"], None)
+                with self._hot_lock:
+                    self._hot_cache.pop(row["node_id"], None)
 
         if archived_count > 0:
             conn.commit()
@@ -433,7 +474,8 @@ class InfiniteRAGEngine:
                 "DELETE FROM hlf_memory_nodes WHERE node_id = ?",
                 (row["node_id"],),
             )
-            self._hot_cache.pop(row["node_id"], None)
+            with self._hot_lock:
+                self._hot_cache.pop(row["node_id"], None)
             archived += 1
 
         if archived:
@@ -454,6 +496,58 @@ class InfiniteRAGEngine:
         ).fetchall()
 
         return [self._cold_row_to_node(row) for row in rows]
+
+    def reheat(self, node_id: str) -> str | None:
+        """Promote a cold-tier node back to warm tier.
+
+        Enterprise feature: enables cold data recovery without re-ingestion.
+
+        Returns:
+            node_id if reheated, None if not found in cold.
+        """
+        conn = self._get_conn()
+        row = conn.execute(
+            "SELECT * FROM hlf_cold_archive WHERE node_id = ?",
+            (node_id,),
+        ).fetchone()
+
+        if not row:
+            return None
+
+        # Insert into warm tier
+        conn.execute(
+            """INSERT OR REPLACE INTO hlf_memory_nodes
+               (node_id, entity_id, hlf_source, hlf_ast_json, content_hash,
+                confidence, provenance_agent, provenance_ts, correction_count,
+                parent_hash, last_accessed, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                row["node_id"], row["entity_id"], row["hlf_source"],
+                row["hlf_ast_json"], row["content_hash"], row["confidence"],
+                row["provenance_agent"], row["provenance_ts"],
+                row["correction_count"], row["parent_hash"],
+                time.time(), row["created_at"],
+            ),
+        )
+
+        # Remove from cold
+        conn.execute(
+            "DELETE FROM hlf_cold_archive WHERE node_id = ?",
+            (node_id,),
+        )
+        conn.commit()
+
+        # Promote to hot cache
+        reheated_node = self._row_to_node(
+            conn.execute(
+                "SELECT * FROM hlf_memory_nodes WHERE node_id = ?",
+                (node_id,),
+            ).fetchone()
+        )
+        self._hot_promote(reheated_node)
+
+        logger.info(f"Reheated cold node {node_id[:8]} back to warm+hot tiers")
+        return node_id
 
     # ------------------------------------------------------------------ #
     # Stats
@@ -481,6 +575,44 @@ class InfiniteRAGEngine:
             "total": len(self._hot_cache) + warm_count + cold_count,
             "top_entities": {row["entity_id"]: row["cnt"] for row in entity_counts},
         }
+
+    # ------------------------------------------------------------------ #
+    # Bulk Operations
+    # ------------------------------------------------------------------ #
+
+    def bulk_store(self, nodes: list[HLFMemoryNode]) -> list[str]:
+        """Store multiple memory nodes in a single batch.
+
+        Each node is stored individually with per-node error handling.
+        Failed nodes are logged but do not block other stores.
+
+        Returns:
+            List of node_ids for successfully stored nodes.
+        """
+        stored_ids: list[str] = []
+        for node in nodes:
+            try:
+                nid = self.store(node)
+                stored_ids.append(nid)
+            except Exception as e:
+                logger.warning(f"bulk_store: skipped node {node.node_id[:8]}: {e}")
+        return stored_ids
+
+    def bulk_retrieve(
+        self,
+        entity_ids: list[str],
+        top_k: int = 5,
+        min_confidence: float = 0.0,
+    ) -> dict[str, list[HLFMemoryNode]]:
+        """Retrieve memory nodes for multiple entities in a single call.
+
+        Returns:
+            Dict mapping entity_id → list of matching nodes.
+        """
+        results: dict[str, list[HLFMemoryNode]] = {}
+        for eid in entity_ids:
+            results[eid] = self.retrieve(eid, top_k=top_k, min_confidence=min_confidence)
+        return results
 
     # ------------------------------------------------------------------ #
     # Dependency Graph & Blast Radius
@@ -760,12 +892,13 @@ class InfiniteRAGEngine:
     # ------------------------------------------------------------------ #
 
     def _hot_promote(self, node: HLFMemoryNode) -> None:
-        """Add node to hot cache, evicting oldest if at capacity."""
-        if len(self._hot_cache) >= self.hot_capacity:
-            # Evict the least-recently-accessed node
-            oldest_id = min(self._hot_cache, key=lambda k: self._hot_cache[k].last_accessed)
-            del self._hot_cache[oldest_id]
-        self._hot_cache[node.node_id] = node
+        """Add node to hot cache, evicting oldest if at capacity. Thread-safe."""
+        with self._hot_lock:
+            if len(self._hot_cache) >= self.hot_capacity:
+                # Evict the least-recently-accessed node
+                oldest_id = min(self._hot_cache, key=lambda k: self._hot_cache[k].last_accessed)
+                del self._hot_cache[oldest_id]
+            self._hot_cache[node.node_id] = node
 
     def _archive_to_cold(self, row: sqlite3.Row) -> None:
         """Move a warm-tier row to cold archive."""

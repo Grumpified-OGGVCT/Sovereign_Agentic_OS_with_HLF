@@ -40,7 +40,7 @@ def test_formatted_output_ends_with_terminator() -> None:
 def test_formatted_output_starts_with_version_header() -> None:
     source = '[HLF-v2]\n[INTENT] greet "world"\nΩ\n'
     formatted = format_hlf(source)
-    assert formatted.startswith("[HLF-v2]"), "Formatted output must start with [HLF-v2]"
+    assert formatted.startswith("[HLF-v3]"), "Formatted output must start with [HLF-v3]"
 
 
 def test_roundtrip_with_result_tag() -> None:
