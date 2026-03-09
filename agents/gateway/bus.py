@@ -33,6 +33,13 @@ from agents.gateway.sentinel_gate import enforce_align
 from hlf import validate_hlf_heuristic
 from hlf.hlfc import HlfSyntaxError, format_correction
 from hlf.hlfc import compile as hlfc_compile
+from hlf.intent_capsule import (
+    CapsuleViolation,
+    IntentCapsule,
+    forge_capsule,
+    hearth_capsule,
+    sovereign_capsule,
+)
 
 try:
     import ulid as _ulid_module
@@ -300,6 +307,22 @@ async def post_intent(request: Request, body: IntentRequest) -> IntentResponse:
             raise HTTPException(
                 status_code=429,
                 detail=f"Intent gas limit exceeded: {node_count}/{settings.max_gas_limit} nodes",
+            )
+
+        # 4a. Intent Capsule enforcement (scope constraint per agent)
+        agent_id = request.headers.get("X-Agent-ID", "anonymous")
+        capsule_factories = {
+            "sovereign": sovereign_capsule,
+            "forge": forge_capsule,
+            "hearth": hearth_capsule,
+        }
+        factory = capsule_factories.get(settings.deployment_tier, hearth_capsule)
+        capsule = factory(agent_id)
+        capsule_violations = capsule.validate_program(ast)
+        if capsule_violations:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Intent Capsule violation [{agent_id}]: {'; '.join(capsule_violations[:3])}",
             )
 
     # 4b. Global Per-Tier Gas Bucket (Lua atomic decrement)

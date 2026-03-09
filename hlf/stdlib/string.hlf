@@ -1,0 +1,23 @@
+[HLF-v3]
+[MODULE] string
+[INTENT] provide "string manipulation utility functions"
+
+[FUNCTION] upper "text"
+[FUNCTION] lower "text"
+[FUNCTION] trim "text"
+[FUNCTION] contains "text" "substring"
+[FUNCTION] starts_with "text" "prefix"
+[FUNCTION] ends_with "text" "suffix"
+[FUNCTION] replace "text" "old" "new"
+[FUNCTION] split "text" "delimiter"
+[FUNCTION] join "items" "delimiter"
+[FUNCTION] length "text"
+[FUNCTION] substring "text" "start" "end"
+[FUNCTION] repeat "text" "count"
+
+[SET] EMPTY=""
+[SET] NEWLINE="LF"
+[SET] TAB="HT"
+
+[RESULT] code=0 message="string stdlib loaded"
+Ω

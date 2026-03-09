@@ -15,6 +15,13 @@ from .hlfc import (
 )
 from .hlffmt import format_hlf
 from .insaits import decompile, decompile_bytecode, decompile_live
+from .intent_capsule import (
+    CapsuleViolation,
+    IntentCapsule,
+    forge_capsule,
+    hearth_capsule,
+    sovereign_capsule,
+)
 from .memory_node import HLFMemoryNode
 
 __all__ = [
@@ -36,6 +43,12 @@ __all__ = [
     "decompile_bytecode",
     # Memory
     "HLFMemoryNode",
+    # Intent Capsules
+    "IntentCapsule",
+    "CapsuleViolation",
+    "hearth_capsule",
+    "forge_capsule",
+    "sovereign_capsule",
 ]
 
 # Fast pre-validation regex for Agent Service Bus (ASB)

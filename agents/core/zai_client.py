@@ -406,6 +406,119 @@ class ZAIClient:
             logger.error(f"z.AI video generation failed ({model}): {e}")
             return ZAIVideoResult(success=False, error=str(e))
 
+    def poll_video_status(self, task_id: str) -> ZAIVideoResult:
+        """Poll the status of an async video generation task.
+
+        Performs a single HTTP GET to the z.AI async result endpoint.
+        Status values: PROCESSING, SUCCESS, FAIL.
+
+        Args:
+            task_id: The task ID returned by generate_video().
+
+        Returns:
+            ZAIVideoResult with current status and video_url if complete.
+        """
+        import urllib.error
+        import urllib.request
+
+        url = f"{self.base_url}async-result/{task_id}"
+        req = urllib.request.Request(url, method="GET")
+        req.add_header("Authorization", f"Bearer {self._api_key}")
+        req.add_header("Accept", "application/json")
+
+        try:
+            import json as _json
+
+            with urllib.request.urlopen(req, timeout=15) as resp:
+                data = _json.loads(resp.read().decode())
+
+            task_status = data.get("task_status", "PROCESSING")
+            video_url = None
+
+            # Extract video URL from successful response
+            if task_status == "SUCCESS":
+                # z.AI nests video results in video_result or data
+                video_result = data.get("video_result", [])
+                if isinstance(video_result, list) and video_result:
+                    video_url = video_result[0].get("url")
+                elif isinstance(data.get("data"), list) and data["data"]:
+                    video_url = data["data"][0].get("url")
+
+            return ZAIVideoResult(
+                success=task_status != "FAIL",
+                task_id=task_id,
+                video_url=video_url,
+                status=task_status,
+                error=data.get("message") if task_status == "FAIL" else None,
+            )
+        except urllib.error.HTTPError as e:
+            logger.error(f"z.AI video poll failed (HTTP {e.code}): {e.reason}")
+            return ZAIVideoResult(
+                success=False,
+                task_id=task_id,
+                status="POLL_ERROR",
+                error=f"HTTP {e.code}: {e.reason}",
+            )
+        except Exception as e:
+            logger.error(f"z.AI video poll failed: {e}")
+            return ZAIVideoResult(
+                success=False,
+                task_id=task_id,
+                status="POLL_ERROR",
+                error=str(e),
+            )
+
+    def get_video_result(
+        self,
+        task_id: str,
+        *,
+        max_attempts: int = 60,
+        interval: float = 5.0,
+    ) -> ZAIVideoResult:
+        """Poll until video generation completes or times out.
+
+        Convenience wrapper around poll_video_status that retries at
+        a configurable interval until SUCCESS, FAIL, or max_attempts.
+
+        Args:
+            task_id: The task ID from generate_video().
+            max_attempts: Maximum polling attempts (default 60 = 5 min).
+            interval: Seconds between polls (default 5.0).
+
+        Returns:
+            ZAIVideoResult with final status and video_url on success.
+        """
+        for attempt in range(1, max_attempts + 1):
+            result = self.poll_video_status(task_id)
+
+            if result.status == "SUCCESS":
+                logger.info(
+                    f"z.AI video {task_id} completed after {attempt} poll(s)"
+                )
+                return result
+
+            if result.status == "FAIL":
+                logger.warning(
+                    f"z.AI video {task_id} failed: {result.error}"
+                )
+                return result
+
+            if result.status == "POLL_ERROR":
+                logger.warning(
+                    f"z.AI video poll error (attempt {attempt}): {result.error}"
+                )
+                # Continue polling — transient network errors shouldn't abort
+
+            if attempt < max_attempts:
+                time.sleep(interval)
+
+        return ZAIVideoResult(
+            success=False,
+            task_id=task_id,
+            status="TIMEOUT",
+            error=f"Timed out after {max_attempts} attempts ({max_attempts * interval:.0f}s)",
+        )
+
     # ── OCR ──────────────────────────────────────────────────────────────
 
     def ocr(

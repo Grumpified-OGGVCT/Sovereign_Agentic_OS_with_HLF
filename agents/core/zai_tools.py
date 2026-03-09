@@ -6,11 +6,12 @@ tools to the Sovereign OS ToolRegistry, making them available to agents
 during DAG execution and to users via HLF τ() functions.
 
 Registered tools:
-  - zai.complete  — LLM text completion (GLM-5, GLM-4.7)
-  - zai.vision    — Image/screenshot understanding (GLM-4.6V)
-  - zai.image_gen — Image generation (CogView-4, GLM-Image)
-  - zai.video_gen — Video generation (CogVideoX-3, Vidu2)
-  - zai.ocr       — Document text extraction (GLM-OCR)
+  - zai.complete      — LLM text completion (GLM-5, GLM-4.7)
+  - zai.vision        — Image/screenshot understanding (GLM-4.6V)
+  - zai.image_gen     — Image generation (CogView-4, GLM-Image)
+  - zai.video_gen     — Video generation (CogVideoX-3, Vidu2)
+  - zai.video_status  — Poll async video generation task status
+  - zai.ocr           — Document text extraction (GLM-OCR)
 
 Usage::
 
@@ -162,6 +163,25 @@ def _handle_video_gen(
     )
 
 
+def _handle_video_status(
+    task_id: str,
+    **kwargs: Any,
+) -> ToolResult:
+    """Handler for zai.video_status tool."""
+    client = _get_client()
+    result = client.poll_video_status(task_id)
+    return ToolResult(
+        success=result.success,
+        output={
+            "task_id": result.task_id,
+            "status": result.status,
+            "video_url": result.video_url,
+        },
+        error=result.error,
+        tool_id="zai.video_status",
+    )
+
+
 def _handle_ocr(
     image_path: str,
     model: str = "glm-ocr",
@@ -221,6 +241,15 @@ _ZAI_TOOL_DEFS: list[tuple[str, ToolCategory, str, Any, int, set[ToolPermission]
         "Creates short videos from text or image prompts.",
         _handle_video_gen,
         15,
+        {ToolPermission.EXECUTE},
+    ),
+    (
+        "zai.video_status",
+        ToolCategory.HTTP,
+        "Poll the status of an async z.AI video generation task. "
+        "Returns PROCESSING, SUCCESS (with video_url), or FAIL.",
+        _handle_video_status,
+        2,
         {ToolPermission.EXECUTE},
     ),
     (
@@ -309,6 +338,13 @@ def _get_input_schema(tool_id: str) -> dict[str, Any]:
                 "model": {"type": "string", "description": "Video model"},
             },
             "required": ["prompt"],
+        },
+        "zai.video_status": {
+            "type": "object",
+            "properties": {
+                "task_id": {"type": "string", "description": "Task ID from video_gen"},
+            },
+            "required": ["task_id"],
         },
         "zai.ocr": {
             "type": "object",

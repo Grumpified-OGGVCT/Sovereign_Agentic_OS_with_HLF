@@ -1,0 +1,24 @@
+[HLF-v3]
+[MODULE] collections
+[INTENT] provide "data structure utility functions"
+
+[FUNCTION] list_new "items"
+[FUNCTION] list_append "list" "item"
+[FUNCTION] list_get "list" "index"
+[FUNCTION] list_length "list"
+[FUNCTION] list_slice "list" "start" "end"
+[FUNCTION] list_contains "list" "item"
+[FUNCTION] list_reverse "list"
+[FUNCTION] list_sort "list"
+
+[FUNCTION] map_new "entries"
+[FUNCTION] map_get "map" "key"
+[FUNCTION] map_set "map" "key" "value"
+[FUNCTION] map_has "map" "key"
+[FUNCTION] map_keys "map"
+[FUNCTION] map_values "map"
+[FUNCTION] map_delete "map" "key"
+[FUNCTION] map_merge "map_a" "map_b"
+
+[RESULT] code=0 message="collections stdlib loaded"
+Ω

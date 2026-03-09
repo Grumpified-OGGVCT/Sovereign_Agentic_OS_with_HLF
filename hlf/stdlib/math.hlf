@@ -1,0 +1,19 @@
+[HLF-v3]
+[MODULE] math
+[INTENT] provide "core mathematical utility functions"
+
+[FUNCTION] abs "value"
+[FUNCTION] max "a" "b"
+[FUNCTION] min "a" "b"
+[FUNCTION] clamp "value" "lo" "hi"
+[FUNCTION] floor "value"
+[FUNCTION] ceil "value"
+[FUNCTION] round "value"
+
+[SET] PI=3.141592653589793
+[SET] E=2.718281828459045
+[SET] TAU=6.283185307179586
+[SET] INFINITY=999999999999
+
+[RESULT] code=0 message="math stdlib loaded"
+Ω

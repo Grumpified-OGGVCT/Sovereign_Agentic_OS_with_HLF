@@ -142,6 +142,135 @@ class TestZAIResponse:
         assert result.success
         assert result.task_id == "task-123"
 
+    def test_video_result_with_url(self) -> None:
+        result = ZAIVideoResult(
+            success=True,
+            task_id="task-456",
+            video_url="https://cdn.z.ai/video/456.mp4",
+            status="SUCCESS",
+        )
+        assert result.video_url is not None
+        assert result.status == "SUCCESS"
+
+
+# ── Video Polling Tests ──────────────────────────────────────────────────────
+
+
+class TestVideoPolling:
+    """Tests for video generation status polling."""
+
+    def test_poll_success(self) -> None:
+        client = ZAIClient(api_key="test-key")
+        response_data = {
+            "task_status": "SUCCESS",
+            "video_result": [{"url": "https://cdn.z.ai/vid.mp4"}],
+        }
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = __import__("json").dumps(response_data).encode()
+            mock_resp.__enter__ = lambda s: s
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_resp
+
+            result = client.poll_video_status("task-abc")
+
+        assert result.success
+        assert result.status == "SUCCESS"
+        assert result.video_url == "https://cdn.z.ai/vid.mp4"
+        assert result.task_id == "task-abc"
+
+    def test_poll_processing(self) -> None:
+        client = ZAIClient(api_key="test-key")
+        response_data = {"task_status": "PROCESSING"}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = __import__("json").dumps(response_data).encode()
+            mock_resp.__enter__ = lambda s: s
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_resp
+
+            result = client.poll_video_status("task-xyz")
+
+        assert result.success  # PROCESSING is not a failure
+        assert result.status == "PROCESSING"
+        assert result.video_url is None
+
+    def test_poll_fail(self) -> None:
+        client = ZAIClient(api_key="test-key")
+        response_data = {"task_status": "FAIL", "message": "Content policy violation"}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = __import__("json").dumps(response_data).encode()
+            mock_resp.__enter__ = lambda s: s
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_resp
+
+            result = client.poll_video_status("task-fail")
+
+        assert not result.success
+        assert result.status == "FAIL"
+        assert "Content policy" in result.error
+
+    def test_poll_http_error(self) -> None:
+        import urllib.error
+        client = ZAIClient(api_key="test-key")
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_urlopen.side_effect = urllib.error.HTTPError(
+                url="", code=404, msg="Not Found", hdrs=None, fp=None  # type: ignore[arg-type]
+            )
+            result = client.poll_video_status("bad-id")
+
+        assert not result.success
+        assert result.status == "POLL_ERROR"
+        assert "404" in result.error
+
+    def test_poll_constructs_correct_url(self) -> None:
+        client = ZAIClient(api_key="test-key", base_url="https://api.z.ai/api/paas/v4/")
+        response_data = {"task_status": "PROCESSING"}
+        with patch("urllib.request.urlopen") as mock_urlopen:
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = __import__("json").dumps(response_data).encode()
+            mock_resp.__enter__ = lambda s: s
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_urlopen.return_value = mock_resp
+
+            client.poll_video_status("task-123")
+
+        # Verify the URL was constructed correctly
+        call_args = mock_urlopen.call_args
+        req = call_args[0][0]
+        assert "async-result/task-123" in req.full_url
+
+    def test_get_video_result_timeout(self) -> None:
+        client = ZAIClient(api_key="test-key")
+        # Mock poll_video_status to always return PROCESSING
+        with patch.object(client, "poll_video_status") as mock_poll:
+            mock_poll.return_value = ZAIVideoResult(
+                success=True, task_id="t-1", status="PROCESSING"
+            )
+            result = client.get_video_result("t-1", max_attempts=3, interval=0.01)
+
+        assert not result.success
+        assert result.status == "TIMEOUT"
+        assert mock_poll.call_count == 3
+
+    def test_get_video_result_success_on_second_poll(self) -> None:
+        client = ZAIClient(api_key="test-key")
+        with patch.object(client, "poll_video_status") as mock_poll:
+            mock_poll.side_effect = [
+                ZAIVideoResult(success=True, task_id="t-2", status="PROCESSING"),
+                ZAIVideoResult(
+                    success=True, task_id="t-2",
+                    status="SUCCESS", video_url="https://cdn.z.ai/t2.mp4",
+                ),
+            ]
+            result = client.get_video_result("t-2", max_attempts=5, interval=0.01)
+
+        assert result.success
+        assert result.status == "SUCCESS"
+        assert result.video_url == "https://cdn.z.ai/t2.mp4"
+        assert mock_poll.call_count == 2
+
 
 # ── Message Building Tests ───────────────────────────────────────────────────
 
@@ -204,7 +333,7 @@ class TestZAIToolRegistration:
     def test_register_all_tools(self) -> None:
         registry = ToolRegistry()
         count = register_zai_tools(registry)
-        assert count == 5
+        assert count == 6
 
     def test_registered_tool_ids(self) -> None:
         registry = ToolRegistry()
@@ -214,6 +343,7 @@ class TestZAIToolRegistration:
         assert "zai.vision" in ids
         assert "zai.image_gen" in ids
         assert "zai.video_gen" in ids
+        assert "zai.video_status" in ids
         assert "zai.ocr" in ids
 
     def test_tool_categories(self) -> None:
