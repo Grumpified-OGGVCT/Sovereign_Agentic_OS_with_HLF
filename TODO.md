@@ -1,6 +1,6 @@
 # Sovereign Agentic OS — Master TODO
 
-> Last updated: 2026-03-09 12:25 CST | Test baseline: 1,670 passing (100%)
+> Last updated: 2026-03-09 14:00 CST | Test baseline: 1,733 passing (100%)
 > GitHub Issues: [#67](https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/issues/67), [#17](https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/issues/17), [#14](https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/issues/14), [#51](https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/issues/51)
 
 ---
@@ -46,8 +46,8 @@
 - [x] Daemon Bridge — event translation + gas accounting (17 tests)
 - [x] Agent profiles in `config/personas/` — sentinel.md, scribe.md, arbiter.md (8KB+ each)
 - [x] DaemonManager → SpindleEventBus auto-wiring on start (Batch B, 27 tests)
-- [ ] Per-agent gas dashboard report API
-- [ ] ASB Redis Streams inter-agent communication wiring
+- [x] ASB Redis Streams inter-agent communication — `agent_bus.py` (24 tests) ✅
+- [x] Per-agent gas dashboard report API — `gas_dashboard.py` + FastAPI router (27 tests) ✅
 
 > **Resolved**: All 5 `hlf_programs/` now compile end-to-end — replaced standalone
 > `←` with `[SET]`, fixed CONSTRAINT arity, downgraded `decision_matrix.hlf` v4→v3.
@@ -78,9 +78,9 @@
 
 ## ⬜ Priority 5: SAFE Architecture Tier 1 Backfill
 
-- [ ] MAESTRO Intent Classification system
-- [ ] Architecture Decision Record (ADR) system
-- [ ] InsAIts V2 daemon (continuous, not just compile-time)
+- [x] MAESTRO Intent Classification system — `maestro_router.py` (20 tests) ✅
+- [x] Architecture Decision Record (ADR) system — `governance/adr.py` (19 tests) ✅
+- [x] InsAIts V2 daemon (continuous, not just compile-time) — `insaits_daemon.py` (30 tests) ✅
 - [ ] SPIFFE/SPIRE upgrade (replace self-signed KYA certs)
 
 ---
