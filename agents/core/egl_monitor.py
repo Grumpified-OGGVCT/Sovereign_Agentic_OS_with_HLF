@@ -11,6 +11,15 @@ Key Concepts:
   - Generality Loss %: Trend line showing capability narrowing.
   - Quality-Diversity Grid: MAP-Elites style behavior × performance map.
 
+Scout additions (additive):
+  - ThreatRecord: captures security-relevant behavioral events.
+  - SecurityCapabilityScore: summarises coverage of a capability class.
+  - EGLMonitor.record_threat_event(): log a security threat observation.
+  - EGLMonitor.compute_security_coverage(): % of security caps active in window.
+  - EGLMonitor.get_security_posture_report(): Scout-level security analysis.
+  - Stagnation alert: fires when no security capability has been exercised
+    within ``stagnation_window`` records.
+
 Usage:
     monitor = EGLMonitor()
     monitor.record_behavior("sentinel", "security.scan", performance=0.95)
@@ -26,6 +35,22 @@ import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Any
+
+# Canonical set of security-related capability prefixes that Scout tracks.
+_SECURITY_CAPABILITY_PREFIXES: frozenset[str] = frozenset(
+    {
+        "security.",
+        "threat.",
+        "vuln.",
+        "scan.",
+        "audit.",
+        "align.",
+        "privesc.",
+        "inject.",
+        "exfil.",
+        "ssrf.",
+    }
+)
 
 
 # ─── Data Types ─────────────────────────────────────────────────────────────
@@ -93,6 +118,57 @@ class EGLAlert:
     timestamp: float = field(default_factory=time.time)
 
 
+# ─── Scout: Security Tracking ────────────────────────────────────────────────
+
+
+@dataclass
+class ThreatRecord:
+    """A security-relevant event observed by the Scout persona."""
+
+    record_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
+    threat_id: str = ""           # e.g. "THREAT-SSRF", "DEP-002"
+    source_agent: str = ""        # Which agent reported it
+    capability: str = ""          # Capability domain, e.g. "security.ssrf"
+    severity: str = "medium"      # critical | high | medium | low
+    blocked: bool = False
+    description: str = ""
+    timestamp: float = field(default_factory=time.time)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "record_id": self.record_id,
+            "threat_id": self.threat_id,
+            "source_agent": self.source_agent,
+            "capability": self.capability,
+            "severity": self.severity,
+            "blocked": self.blocked,
+            "description": self.description,
+            "timestamp": self.timestamp,
+        }
+
+
+@dataclass
+class SecurityCapabilityScore:
+    """Summary score for a single security capability domain."""
+
+    capability: str = ""
+    active_agents: int = 0
+    observation_count: int = 0
+    best_performance: float = 0.0
+    last_seen: float = 0.0
+    threat_count: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "capability": self.capability,
+            "active_agents": self.active_agents,
+            "observation_count": self.observation_count,
+            "best_performance": round(self.best_performance, 4),
+            "last_seen": self.last_seen,
+            "threat_count": self.threat_count,
+        }
+
+
 # ─── EGL Monitor ────────────────────────────────────────────────────────────
 
 class EGLMonitor:
@@ -108,6 +184,7 @@ class EGLMonitor:
         convergence_threshold: float = 0.3,
         dominance_threshold: float = 0.8,
         window_size: int = 100,
+        stagnation_window: int = 50,
     ) -> None:
         self._records: list[BehaviorRecord] = []
         self._metrics_history: list[EGLMetric] = []
@@ -121,6 +198,10 @@ class EGLMonitor:
         self._convergence_threshold = convergence_threshold
         self._dominance_threshold = dominance_threshold
         self._window_size = window_size
+        self._stagnation_window = stagnation_window
+
+        # Scout: threat tracking
+        self._threat_records: list[ThreatRecord] = []
 
     @property
     def record_count(self) -> int:
@@ -265,6 +346,26 @@ class EGLMonitor:
                 metric=metric,
             ))
 
+        # Scout: stagnation alert — no security capability exercised recently
+        if len(self._records) >= self._stagnation_window:
+            recent_window = self._records[-self._stagnation_window:]
+            observed_prefixes = {
+                prefix
+                for r in recent_window
+                for prefix in _SECURITY_CAPABILITY_PREFIXES
+                if r.capability.startswith(prefix)
+            }
+            if not observed_prefixes:
+                self._alerts.append(EGLAlert(
+                    alert_type="stagnation",
+                    message=(
+                        f"No security capability observed in the last "
+                        f"{self._stagnation_window} records"
+                    ),
+                    severity="warning",
+                    metric=metric,
+                ))
+
     def get_qd_grid(self) -> list[dict[str, Any]]:
         """Get the MAP-Elites quality-diversity grid."""
         return [
@@ -310,4 +411,120 @@ class EGLMonitor:
             "qd_grid_size": len(self._qd_grid),
             "alert_count": len(self._alerts),
             "history_length": len(self._metrics_history),
+        }
+
+    # ─── Scout Methods ──────────────────────────────────────────────────────
+
+    def record_threat_event(
+        self,
+        threat_id: str,
+        source_agent: str,
+        capability: str,
+        *,
+        severity: str = "medium",
+        blocked: bool = False,
+        description: str = "",
+    ) -> ThreatRecord:
+        """
+        Record a security-relevant threat event observed by the Scout persona.
+
+        This also implicitly records a behavior for the source_agent / capability
+        pair so that EGL metrics reflect security activity.
+        """
+        record = ThreatRecord(
+            threat_id=threat_id,
+            source_agent=source_agent,
+            capability=capability,
+            severity=severity,
+            blocked=blocked,
+            description=description,
+        )
+        self._threat_records.append(record)
+
+        # Mirror into behavior records so EGL metrics capture security activity
+        perf = 1.0 if blocked else 0.5
+        self.record_behavior(source_agent, capability, performance=perf)
+
+        return record
+
+    def compute_security_coverage(self) -> float:
+        """
+        Scout security-coverage metric.
+
+        Returns the fraction of known security capability prefixes that have
+        been observed in the current window (0.0 – 1.0).
+        """
+        recent = self._records[-self._window_size:]
+        if not recent:
+            return 0.0
+
+        observed_prefixes: set[str] = set()
+        for r in recent:
+            for prefix in _SECURITY_CAPABILITY_PREFIXES:
+                if r.capability.startswith(prefix):
+                    observed_prefixes.add(prefix)
+
+        return len(observed_prefixes) / len(_SECURITY_CAPABILITY_PREFIXES)
+
+    def get_security_posture_report(self) -> dict[str, Any]:
+        """
+        Scout security-posture report.
+
+        Aggregates threat records and maps them to
+        :class:`SecurityCapabilityScore` objects so callers can see which
+        security domains are well-covered vs. stale.
+        """
+        scores: dict[str, SecurityCapabilityScore] = {}
+        threat_by_cap: dict[str, int] = defaultdict(int)
+
+        for tr in self._threat_records:
+            threat_by_cap[tr.capability] += 1
+
+        windowed_records = self._records[-self._window_size:]
+        for r in windowed_records:
+            for prefix in _SECURITY_CAPABILITY_PREFIXES:
+                if r.capability.startswith(prefix):
+                    if r.capability not in scores:
+                        scores[r.capability] = SecurityCapabilityScore(
+                            capability=r.capability,
+                        )
+                    sc = scores[r.capability]
+                    sc.observation_count += 1
+                    sc.best_performance = max(sc.best_performance, r.performance)
+                    sc.last_seen = max(sc.last_seen, r.timestamp)
+                    break
+
+        # Attach threat counts
+        for cap, count in threat_by_cap.items():
+            if cap not in scores:
+                scores[cap] = SecurityCapabilityScore(capability=cap)
+            scores[cap].threat_count = count
+
+        # Count active agents per capability (within window)
+        agents_by_cap: dict[str, set[str]] = defaultdict(set)
+        for r in windowed_records:
+            for prefix in _SECURITY_CAPABILITY_PREFIXES:
+                if r.capability.startswith(prefix):
+                    agents_by_cap[r.capability].add(r.agent_id)
+                    break
+        for cap, agents in agents_by_cap.items():
+            if cap in scores:
+                scores[cap].active_agents = len(agents)
+
+        security_coverage = self.compute_security_coverage()
+        stagnation_alerts = [
+            a for a in self._alerts if a.alert_type == "stagnation"
+        ]
+
+        return {
+            "security_coverage": round(security_coverage, 4),
+            "security_capabilities_observed": len(scores),
+            "total_threat_events": len(self._threat_records),
+            "blocked_threats": sum(1 for t in self._threat_records if t.blocked),
+            "stagnation_alert_count": len(stagnation_alerts),
+            "capability_scores": [sc.to_dict() for sc in sorted(
+                scores.values(),
+                key=lambda s: s.observation_count,
+                reverse=True,
+            )],
         }
