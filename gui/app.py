@@ -16,6 +16,13 @@ import httpx
 import pandas as pd
 import streamlit as st
 
+# ALS ring buffer reader — gracefully absent when running without the agents package
+try:
+    from agents.core.logger import get_recent_entries as _get_als_entries
+except Exception:  # pragma: no cover
+    def _get_als_entries(n: int = 50) -> list:  # type: ignore[misc]
+        return []
+
 # --- Paths ---
 _PROJECT_ROOT = Path(__file__).parent.parent
 _LAST_HASH_FILE = _PROJECT_ROOT / "observability" / "openllmetry" / "last_hash.txt"
@@ -569,6 +576,23 @@ with st.sidebar:
     )
 
     st.markdown("---")
+    st.subheader("👁️ Agent Visibility")
+    st.markdown(
+        "Controls how much agent-internal information is surfaced in the "
+        "transparency panels on the right."
+    )
+    visibility_level = st.radio(
+        "Visibility Level",
+        ["minimal", "standard", "detailed"],
+        index=1,
+        horizontal=True,
+        help="**Minimal**: status-only, no raw HLF or log entries.  \n"
+        "**Standard**: agent activity + last 10 ALS entries.  \n"
+        "**Detailed**: raw HLF, full routing traces, up to 50 ALS entries.",
+        key="visibility_level",
+    )
+
+    st.markdown("---")
     st.subheader("🤖 Local Autonomous Node")
     node_status, node_detail = check_local_node_status()
     st.metric("Node Status", node_status, help=node_detail)
@@ -1042,6 +1066,19 @@ with center_canvas:
                                     "latency_ms": _latency_ms,
                                     "endpoint": _chat_host,
                                 }
+                                # Record ALS session entry for transparency panel
+                                _als_entry = {
+                                    "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+                                    "event": "CHAT_RESPONSE",
+                                    "agent_role": "chat",
+                                    "trace_id": None,
+                                    "confidence_score": 1.0,
+                                    "anomaly_score": 0.0,
+                                    "data": {"model": active_model, "tier": tier_selection},
+                                }
+                                _als_log = st.session_state.get("als_session_log", [])
+                                _als_log.append(_als_entry)
+                                st.session_state["als_session_log"] = _als_log[-200:]
                                 break
                             except Exception as _ep_err:
                                 _last_chat_err = _ep_err
@@ -1129,6 +1166,31 @@ with center_canvas:
                         st.success(f"✅ Intent accepted (HTTP 202). Trace ID: `{data.get('trace_id', 'N/A')}`")
                         with st.expander("View Gateway Response"):
                             st.json(data)
+                        # Record HLF translation for transparency panel
+                        _hlf_text = intent_input.strip() if intent_input.strip().startswith("[HLF") else data.get("hlf", "")
+                        _natural = intent_input.strip() if not intent_input.strip().startswith("[HLF") else data.get("text", "")
+                        _hlf_record = {
+                            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+                            "hlf": _hlf_text,
+                            "natural_language": _natural or "(Gateway compiled from HLF)",
+                            "ast": data.get("ast"),
+                        }
+                        _hlf_log = st.session_state.get("hlf_translation_log", [])
+                        _hlf_log.append(_hlf_record)
+                        st.session_state["hlf_translation_log"] = _hlf_log[-50:]
+                        # Record ALS session entry
+                        _als_dispatch = {
+                            "timestamp": _hlf_record["timestamp"],
+                            "event": "INTENT_DISPATCH",
+                            "agent_role": "gateway",
+                            "trace_id": data.get("trace_id"),
+                            "confidence_score": 1.0,
+                            "anomaly_score": 0.0,
+                            "data": {"mode": mode_label, "status": 202},
+                        }
+                        _als_log = st.session_state.get("als_session_log", [])
+                        _als_log.append(_als_dispatch)
+                        st.session_state["als_session_log"] = _als_log[-200:]
                     elif response.status_code == 422:
                         st.error(
                             "❌ **Syntax Error (HTTP 422)**: The HLF program has invalid syntax. "
@@ -1560,6 +1622,102 @@ with right_pane:
         "This pane detects alignment faking, scope creep, and goal hijacking.",
     )
 
+    # ── Agent Activity ───────────────────────────────────────────────────────
+    _vis = st.session_state.get("visibility_level", "standard")
+    st.markdown(
+        '<p><span class="tech-term" data-tooltip="Real-time view of which agent '
+        "is active, which model is being used, and how many gas units have been "
+        'consumed for the current intent.">🤖 Agent Activity</span></p>',
+        unsafe_allow_html=True,
+    )
+    _act_route = st.session_state.get("last_routing_trace")
+    _act_msgs = st.session_state.get("chat_messages", [])
+    _agent_state = "Idle"
+    if _act_msgs:
+        _last_role = _act_msgs[-1].get("role", "")
+        _agent_state = "Awaiting reply" if _last_role == "user" else "Ready"
+
+    _aa_cols = st.columns(2)
+    with _aa_cols[0]:
+        st.markdown(f"**State:** {_agent_state}")
+        if _act_route:
+            st.markdown(f"**Model:** `{_act_route.get('model', 'N/A')}`")
+    with _aa_cols[1]:
+        if _act_route:
+            st.markdown(f"**Tier:** `{_act_route.get('tier', 'N/A')}`")
+            _lat = _act_route.get("latency_ms")
+            if _lat is not None:
+                _icon = "🟢" if _lat < 2000 else "🟡" if _lat < 5000 else "🔴"
+                st.markdown(f"**Latency:** {_icon} {_lat} ms")
+        else:
+            st.caption("No active routing data.")
+
+    st.markdown("---")
+
+    # ── HLF Translation Panel ────────────────────────────────────────────────
+    if _vis in ("standard", "detailed"):
+        st.markdown(
+            '<p><span class="tech-term" data-tooltip="Shows the HLF program '
+            "generated for the most recent intent, alongside a natural-language "
+            'summary of what each tag does.">📝 HLF Translation</span></p>',
+            unsafe_allow_html=True,
+        )
+        _hlf_log = st.session_state.get("hlf_translation_log", [])
+        if _hlf_log:
+            _latest_hlf = _hlf_log[-1]
+            with st.expander(
+                f"Latest: {_latest_hlf.get('timestamp', 'N/A')}",
+                expanded=(_vis == "detailed"),
+            ):
+                if _vis == "detailed":
+                    st.code(_latest_hlf.get("hlf", ""), language="text")
+                st.markdown(f"**Natural language:** {_latest_hlf.get('natural_language', 'N/A')}")
+                _ast = _latest_hlf.get("ast")
+                if _ast and _vis == "detailed":
+                    with st.expander("AST", expanded=False):
+                        st.json(_ast)
+        else:
+            st.caption(
+                "No HLF translation recorded yet. Dispatch an intent via "
+                "the Intent Dispatch tab to see the HLF output here."
+            )
+        st.markdown("---")
+
+    # ── ALS Log Stream ───────────────────────────────────────────────────────
+    _als_limit = {"minimal": 0, "standard": 10, "detailed": 50}.get(_vis, 10)
+    if _als_limit > 0:
+        st.markdown(
+            '<p><span class="tech-term" data-tooltip="Live stream of ALS '
+            "(Agentic Log Standard) entries. Each entry is cryptographically "
+            'chained via SHA-256 Merkle hashes to the previous.">📋 ALS Log Stream</span></p>',
+            unsafe_allow_html=True,
+        )
+        # Pull from the in-process ring buffer (populated by ALSLogger.log())
+        _als_entries = _get_als_entries(_als_limit)
+
+        # Supplement with GUI-recorded session entries when ring buffer is empty
+        if not _als_entries:
+            _als_entries = list(reversed(st.session_state.get("als_session_log", [])))[:_als_limit]
+
+        if _als_entries:
+            for _ae in _als_entries:
+                _ts = _ae.get("timestamp", "")
+                _ev = _ae.get("event", "")
+                _role = _ae.get("agent_role", "")
+                _anom = _ae.get("anomaly_score", 0.0)
+                _tid = (_ae.get("trace_id") or "")[:8] or "—"
+                _anom_icon = "🔴" if _anom > 0.85 else "🟡" if _anom > 0.5 else "🟢"
+                st.markdown(
+                    f"`{_ts}` {_anom_icon} **{_ev}** · `{_role}` · trace `{_tid}…`",
+                    help=f"Full trace ID: {_ae.get('trace_id', 'N/A')} | "
+                    f"anomaly={_anom:.2f} confidence={_ae.get('confidence_score', 1.0):.2f}",
+                )
+        else:
+            st.caption(
+                "No ALS entries captured yet. Agent actions will appear here "
+                "once the system processes an intent."
+            )
+        st.markdown("---")
     # --- Anchor Drift Gauge ---
     st.markdown(
         '<p><span class="tech-term" data-tooltip="Measures how closely the '
