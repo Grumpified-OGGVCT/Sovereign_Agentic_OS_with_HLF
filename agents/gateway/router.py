@@ -1,6 +1,11 @@
 """
 MoMA Router — routes intents to the appropriate model based on complexity,
 VRAM availability, gas budget, and dynamic model downshifting.
+
+🩵 Cyan Hat additions (AI/ML Validation):
+  estimate_complexity()  — O(1) text-feature complexity scorer (no LLM calls)
+  detect_bias_risk()     — surfaces routing-bias patterns for audit/observability
+  AgentProfile.bias_risk — audit field populated by detect_bias_risk()
 """
 
 from __future__ import annotations
@@ -8,6 +13,7 @@ from __future__ import annotations
 import inspect
 import json
 import os
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -267,6 +273,99 @@ def mediate_web_search(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 # ─────────────────────────────────────────────────────────────────────────
+# 🩵 Cyan Hat — AI/ML Complexity Estimation & Bias-Risk Detection
+# ─────────────────────────────────────────────────────────────────────────
+
+# Feature word sets for complexity scoring — config-independent (no model names)
+_COMPLEXITY_HIGH_FEATURES: frozenset[str] = frozenset({
+    "explain", "reason", "analyse", "analyze", "compare", "contrast",
+    "evaluate", "synthesize", "critique", "implications", "hypothesis",
+    "architecture", "multi-step", "trade-off", "tradeoff", "justify",
+    "recursive", "concurrent", "asynchronous", "distributed",
+})
+
+_COMPLEXITY_LOW_FEATURES: frozenset[str] = frozenset({
+    "hello", "hi", "hey", "thanks", "thank", "yes", "no", "ok", "okay",
+    "summarize", "list", "show", "tell", "what", "when", "where",
+})
+
+# Patterns that suggest the intent may be steered toward a specific model family
+# for non-technical reasons — surfaced as audit notes, never blocking.
+_ROUTING_BIAS_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
+    ("implicit_model_preference", re.compile(
+        r"\b(?:use|with|via|using|through)\s+(?:the\s+)?(?:fast|cheap|small|tiny|mini)\s+model\b", re.I
+    )),
+    ("demographic_language_en_only", re.compile(
+        r"\b(?:in\s+english\s+only|english-only|no\s+other\s+languages?)\b", re.I
+    )),
+    ("tier_bypass_attempt", re.compile(
+        r"\b(?:skip|bypass|ignore)\s+(?:the\s+)?(?:filter|safety|guard|check|gate|limit)\b", re.I
+    )),
+    ("capability_gatekeeping", re.compile(
+        r"\b(?:only\s+(?:use|allow|route\s+to)|restrict\s+to)\s+(?:cloud|local|free)\s+model\b", re.I
+    )),
+]
+
+
+def estimate_complexity(text: str) -> float:
+    """
+    Estimate the routing-complexity score for an intent text in O(n).
+
+    Returns a float in [0.0, 1.0]:
+      < 0.3 → simple / SLM candidate
+      0.3–0.7 → medium complexity
+      > 0.7 → frontier model candidate
+
+    The estimate is deterministic and free of LLM calls.  It uses:
+      1. Normalised token length (longer = more complex, capped)
+      2. Presence of high-complexity feature words (additive)
+      3. Presence of low-complexity feature words (subtractive)
+      4. Punctuation density (questions, ellipses, nested clauses)
+    """
+    if not text or not text.strip():
+        return 0.0
+
+    words = text.lower().split()
+    word_count = len(words)
+
+    # 1. Length score: saturates at 60 words → 0.4
+    length_score = min(word_count / 60.0, 1.0) * 0.4
+
+    # 2. High-complexity feature word bonus (each hit +0.08, max 0.4)
+    high_hits = sum(1 for w in words if w.rstrip(".,?!;:") in _COMPLEXITY_HIGH_FEATURES)
+    high_score = min(high_hits * 0.08, 0.4)
+
+    # 3. Low-complexity feature word penalty (each hit -0.05, min -0.3)
+    low_hits = sum(1 for w in words if w.rstrip(".,?!;:") in _COMPLEXITY_LOW_FEATURES)
+    low_penalty = min(low_hits * 0.05, 0.3)
+
+    # 4. Punctuation density bonus: question marks and ellipses suggest
+    #    multi-part queries that require deeper reasoning (max 0.2)
+    punct_count = text.count("?") + text.count("…") + text.count("...")
+    punct_score = min(punct_count * 0.07, 0.2)
+
+    score = length_score + high_score - low_penalty + punct_score
+    return round(max(0.0, min(1.0, score)), 4)
+
+
+def detect_bias_risk(intent_text: str) -> list[str]:
+    """
+    Scan an intent string for routing-bias patterns and return a list of
+    human-readable audit notes (empty list = no patterns detected).
+
+    Results are **advisory only** — they are logged in the routing trace and
+    surfaced in AgentProfile.bias_risk but never block routing.  This allows
+    operators and the Fourteen-Hat review process to catch systematic biases
+    without disrupting service.
+    """
+    notes: list[str] = []
+    for label, pattern in _ROUTING_BIAS_PATTERNS:
+        if pattern.search(intent_text):
+            notes.append(f"BIAS_RISK[{label}]: pattern matched in intent — review routing decision")
+    return notes
+
+
+# ─────────────────────────────────────────────────────────────────────────
 # Phase 3 — Registry-Aware Routing Engine
 # ─────────────────────────────────────────────────────────────────────────
 
@@ -310,6 +409,8 @@ class AgentProfile:
     routing_trace: list[dict[str, Any]] = field(default_factory=list)
     gas_remaining: int = -1  # Post-consumption gas balance
     confidence: float = 0.5  # Router confidence in selection
+    # 🩵 Cyan Hat: advisory bias-risk notes (never blocks routing)
+    bias_risk: list[str] = field(default_factory=list)
 
 
 # Tier walk order — Cloud-First isolation invariant
@@ -361,6 +462,21 @@ def route_request(
     text_lower = intent_text.lower()
     tier = settings.deployment_tier
 
+    # ── 🩵 Cyan Hat: Bias-Risk Audit (advisory, never blocks) ────────────
+    bias_notes = detect_bias_risk(intent_text)
+    if bias_notes:
+        trace.append({"step": "bias_risk_audit", "notes": bias_notes})
+
+    # ── 🩵 Cyan Hat: Auto-Complexity Estimation (when caller supplies -1) ─
+    # Track whether the score was explicitly provided by the caller.
+    # Auto-estimated scores are recorded for observability but do NOT trigger
+    # the Phase 0 short-circuit — that gate is reserved for callers who have
+    # already pre-scored the intent (e.g. via a dedicated complexity model).
+    caller_provided_complexity = complexity >= 0
+    if not caller_provided_complexity:
+        complexity = estimate_complexity(intent_text)
+        trace.append({"step": "auto_complexity", "score": round(complexity, 4)})
+
     # ── Specialization Pre-Routing Hooks ──────────────────────────────
     specialization = None
     for spec_name, keywords in _SPECIALIZATION_PATTERNS.items():
@@ -370,7 +486,8 @@ def route_request(
             break
 
     # ── Phase 0: Complexity Short-Circuit ──────────────────────────────
-    if complexity >= 0 and specialization is None:
+    # Only fires when the caller explicitly provided a complexity score.
+    if caller_provided_complexity and specialization is None:
         if complexity < 0.3:
             trace.append({"step": "complexity_shortcircuit", "score": round(complexity, 3), "target": "slm"})
             model = settings.summarization_model
@@ -381,6 +498,7 @@ def route_request(
                     tier="slm",
                     routing_trace=trace,
                     confidence=0.85,
+                    bias_risk=bias_notes,
                 )
                 _log_routing_decision(profile, intent_text, phase="complexity_slm")
                 return profile
@@ -394,6 +512,7 @@ def route_request(
                     tier="S",
                     routing_trace=trace,
                     confidence=0.9,
+                    bias_risk=bias_notes,
                 )
                 _log_routing_decision(profile, intent_text, phase="complexity_frontier")
                 return profile
@@ -411,6 +530,7 @@ def route_request(
             provider="cloud" if _is_cloud(legacy_model) else "ollama",
             routing_trace=trace,
             confidence=0.3,
+            bias_risk=bias_notes,
         )
         # NOTE: _log_routing_decision deferred to after return — use wrapper below
 
@@ -425,6 +545,7 @@ def route_request(
             provider="cloud" if _is_cloud(legacy_model) else "ollama",
             routing_trace=trace,
             confidence=0.3,
+            bias_risk=bias_notes,
         )
 
     init_db(registry)
@@ -552,6 +673,7 @@ def route_request(
                 restrictions=restrictions,
                 routing_trace=trace,
                 confidence=0.9 if selected_tier in ("S", "A+", "A") else 0.7 if selected_tier in ("A-", "B+") else 0.5,
+                bias_risk=bias_notes,
             )
             _log_routing_decision(profile, intent_text, phase=selected_tier or "fallback")
             return profile
@@ -565,6 +687,7 @@ def route_request(
             provider="cloud" if _is_cloud(legacy_model) else "ollama",
             routing_trace=trace,
             confidence=0.2,
+            bias_risk=bias_notes,
         )
         _log_routing_decision(profile, intent_text, phase="error_fallback")
         return profile
