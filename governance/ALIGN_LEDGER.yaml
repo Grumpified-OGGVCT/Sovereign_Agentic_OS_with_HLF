@@ -1,11 +1,16 @@
 version: "1.0-genesis"
 rules:
-  - { id: "R-001", name: "ACFS Confinement", regex_block: '(\/bin\/sh|\/bin\/bash|rm -rf \/|curl.*\| bash)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-001", name: "ACFS Confinement", regex_block: '(\/bin\/sh|\/bin\/bash|\/bin\/dash|rm\s+.*-[a-z]*rf|sh\s+-c|bash\s+-c|python3?\s+-c|curl.*\|\s*bash|wget.*\|\s*bash)', action: "DROP_AND_QUARANTINE" }
   - { id: "R-002", name: "Self-Modification Freeze", condition: "intent.targets.includes('sentinel_gate.py')", action: "ROUTE_TO_HUMAN_APPROVAL" }
   - { id: "R-003", name: "Docker Socket Block", regex_block: '(docker\.sock|/var/run/docker)', action: "DROP_AND_QUARANTINE" }
-  - { id: "R-004", name: "Env Exfiltration Block", regex_block: '(\.env|VAULT_SECRET|API_KEY)', action: "DROP_AND_QUARANTINE" }
-  - { id: "R-005", name: "Outbound Network Block", regex_block: '(curl|wget|nc |ncat)', action: "DROP" }
-  - { id: "R-006", name: "Privilege Escalation Block", regex_block: '(sudo|su -|chmod 777)', action: "DROP_AND_QUARANTINE" }
-  - { id: "R-007", name: "Process Injection Block", regex_block: '(os\.system|subprocess\.call|eval\(|exec\(|__import__)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-004", name: "Env Exfiltration Block", regex_block: '(\.env|VAULT_SECRET|API_KEY|PRIVATE_KEY|SECRET_KEY|AWS_ACCESS|DATABASE_URL|DB_PASSWORD)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-005", name: "Outbound Network Block", regex_block: '(curl|wget|nc\s|ncat|wget2|aria2c|python.*http\.server)', action: "DROP" }
+  - { id: "R-006", name: "Privilege Escalation Block", regex_block: '(sudo|su\s+(\w|-)|chmod\s+777|chmod\s+\+s|chattr|setuid|setgid)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-007", name: "Process Injection Block", regex_block: '(os\.system|subprocess\.(call|run|Popen|check_output)|eval\s*\(|exec\s*\(|__import__|compile\s*\()', action: "DROP_AND_QUARANTINE" }
   - { id: "R-008", name: "Block raw OpenClaw keys", regex_block: 'openclaw(?::|")', action: "DROP" }
   - { id: "R-009", name: "Ast Aliasing Bypass Block", regex_block: '(import\s+\w+\s+as\s+\w+)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-010", name: "Path Traversal Block", regex_block: '(\.\.[/\\]|%2e%2e[%/\\]|%252e)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-011", name: "SSRF Metadata Endpoint Block", regex_block: '(169\.254\.169\.254|metadata\.google\.internal|169\.254\.170\.2|imds\.amazonaws|instance-data)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-012", name: "Prompt Injection Block", regex_block: '(ignore previous instructions|forget all instructions|jailbreak|dan mode|do anything now|disregard your constraints|pretend you have no restrictions)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-013", name: "Encoded Injection Block", regex_block: '(base64\.b64decode\s*\(|codecs\.decode\s*\(|bytes\.fromhex\s*\()', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-014", name: "Python Sandbox Escape Block", regex_block: '(__class__\.__mro__|__subclasses__\s*\(\)|__globals__\s*\[|__builtins__\s*[\.\[])', action: "DROP_AND_QUARANTINE" }
