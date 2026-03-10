@@ -84,12 +84,136 @@ def _builtin_uuid(*_args: Any) -> str:
     return str(uuid.uuid4())
 
 
+def _builtin_format(*args: Any) -> str:
+    """FORMAT <template> <key=value ...> → formatted string.
+
+    Substitutes ``{key}`` placeholders in *template* with the provided
+    ``key=value`` pairs.  Extra keys are silently ignored; missing keys
+    are left as-is.  This is a pure string-interpolation function — no
+    code evaluation takes place.
+
+    Examples::
+
+        [FUNCTION] FORMAT "Hello, {name}!" name="World"
+        → "Hello, World!"
+
+        [FUNCTION] FORMAT "{a} + {b} = {c}" a="1" b="2" c="3"
+        → "1 + 2 = 3"
+    """
+    if not args:
+        return ""
+    template = str(args[0])
+    substitutions: dict[str, str] = {}
+    for arg in args[1:]:
+        arg_str = str(arg)
+        if "=" in arg_str:
+            k, _, v = arg_str.partition("=")
+            substitutions[k.strip()] = v
+        else:
+            substitutions[arg_str] = arg_str
+    result = template
+    for key, value in substitutions.items():
+        result = result.replace(f"{{{key}}}", value)
+    return result
+
+
+def _builtin_random(*args: Any) -> Any:
+    """RANDOM [min max] | RANDOM choice <item1> <item2> ... → random value.
+
+    Without arguments: returns a float in [0.0, 1.0).
+    With two numeric arguments: returns a random integer in [min, max].
+    With ``"choice"`` as first argument: returns one of the remaining args
+    chosen at random.
+
+    Uses ``secrets.randbelow`` for integer mode (cryptographically suitable
+    for unpredictable token generation) and ``random.random`` for float mode.
+
+    Examples::
+
+        [FUNCTION] RANDOM
+        → 0.7341...
+
+        [FUNCTION] RANDOM 1 6
+        → 4
+
+        [FUNCTION] RANDOM choice "apple" "banana" "cherry"
+        → "banana"
+    """
+    import random  # stdlib — no I/O, deterministic seeding excluded deliberately
+    import secrets
+
+    if not args:
+        return random.random()
+
+    first = str(args[0])
+    if first.lower() == "choice":
+        choices = list(args[1:])
+        if not choices:
+            raise HlfRuntimeError("RANDOM choice: no items provided")
+        return choices[secrets.randbelow(len(choices))]
+
+    # Numeric range mode
+    try:
+        lo = int(float(first))
+        hi = int(float(str(args[1]))) if len(args) > 1 else 1
+    except (ValueError, TypeError) as exc:
+        raise HlfRuntimeError(f"RANDOM: invalid range arguments — {exc}") from exc
+    if lo > hi:
+        lo, hi = hi, lo
+    return lo + secrets.randbelow(hi - lo + 1)
+
+
+def _builtin_type_of(*args: Any) -> str:
+    """TYPE_OF <value> → type name string.
+
+    Returns a human-readable HLF type name for the runtime value:
+    ``"string"``, ``"number"``, ``"bool"``, ``"list"``, ``"map"``,
+    or ``"null"``.
+
+    Type rules follow Python semantics:
+    - Python ``bool`` (``True``/``False``) → ``"bool"``
+    - Python ``int``/``float`` → ``"number"``
+    - Python ``str`` → ``"string"`` (regardless of content)
+    - Python ``list`` → ``"list"``
+    - Python ``dict`` → ``"map"``
+    - ``None`` / no-arg → ``"null"``
+
+    Examples::
+
+        [FUNCTION] TYPE_OF "hello"   → "string"
+        [FUNCTION] TYPE_OF 42        → "number"
+        [FUNCTION] TYPE_OF true      → "bool"   (unquoted HLF boolean)
+        [FUNCTION] TYPE_OF "true"    → "string" (quoted string, NOT bool)
+        [FUNCTION] TYPE_OF []        → "list"
+    """
+    if not args:
+        return "null"
+    value = args[0]
+    if value is None:
+        return "null"
+    # Check bool before int because bool is a subclass of int in Python
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, (int, float)):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "list"
+    if isinstance(value, dict):
+        return "map"
+    return "string"
+
+
 _BUILTIN_FUNCTIONS: dict[str, Any] = {
     "HASH": _builtin_hash,
     "BASE64_ENCODE": _builtin_base64_encode,
     "BASE64_DECODE": _builtin_base64_decode,
     "NOW": _builtin_now,
     "UUID": _builtin_uuid,
+    "FORMAT": _builtin_format,
+    "RANDOM": _builtin_random,
+    "TYPE_OF": _builtin_type_of,
 }
 
 

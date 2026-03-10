@@ -1,0 +1,32 @@
+[HLF-v3]
+[MODULE] time
+[INTENT] provide "time, duration, and scheduling utility functions"
+
+[FUNCTION] now_utc
+[FUNCTION] now_local "timezone"
+[FUNCTION] parse_iso "iso_string"
+[FUNCTION] format_time "timestamp" "format"
+[FUNCTION] add_duration "timestamp" "duration"
+[FUNCTION] subtract_duration "timestamp" "duration"
+[FUNCTION] diff_seconds "timestamp_a" "timestamp_b"
+[FUNCTION] diff_days "timestamp_a" "timestamp_b"
+[FUNCTION] to_unix "timestamp"
+[FUNCTION] from_unix "unix_seconds"
+[FUNCTION] timezone_convert "timestamp" "from_tz" "to_tz"
+[FUNCTION] is_before "timestamp_a" "timestamp_b"
+[FUNCTION] is_after "timestamp_a" "timestamp_b"
+[FUNCTION] parse_duration "duration_string"
+[FUNCTION] format_duration "seconds"
+
+[SET] FMT_ISO="YYYY-MM-DDTHH:mm:ssZ"
+[SET] FMT_DATE="YYYY-MM-DD"
+[SET] FMT_TIME="HH:mm:ss"
+[SET] FMT_HUMAN="MMM DD YYYY"
+[SET] TZ_UTC="UTC"
+[SET] SECS_PER_MINUTE=60
+[SET] SECS_PER_HOUR=3600
+[SET] SECS_PER_DAY=86400
+[SET] SECS_PER_WEEK=604800
+
+[RESULT] code=0 message="time stdlib loaded"
+Ω
