@@ -704,6 +704,17 @@ SEVERITY_ORDER: dict[str, int] = {
     "INFO": 4,
 }
 
+#: Severity rank assigned to labels not present in SEVERITY_ORDER.
+#: A high value ensures unknown severities sort after all known ones.
+UNKNOWN_SEVERITY_RANK: int = 99
+
+#: Minimum keyword length for cross-hat theme detection.
+#: Short words (≤ this many chars) are likely stop-words and skipped.
+_MIN_KEYWORD_LEN: int = 4
+
+#: Maximum number of related findings listed in a cross-hat insight summary.
+_MAX_INSIGHT_FINDINGS: int = 3
+
 
 @dataclass
 class HatRunMetrics:
@@ -740,7 +751,7 @@ def prioritize_findings(findings: list[HatFinding]) -> list[HatFinding]:
     Within the same severity level the original order is preserved (stable
     sort).
     """
-    return sorted(findings, key=lambda f: SEVERITY_ORDER.get(f.severity.upper(), 99))
+    return sorted(findings, key=lambda f: SEVERITY_ORDER.get(f.severity.upper(), UNKNOWN_SEVERITY_RANK))
 
 
 def synthesize_cross_hat_insights(reports: list[HatReport]) -> list[HatFinding]:
@@ -761,7 +772,7 @@ def synthesize_cross_hat_insights(reports: list[HatReport]) -> list[HatFinding]:
         for finding in report.findings:
             words = set(finding.title.lower().split())
             for word in words:
-                if len(word) > 4:  # skip short stop-words
+                if len(word) > _MIN_KEYWORD_LEN:  # skip short stop-words
                     word_index[word].append((report.hat, finding))
 
     insights: list[HatFinding] = []
@@ -772,7 +783,7 @@ def synthesize_cross_hat_insights(reports: list[HatReport]) -> list[HatFinding]:
         if len(hats_involved) >= 2 and word not in reported_words:
             reported_words.add(word)
             titles = ", ".join(
-                f"{hf[0]}/{hf[1].title}" for hf in hat_findings[:3]
+                f"{hf[0]}/{hf[1].title}" for hf in hat_findings[:_MAX_INSIGHT_FINDINGS]
             )
             insights.append(
                 HatFinding(
@@ -820,18 +831,32 @@ def run_hat_timed(
 def mark_finding_resolved(
     conn: sqlite3.Connection,
     finding_id: int,
+    *,
+    auto_commit: bool = True,
 ) -> bool:
     """Mark a hat finding as resolved in the database.
 
     Sets ``resolved = 1`` for the row with the given *finding_id*.
     Returns ``True`` if a row was updated, ``False`` if no row matched.
+
+    Parameters
+    ----------
+    conn:
+        Active SQLite connection.
+    finding_id:
+        Primary key of the ``hat_findings`` row to resolve.
+    auto_commit:
+        When ``True`` (default), a ``COMMIT`` is issued immediately.
+        Pass ``False`` to defer committing when this call is part of a
+        larger transaction that the caller manages.
     """
     try:
         conn.execute(
             "UPDATE hat_findings SET resolved = 1 WHERE id = ?",
             (finding_id,),
         )
-        conn.commit()
+        if auto_commit:
+            conn.commit()
         updated = conn.execute(
             "SELECT changes()"
         ).fetchone()[0]

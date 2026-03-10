@@ -501,11 +501,10 @@ class TestRunHatTimed:
 
     def test_metrics_finding_count(self) -> None:
         from unittest.mock import patch
-        import json as _json
 
         from agents.core.hat_engine import run_hat_timed
 
-        findings_json = _json.dumps([
+        findings_json = json.dumps([
             {"severity": "HIGH", "title": "Issue A", "description": "d", "recommendation": "r"},
             {"severity": "LOW", "title": "Issue B", "description": "d", "recommendation": "r"},
         ])

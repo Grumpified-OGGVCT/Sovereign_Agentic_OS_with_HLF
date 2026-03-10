@@ -332,6 +332,9 @@ class DreamStateEngine:
         Mimics biological forgetting: rules that are not reinforced by fresh
         experiences gradually lose their weight, making them candidates for
         subsequent :meth:`prune_low_confidence_rules` sweeps.
+
+        Note: :class:`SynthesizedRule` is a plain (non-frozen) dataclass so
+        in-place mutation of ``confidence`` is intentional and safe here.
         """
         for rule in self._rules:
             rule.confidence = max(0.0, rule.confidence - decay_factor)
