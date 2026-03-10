@@ -229,43 +229,40 @@ class TestHlflintCyanHatRules:
     # ── EPISTEMIC_OVERLOAD ────────────────────────────────────────────────
 
     def test_epistemic_overload_detected_beyond_max(self) -> None:
-        # Build a program with 4 BELIEVE nodes (> _MAX_EPISTEMIC_NODES=3)
-        source = (
-            "[HLF-v2]\n"
-            "[BELIEVE] \"sky is blue\"\n"
-            "[BELIEVE] \"water is wet\"\n"
-            "[BELIEVE] \"fire is hot\"\n"
-            "[BELIEVE] \"grass is green\"\n"
-            "[RESULT] code=0 message=\"ok\"\n"
-            "Ω\n"
-        )
+        # Build a program with _MAX_EPISTEMIC_NODES + 1 BELIEVE nodes
+        from hlf.hlflint import _MAX_EPISTEMIC_NODES
+
+        lines = ["[HLF-v2]"]
+        for _ in range(_MAX_EPISTEMIC_NODES + 1):
+            lines.append("[BELIEVE] \"something\"")
+        lines += ['[RESULT] code=0 message="ok"', "Ω"]
+        source = "\n".join(lines)
         issues = self._lint(source)
         assert any("EPISTEMIC_OVERLOAD" in i for i in issues)
 
     def test_epistemic_no_overload_at_max(self) -> None:
-        # Exactly 3 BELIEVE nodes — at the limit, not over
-        source = (
-            "[HLF-v2]\n"
-            "[BELIEVE] \"sky is blue\"\n"
-            "[BELIEVE] \"water is wet\"\n"
-            "[BELIEVE] \"fire is hot\"\n"
-            "[RESULT] code=0 message=\"ok\"\n"
-            "Ω\n"
-        )
+        # Exactly _MAX_EPISTEMIC_NODES BELIEVE nodes — at the limit, not over
+        from hlf.hlflint import _MAX_EPISTEMIC_NODES
+
+        lines = ["[HLF-v2]"]
+        for _ in range(_MAX_EPISTEMIC_NODES):
+            lines.append("[BELIEVE] \"something\"")
+        lines += ['[RESULT] code=0 message="ok"', "Ω"]
+        source = "\n".join(lines)
         issues = self._lint(source)
         assert not any("EPISTEMIC_OVERLOAD" in i for i in issues)
 
     def test_epistemic_mixed_tags_count(self) -> None:
-        # BELIEVE + DOUBT + ASSUME > 3 together
-        source = (
-            "[HLF-v2]\n"
-            "[BELIEVE] \"a\"\n"
-            "[DOUBT] \"b\"\n"
-            "[ASSUME] \"c\"\n"
-            "[ASSUME] \"d\"\n"
-            "[RESULT] code=0 message=\"ok\"\n"
-            "Ω\n"
-        )
+        # BELIEVE + DOUBT + ASSUME > _MAX_EPISTEMIC_NODES together
+        from hlf.hlflint import _MAX_EPISTEMIC_NODES
+
+        lines = ["[HLF-v2]"]
+        # Distribute across tag types to exceed the limit
+        for i in range(_MAX_EPISTEMIC_NODES + 1):
+            tag = ["BELIEVE", "DOUBT", "ASSUME"][i % 3]
+            lines.append(f'[{tag}] "item_{i}"')
+        lines += ['[RESULT] code=0 message="ok"', "Ω"]
+        source = "\n".join(lines)
         issues = self._lint(source)
         assert any("EPISTEMIC_OVERLOAD" in i for i in issues)
 
