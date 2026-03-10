@@ -1,0 +1,5 @@
+[HLF-v2]
+# Parallel execution with sync barrier — RFC 9005 §6
+∥ [ [INTENT] deploy "service-a", [INTENT] deploy "service-b" ]
+⋈ [ deploy_a, deploy_b ] → [RESULT] code=0 message="all_deployed"
+Ω
