@@ -71,7 +71,7 @@ class ALSLogger:
         entry = {
             "trace_id": trace_id,
             "parent_trace_hash": parent_hash,
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime()),
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "goal_id": self.goal_id,
             "agent_role": self.agent_role,
             "event": event,
