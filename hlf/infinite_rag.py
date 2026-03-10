@@ -23,6 +23,7 @@ Usage:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import sqlite3
@@ -60,6 +61,8 @@ class InfiniteRAGEngine:
         self._hot_cache: dict[str, HLFMemoryNode] = {}
         # Enterprise: thread-safe hot cache (prevents race conditions in parallel agent access)
         self._hot_lock = threading.Lock()
+        # Enterprise: thread-safe database access for concurrent agent memory operations
+        self._db_lock = threading.RLock()
         self._conn: sqlite3.Connection | None = None
 
     # ------------------------------------------------------------------ #
@@ -67,9 +70,12 @@ class InfiniteRAGEngine:
     # ------------------------------------------------------------------ #
 
     def _get_conn(self) -> sqlite3.Connection:
-        """Get or create SQLite connection with WAL mode."""
+        """Get or create SQLite connection with WAL mode.
+
+        Thread-safe: uses check_same_thread=False with _db_lock protection.
+        """
         if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path)
+            self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self._conn.execute("PRAGMA journal_mode=WAL")
             self._conn.execute("PRAGMA foreign_keys=ON")
             self._conn.row_factory = sqlite3.Row
@@ -178,58 +184,61 @@ class InfiniteRAGEngine:
                         )
                     return cached.node_id
 
-        # Dedup check: warm tier (SQLite)
-        conn = self._get_conn()
-        row = conn.execute(
-            "SELECT node_id, confidence FROM hlf_memory_nodes WHERE content_hash = ?",
-            (node.content_hash,),
-        ).fetchone()
+        # Dedup check: warm tier (SQLite) — thread-safe
+        with self._db_lock:
+            conn = self._get_conn()
+            row = conn.execute(
+                "SELECT node_id, confidence FROM hlf_memory_nodes WHERE content_hash = ?",
+                (node.content_hash,),
+            ).fetchone()
 
         if row:
             existing_id = row["node_id"]
             existing_conf = row["confidence"]
-            if node.confidence > existing_conf:
-                # Upgrade confidence
-                conn.execute(
-                    "UPDATE hlf_memory_nodes SET confidence = ?, last_accessed = ? WHERE node_id = ?",
-                    (node.confidence, time.time(), existing_id),
-                )
-                conn.commit()
-            elif node.confidence < existing_conf and not confidence_override:
-                # Memory poisoning prevention: reject confidence downgrade
-                logger.warning(
-                    f"Rejected confidence downgrade on {existing_id[:8]} "
-                    f"({existing_conf:.2f} → {node.confidence:.2f})"
-                )
-                conn.execute(
-                    "UPDATE hlf_memory_nodes SET last_accessed = ? WHERE node_id = ?",
-                    (time.time(), existing_id),
-                )
-                conn.commit()
-            else:
-                conn.execute(
-                    "UPDATE hlf_memory_nodes SET last_accessed = ? WHERE node_id = ?",
-                    (time.time(), existing_id),
-                )
-                conn.commit()
+            with self._db_lock:
+                if node.confidence > existing_conf:
+                    # Upgrade confidence
+                    conn.execute(
+                        "UPDATE hlf_memory_nodes SET confidence = ?, last_accessed = ? WHERE node_id = ?",
+                        (node.confidence, time.time(), existing_id),
+                    )
+                    conn.commit()
+                elif node.confidence < existing_conf and not confidence_override:
+                    # Memory poisoning prevention: reject confidence downgrade
+                    logger.warning(
+                        f"Rejected confidence downgrade on {existing_id[:8]} "
+                        f"({existing_conf:.2f} → {node.confidence:.2f})"
+                    )
+                    conn.execute(
+                        "UPDATE hlf_memory_nodes SET last_accessed = ? WHERE node_id = ?",
+                        (time.time(), existing_id),
+                    )
+                    conn.commit()
+                else:
+                    conn.execute(
+                        "UPDATE hlf_memory_nodes SET last_accessed = ? WHERE node_id = ?",
+                        (time.time(), existing_id),
+                    )
+                    conn.commit()
             return existing_id
 
         # Insert new node into warm tier
-        conn.execute(
-            """INSERT INTO hlf_memory_nodes
-               (node_id, entity_id, hlf_source, hlf_ast_json, content_hash,
-                confidence, provenance_agent, provenance_ts, correction_count,
-                parent_hash, last_accessed, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                node.node_id, node.entity_id, node.hlf_source,
-                json.dumps(node.hlf_ast, sort_keys=True),
-                node.content_hash, node.confidence, node.provenance_agent,
-                node.provenance_ts, node.correction_count, node.parent_hash,
-                node.last_accessed, node.created_at,
-            ),
-        )
-        conn.commit()
+        with self._db_lock:
+            conn.execute(
+                """INSERT INTO hlf_memory_nodes
+                   (node_id, entity_id, hlf_source, hlf_ast_json, content_hash,
+                    confidence, provenance_agent, provenance_ts, correction_count,
+                    parent_hash, last_accessed, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    node.node_id, node.entity_id, node.hlf_source,
+                    json.dumps(node.hlf_ast, sort_keys=True),
+                    node.content_hash, node.confidence, node.provenance_agent,
+                    node.provenance_ts, node.correction_count, node.parent_hash,
+                    node.last_accessed, node.created_at,
+                ),
+            )
+            conn.commit()
 
         # Promote to hot cache
         self._hot_promote(node)
@@ -260,15 +269,16 @@ class InfiniteRAGEngine:
                     node.last_accessed = time.time()
                     results.append(node)
 
-        # Warm tier query
-        conn = self._get_conn()
-        rows = conn.execute(
-            """SELECT * FROM hlf_memory_nodes
-               WHERE entity_id = ? AND confidence >= ?
-               ORDER BY confidence DESC, last_accessed DESC
-               LIMIT ?""",
-            (entity_id, min_confidence, top_k * 2),  # Over-fetch to merge with hot
-        ).fetchall()
+        # Warm tier query — thread-safe
+        with self._db_lock:
+            conn = self._get_conn()
+            rows = conn.execute(
+                """SELECT * FROM hlf_memory_nodes
+                   WHERE entity_id = ? AND confidence >= ?
+                   ORDER BY confidence DESC, last_accessed DESC
+                   LIMIT ?""",
+                (entity_id, min_confidence, top_k * 2),  # Over-fetch to merge with hot
+            ).fetchall()
 
         hot_ids = {n.node_id for n in results}
         for row in rows:
@@ -276,16 +286,17 @@ class InfiniteRAGEngine:
                 node = self._row_to_node(row)
                 results.append(node)
 
-        # Update last_accessed in warm tier
+        # Update last_accessed in warm tier — thread-safe
         now = time.time()
         node_ids = [n.node_id for n in results]
         if node_ids:
-            placeholders = ",".join("?" for _ in node_ids)
-            conn.execute(
-                f"UPDATE hlf_memory_nodes SET last_accessed = ? WHERE node_id IN ({placeholders})",
-                [now] + node_ids,
-            )
-            conn.commit()
+            with self._db_lock:
+                placeholders = ",".join("?" for _ in node_ids)
+                conn.execute(
+                    f"UPDATE hlf_memory_nodes SET last_accessed = ? WHERE node_id IN ({placeholders})",
+                    [now] + node_ids,
+                )
+                conn.commit()
 
         # Sort by confidence desc, then recency, and limit
         results.sort(key=lambda n: (n.confidence, n.last_accessed), reverse=True)
@@ -917,6 +928,35 @@ class InfiniteRAGEngine:
                 time.time(), row["created_at"],
             ),
         )
+
+    # ------------------------------------------------------------------ #
+    # Async Wrappers — concurrent agent memory access
+    # ------------------------------------------------------------------ #
+
+    async def astore(
+        self,
+        node: HLFMemoryNode,
+        confidence_override: bool = False,
+    ) -> str:
+        """Async wrapper for store(). Runs in threadpool via asyncio.to_thread."""
+        return await asyncio.to_thread(self.store, node, confidence_override)
+
+    async def aretrieve(
+        self,
+        entity_id: str,
+        top_k: int = 5,
+        min_confidence: float = 0.0,
+    ) -> list[HLFMemoryNode]:
+        """Async wrapper for retrieve(). Runs in threadpool via asyncio.to_thread."""
+        return await asyncio.to_thread(self.retrieve, entity_id, top_k, min_confidence)
+
+    async def acount(self) -> int:
+        """Async wrapper for count(). Returns total node count without blocking."""
+        return await asyncio.to_thread(self.count)
+
+    # ------------------------------------------------------------------ #
+    # Internal Helpers
+    # ------------------------------------------------------------------ #
 
     def _row_to_node(self, row: sqlite3.Row) -> HLFMemoryNode:
         """Convert a warm-tier SQLite row to an HLFMemoryNode."""
