@@ -9,3 +9,6 @@ rules:
   - { id: "R-007", name: "Process Injection Block", regex_block: '(os\.system|subprocess\.call|eval\(|exec\(|__import__)', action: "DROP_AND_QUARANTINE" }
   - { id: "R-008", name: "Block raw OpenClaw keys", regex_block: 'openclaw(?::|")', action: "DROP" }
   - { id: "R-009", name: "Ast Aliasing Bypass Block", regex_block: '(import\s+\w+\s+as\s+\w+)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-010", name: "Path Traversal Block", regex_block: '(\.\./){2,}|(%2e%2e%2f){2,}', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-011", name: "SSRF Block", regex_block: '(https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|169\.254\.|10\.|192\.168\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[0-1]\.|::1|\[::1\]))|file://|gopher://', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-012", name: "Credential Leak Block", regex_block: '(private_key\s*[:=]|secret_key\s*[:=]|password\s*[:=]\s*["\x27][^"\x27]{6,})', action: "DROP_AND_QUARANTINE" }
