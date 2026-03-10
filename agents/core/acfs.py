@@ -24,6 +24,7 @@ import hashlib
 import logging
 import subprocess
 import tempfile
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -56,6 +57,13 @@ class ACFSWorktreeManager:
         auto_cleanup_hours: Hours after which stale worktrees are cleaned
     """
 
+    # Class-level worktree tracking — shared across ALL manager instances.
+    # Prevents exceeding system limits even with multiple managers.
+    _global_lock: threading.Lock = threading.Lock()
+    _global_count: int = 0
+    _global_registry: dict[str, str] = {}  # path -> agent_id
+    _GLOBAL_MAX: int = 32  # System-wide hard ceiling
+
     def __init__(
         self,
         repo_root: str | Path = ".",
@@ -74,6 +82,20 @@ class ACFSWorktreeManager:
             self.worktree_base_dir = Path(worktree_base_dir).resolve()
             self.worktree_base_dir.mkdir(parents=True, exist_ok=True)
 
+    @classmethod
+    def global_stats(cls) -> dict[str, Any]:
+        """Return the global worktree counter and registry for monitoring.
+
+        Thread-safe.  Suitable for dashboards and health checks.
+        """
+        with cls._global_lock:
+            return {
+                "global_count": cls._global_count,
+                "global_max": cls._GLOBAL_MAX,
+                "utilization": cls._global_count / cls._GLOBAL_MAX if cls._GLOBAL_MAX else 0,
+                "registry": dict(cls._global_registry),
+            }
+
     def create_worktree(self, agent_id: str, branch_name: str) -> str:
         """Create a new Git worktree for an agent.
 
@@ -87,11 +109,19 @@ class ACFSWorktreeManager:
         Raises:
             RuntimeError: If max worktree limit reached or git fails
         """
+        # Instance-level check
         if len(self._worktrees) >= self.max_worktrees:
             raise RuntimeError(
                 f"ACFS worktree limit reached ({self.max_worktrees}). "
                 f"Destroy existing worktrees first."
             )
+        # System-wide check
+        with self.__class__._global_lock:
+            if self.__class__._global_count >= self.__class__._GLOBAL_MAX:
+                raise RuntimeError(
+                    f"ACFS global worktree ceiling reached ({self.__class__._GLOBAL_MAX}). "
+                    f"Destroy existing worktrees across all managers first."
+                )
 
         # Create unique directory name
         wt_dir = self.worktree_base_dir / f"wt_{agent_id}_{branch_name.replace('/', '_')}"
@@ -120,13 +150,19 @@ class ACFSWorktreeManager:
         )
         self._worktrees[wt_path] = info
 
+        # Update class-level global counter
+        with self.__class__._global_lock:
+            self.__class__._global_count += 1
+            self.__class__._global_registry[wt_path] = agent_id
+
         self._log_align("ACFS_WORKTREE_CREATED", {
             "agent_id": agent_id,
             "branch": branch_name,
             "path": wt_path,
+            "global_count": self.__class__._global_count,
         })
 
-        logger.info(f"ACFS: created worktree for {agent_id} at {wt_path}")
+        logger.info(f"ACFS: created worktree for {agent_id} at {wt_path} (global: {self.__class__._global_count})")
         return wt_path
 
     def destroy_worktree(self, worktree_path: str) -> None:
@@ -151,12 +187,18 @@ class ACFSWorktreeManager:
 
         self._worktrees.pop(worktree_path, None)
 
+        # Update class-level global counter
+        with self.__class__._global_lock:
+            self.__class__._global_count = max(0, self.__class__._global_count - 1)
+            self.__class__._global_registry.pop(worktree_path, None)
+
         self._log_align("ACFS_WORKTREE_DESTROYED", {
             "agent_id": agent_id,
             "path": worktree_path,
+            "global_count": self.__class__._global_count,
         })
 
-        logger.info(f"ACFS: destroyed worktree at {worktree_path}")
+        logger.info(f"ACFS: destroyed worktree at {worktree_path} (global: {self.__class__._global_count})")
 
     def list_worktrees(self) -> list[dict[str, Any]]:
         """Return all active worktrees with their agent assignments.
