@@ -37,6 +37,15 @@ from agents.core.tool_registry import ToolRegistry, ToolResult
 
 logger = logging.getLogger(__name__)
 
+# Module-level event type mapping (built once, never mutated).
+# Maps bridge event-key strings to EventType enum names, resolved lazily
+# inside _publish_event to avoid importing event_bus at module import time.
+_BRIDGE_EVENT_MAP: dict[str, str] = {
+    "TOOL_BRIDGE_NODE_START": "NODE_STARTED",
+    "TOOL_BRIDGE_NODE_COMPLETE": "NODE_COMPLETED",
+    "TOOL_BRIDGE_NODE_FAILED": "NODE_FAILED",
+}
+
 
 # --------------------------------------------------------------------------- #
 # Agent Execution Step
@@ -280,14 +289,73 @@ class SpindleToolBridge:
     # Internal
     # ------------------------------------------------------------------ #
 
+    def clear_traces(self) -> None:
+        """Clear all accumulated execution traces.
+
+        Useful between runs to prevent unbounded trace growth.
+        """
+        self._traces.clear()
+
+    def clear_sandboxes(self) -> None:
+        """Destroy all active sandboxes.
+
+        Call between missions to release worktree resources.
+        """
+        self._sandboxes.clear()
+
+    def summary(self) -> dict[str, Any]:
+        """Return a lightweight observability snapshot of this bridge.
+
+        Returns:
+            Dict with sandbox_count, trace_count, total_tool_calls,
+            total_duration, success_rate, and per-agent call counts.
+            When no traces have been collected yet, success_rate is
+            ``None`` (undefined — not 0.0 or 1.0 which would imply
+            evidence of failures or successes).
+        """
+        if not self._traces:
+            return {
+                "sandbox_count": self.sandbox_count,
+                "trace_count": 0,
+                "total_tool_calls": 0,
+                "total_duration": 0.0,
+                "success_rate": None,
+                "agents": {},
+            }
+
+        total_tool_calls = sum(t.total_tool_calls for t in self._traces)
+        total_duration = sum(t.total_duration for t in self._traces)
+        successes = sum(1 for t in self._traces if t.success)
+        agents: dict[str, int] = {}
+        for trace in self._traces:
+            agents[trace.agent_id] = agents.get(trace.agent_id, 0) + trace.total_tool_calls
+
+        return {
+            "sandbox_count": self.sandbox_count,
+            "trace_count": len(self._traces),
+            "total_tool_calls": total_tool_calls,
+            "total_duration": round(total_duration, 3),
+            "success_rate": round(successes / len(self._traces), 3),
+            "agents": agents,
+        }
+
     def _publish_event(self, event_type: str, payload: dict) -> None:
-        """Publish to event bus if available."""
+        """Publish to event bus if available.
+
+        Maps string event_type keys (via the module-level ``_BRIDGE_EVENT_MAP``)
+        to the typed ``EventType`` enum so callers don't need to import the enum.
+        """
         if self._event_bus is None:
             return
         try:
             from agents.core.event_bus import EventType, SpindleEvent
+
+            # Resolve string key → EventType using the module-level map
+            enum_name = _BRIDGE_EVENT_MAP.get(event_type, "NODE_COMPLETED")
+            resolved: EventType = EventType[enum_name]
+
             self._event_bus.publish(SpindleEvent(
-                event_type=EventType.NODE_COMPLETED,
+                event_type=resolved,
                 source=f"tool_bridge:{payload.get('node_id', 'unknown')}",
                 payload=payload,
             ))
@@ -300,7 +368,7 @@ class SpindleToolBridge:
     def _log_align(self, event: str, data: dict) -> None:
         """Log to ALIGN ledger."""
         try:
-            from agents.core.als_logger import ALSLogger
+            from agents.core.logger import ALSLogger
             als = ALSLogger()
             als.log(event, data)
         except ImportError:
