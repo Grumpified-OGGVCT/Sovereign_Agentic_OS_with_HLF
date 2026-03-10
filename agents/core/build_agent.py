@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from agents.core.agent_sandbox import AgentSandbox
+from agents.core.ast_validator import validate_code as _validate_code
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ class BuildResult:
         task_type: The type of check that was run.
         passed: Number of tests/checks that passed.
         failed: Number of tests/checks that failed.
+        skipped: Number of tests skipped (run_tests only).
         errors: Number of errors encountered.
         warnings: List of warning messages.
         output: Raw output from the tool.
@@ -61,6 +63,7 @@ class BuildResult:
     task_type: str = ""
     passed: int = 0
     failed: int = 0
+    skipped: int = 0
     errors: int = 0
     warnings: list[str] = field(default_factory=list)
     output: str = ""
@@ -85,7 +88,14 @@ class BuildAgent:
         agent_role: Persona role (for permission lookups).
     """
 
-    TASK_TYPES = {"run_tests", "run_lint", "validate_imports", "check_syntax"}
+    TASK_TYPES = {
+        "run_tests",
+        "run_lint",
+        "validate_imports",
+        "check_syntax",
+        "check_forbidden_calls",
+        "check_import_rules",
+    }
 
     def __init__(
         self,
@@ -131,6 +141,10 @@ class BuildAgent:
                 result = self._validate_imports(task, sandbox)
             elif task_type == "check_syntax":
                 result = self._check_syntax(task, sandbox)
+            elif task_type == "check_forbidden_calls":
+                result = self._check_forbidden_calls(task, sandbox)
+            elif task_type == "check_import_rules":
+                result = self._check_import_rules(task, sandbox)
             else:
                 result = BuildResult(
                     success=False,
@@ -185,11 +199,13 @@ class BuildAgent:
 
         # Parse pytest output for counts
         passed, failed, errors = self._parse_pytest_output(output)
+        skipped = self._parse_pytest_skipped(output)
 
         return BuildResult(
             success=tool_result.success,
             passed=passed,
             failed=failed,
+            skipped=skipped,
             errors=errors,
             output=output,
             error=tool_result.error if not tool_result.success else None,
@@ -206,9 +222,11 @@ class BuildAgent:
 
         Task fields:
             paths: Paths to lint (default: ".")
+            extra_args: Extra ruff arguments, e.g. "--select E,F --ignore E501"
         """
         paths = task.get("paths", ".")
-        tool_result = sandbox.run_lint(paths)
+        extra_args = task.get("extra_args", "")
+        tool_result = sandbox.run_lint(paths, extra_args=extra_args)
         output = tool_result.output or ""
 
         # Parse ruff output
@@ -223,7 +241,11 @@ class BuildAgent:
             warnings=violations[:10],  # Cap at 10 warnings
             output=output,
             error=tool_result.error if not is_clean else None,
-            metadata={"paths": paths, "violation_count": len(violations)},
+            metadata={
+                "paths": paths,
+                "violation_count": len(violations),
+                "all_violations": violations,
+            },
         )
 
     def _validate_imports(
@@ -331,8 +353,124 @@ class BuildAgent:
                 },
             )
 
+    def _check_forbidden_calls(
+        self, task: dict[str, Any], sandbox: AgentSandbox,
+    ) -> BuildResult:
+        """Scan a file for forbidden AST patterns (os.system, subprocess.*, eval, exec).
+
+        Uses ast_validator.validate_code() from the governance module.
+
+        Task fields:
+            path: Path to Python file to scan
+        """
+        path = task.get("path", "")
+        if not path:
+            return BuildResult(
+                success=False,
+                error="check_forbidden_calls requires 'path' field",
+            )
+
+        read_result = sandbox.read_file(path)
+        if not read_result.success:
+            return BuildResult(
+                success=False,
+                error=f"Cannot read {path}: {read_result.error}",
+            )
+
+        content = read_result.output
+        is_safe, violations = _validate_code(content)
+
+        return BuildResult(
+            success=is_safe,
+            passed=1 if is_safe else 0,
+            failed=0 if is_safe else 1,
+            errors=len(violations),
+            warnings=violations,
+            output=(
+                f"No forbidden patterns found in {path}"
+                if is_safe
+                else f"{len(violations)} forbidden pattern(s) found in {path}"
+            ),
+            error=f"{len(violations)} forbidden call(s) detected" if not is_safe else None,
+            metadata={"path": path, "violations": violations},
+        )
+
+    def _check_import_rules(
+        self, task: dict[str, Any], sandbox: AgentSandbox,
+    ) -> BuildResult:
+        """Check imports in a file against configurable forbidden prefixes.
+
+        Defaults to governance-defined forbidden prefixes when none are supplied.
+
+        Task fields:
+            path: Path to Python file to check
+            forbidden_prefixes: Optional list of forbidden import prefix strings.
+                Defaults to ["ctypes", "cffi"] from governance/module_import_rules.yaml.
+        """
+        # Governance-defined forbidden prefixes — mirrors governance/module_import_rules.yaml
+        # (M-001 forbidden_prefixes). Update both locations when adding new rules.
+        _GOVERNANCE_FORBIDDEN_PREFIXES = ["ctypes", "cffi"]
+
+        path = task.get("path", "")
+        if not path:
+            return BuildResult(
+                success=False,
+                error="check_import_rules requires 'path' field",
+            )
+
+        forbidden: list[str] = task.get("forbidden_prefixes", _GOVERNANCE_FORBIDDEN_PREFIXES)
+
+        read_result = sandbox.read_file(path)
+        if not read_result.success:
+            return BuildResult(
+                success=False,
+                error=f"Cannot read {path}: {read_result.error}",
+            )
+
+        content = read_result.output
+        try:
+            tree = ast.parse(content)
+        except SyntaxError as e:
+            return BuildResult(
+                success=False,
+                errors=1,
+                error=f"Syntax error prevents import rule check: {e}",
+                metadata={"path": path},
+            )
+
+        imported_modules: list[str] = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imported_modules.append(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                if module:
+                    imported_modules.append(module)
+
+        violations: list[str] = []
+        for module in imported_modules:
+            for prefix in forbidden:
+                if module == prefix or module.startswith(f"{prefix}."):
+                    violations.append(
+                        f"Forbidden import '{module}' matches rule '{prefix}'"
+                    )
+                    break
+
+        return BuildResult(
+            success=len(violations) == 0,
+            passed=len(imported_modules) - len(violations),
+            failed=len(violations),
+            warnings=violations,
+            output=(
+                f"Checked {len(imported_modules)} import(s); "
+                f"{len(violations)} violation(s) found"
+            ),
+            error=f"{len(violations)} forbidden import(s) detected" if violations else None,
+            metadata={"path": path, "imports_checked": len(imported_modules)},
+        )
+
     # ------------------------------------------------------------------ #
-    # Output Parsers
     # ------------------------------------------------------------------ #
 
     @staticmethod
@@ -366,6 +504,20 @@ class BuildAgent:
         return passed, failed, errors
 
     @staticmethod
+    def _parse_pytest_skipped(output: str) -> int:
+        """Parse pytest summary line for skipped test count.
+
+        Handles formats like:
+            "5 passed, 2 skipped in 3.45s"
+            "10 passed, 1 skipped, 1 warning in 1.23s"
+
+        Returns:
+            Number of skipped tests.
+        """
+        m = re.search(r"(\d+)\s+skipped", output)
+        return int(m.group(1)) if m else 0
+
+    @staticmethod
     def _parse_ruff_output(output: str) -> list[str]:
         """Parse ruff output for violation messages.
 
@@ -396,6 +548,35 @@ class BuildAgent:
     def all_passing(self) -> bool:
         """True if all executed tasks succeeded."""
         return all(r.success for r in self._results) if self._results else True
+
+    @property
+    def summary(self) -> dict[str, Any]:
+        """Aggregate summary of all executed tasks.
+
+        Returns:
+            Dict with total_tasks, total_passed, total_failed, total_errors,
+            total_skipped, all_passing, and per-type breakdown.
+        """
+        per_type: dict[str, dict[str, int]] = {}
+        for r in self._results:
+            entry = per_type.setdefault(r.task_type, {
+                "count": 0, "passed": 0, "failed": 0, "errors": 0, "skipped": 0,
+            })
+            entry["count"] += 1
+            entry["passed"] += r.passed
+            entry["failed"] += r.failed
+            entry["errors"] += r.errors
+            entry["skipped"] += r.skipped
+
+        return {
+            "total_tasks": len(self._results),
+            "total_passed": sum(r.passed for r in self._results),
+            "total_failed": sum(r.failed for r in self._results),
+            "total_errors": sum(r.errors for r in self._results),
+            "total_skipped": sum(r.skipped for r in self._results),
+            "all_passing": self.all_passing,
+            "by_type": per_type,
+        }
 
     # ------------------------------------------------------------------ #
     # Internal
