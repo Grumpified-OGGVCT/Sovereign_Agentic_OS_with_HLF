@@ -6,12 +6,18 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel redundant runs on PRs to save CI minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 permissions:
   contents: read
 
 jobs:
   vulnerability-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -30,10 +36,11 @@ jobs:
 
   ensure-no-sandbox-in-prod:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Check OLLAMA_ALLOW_OPENCLAW not in production compose
         run: |
           if grep -q "OLLAMA_ALLOW_OPENCLAW=1" docker-compose.yml; then
@@ -45,12 +52,13 @@ jobs:
   deep-install-verify:
     needs: ensure-no-sandbox-in-prod
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install uv
@@ -63,12 +71,13 @@ jobs:
   lint-and-test:
     needs: [ensure-no-sandbox-in-prod, deep-install-verify]
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install uv
@@ -82,17 +91,18 @@ jobs:
       - name: Run HLF token lint
         run: uv run python scripts/hlf_token_lint.py
       - name: Run pytest
-        run: uv run python -m pytest tests/ -v
+        run: uv run python -m pytest tests/ -v --tb=short
 
   grammar-tests:
     needs: [ensure-no-sandbox-in-prod, deep-install-verify]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Install uv
@@ -102,17 +112,18 @@ jobs:
       - name: Build parser
         run: bash scripts/build/parser-build.sh
       - name: Run HLF grammar roundtrip tests
-        run: uv run python -m pytest tests/test_grammar_roundtrip.py -v
+        run: uv run python -m pytest tests/test_grammar_roundtrip.py -v --tb=short
 
   validate-models:
     needs: ensure-no-sandbox-in-prod
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - name: Validate settings.json model whitelists

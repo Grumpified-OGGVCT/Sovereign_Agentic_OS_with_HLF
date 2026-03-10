@@ -8,15 +8,16 @@ on:
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
       contents: write
       packages: write
       id-token: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -27,7 +28,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Run tests before release
-        run: uv run pytest tests/ -v
+        run: uv run pytest tests/ -v --tb=short
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -40,7 +41,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.base
@@ -66,7 +67,7 @@ jobs:
             -o spdx-json > sbom.spdx.json
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: sbom
           path: sbom.spdx.json
