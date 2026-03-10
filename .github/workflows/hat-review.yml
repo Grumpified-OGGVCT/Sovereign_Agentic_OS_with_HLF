@@ -16,10 +16,10 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -59,7 +59,7 @@ jobs:
       # Upload the review as an artifact for reference
       - name: Upload review artifact
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: hat-review-pr${{ github.event.pull_request.number }}
           path: hat_review.md
