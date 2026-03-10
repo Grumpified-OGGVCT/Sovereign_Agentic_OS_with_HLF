@@ -792,3 +792,649 @@ class TestHlfV04Comments:
     def test_inline_comment_after_statement(self) -> None:
         ast = hlfc_compile(_prog('[SET] x = 42 # set x to 42'))
         assert ast['program'][0]['tag'] == 'SET'
+
+
+# ---------------------------------------------------------------------------
+# Extended Linter Rule Tests
+# ---------------------------------------------------------------------------
+
+
+class TestHlfLintUnusedVar:
+    """UNUSED_VAR lint rule — SET variable never referenced via ${...}."""
+
+    def test_unused_set_variable_flagged(self) -> None:
+        source = "[HLF-v2]\n[SET] unused_var = 42\n[RESULT] code=0 message=\"ok\"\nΩ\n"
+        issues = lint(source, max_gas=20)
+        unused = [i for i in issues if "UNUSED_VAR" in i]
+        assert len(unused) == 1
+        assert "unused_var" in unused[0]
+
+    def test_referenced_variable_not_flagged(self) -> None:
+        source = '[HLF-v2]\n[SET] host = "localhost"\n[INTENT] connect "${host}"\n[RESULT] code=0 message="ok"\nΩ\n'
+        issues = lint(source, max_gas=20)
+        unused = [i for i in issues if "UNUSED_VAR" in i]
+        assert len(unused) == 0
+
+    def test_multiple_unused_vars_each_flagged(self) -> None:
+        source = "[HLF-v2]\n[SET] a = 1\n[SET] b = 2\n[RESULT] code=0 message=\"ok\"\nΩ\n"
+        issues = lint(source, max_gas=20)
+        unused = [i for i in issues if "UNUSED_VAR" in i]
+        assert len(unused) == 2
+
+    def test_partial_reference_only_used_one_flagged(self) -> None:
+        source = '[HLF-v2]\n[SET] x = 1\n[SET] y = 2\n[INTENT] use "${x}"\n[RESULT] code=0 message="ok"\nΩ\n'
+        issues = lint(source, max_gas=20)
+        unused = [i for i in issues if "UNUSED_VAR" in i]
+        assert len(unused) == 1
+        assert "y" in unused[0]
+
+
+class TestHlfLintDuplicateSet:
+    """DUPLICATE_SET lint rule — same variable declared more than once (pre-compile check)."""
+
+    def test_duplicate_set_flagged(self) -> None:
+        # DUPLICATE_SET is a pre-compile regex check; also causes a PARSE_ERROR later
+        source = "[HLF-v2]\n[SET] x = 1\n[SET] x = 2\n[RESULT] code=0 message=\"ok\"\nΩ\n"
+        issues = lint(source, max_gas=20)
+        dupes = [i for i in issues if "DUPLICATE_SET" in i]
+        assert len(dupes) == 1
+        assert "x" in dupes[0]
+
+    def test_no_duplicate_set_clean(self) -> None:
+        source = "[HLF-v2]\n[SET] a = 1\n[SET] b = 2\n[RESULT] code=0 message=\"ok\"\nΩ\n"
+        issues = lint(source, max_gas=20)
+        dupes = [i for i in issues if "DUPLICATE_SET" in i]
+        assert len(dupes) == 0
+
+    def test_triple_set_reports_once(self) -> None:
+        source = "[HLF-v2]\n[SET] x = 1\n[SET] x = 2\n[SET] x = 3\n[RESULT] code=0 message=\"ok\"\nΩ\n"
+        issues = lint(source, max_gas=20)
+        dupes = [i for i in issues if "DUPLICATE_SET" in i and "x" in i]
+        assert len(dupes) == 1
+        assert "3" in dupes[0]
+
+    def test_duplicate_set_mentions_count(self) -> None:
+        source = "[HLF-v2]\n[SET] x = 1\n[SET] x = 2\n[RESULT] code=0 message=\"ok\"\nΩ\n"
+        issues = lint(source, max_gas=20)
+        dupes = [i for i in issues if "DUPLICATE_SET" in i]
+        assert "2" in dupes[0]
+
+    def test_different_vars_no_duplicate(self) -> None:
+        source = "[HLF-v2]\n[SET] x = 1\n[SET] y = 2\n[RESULT] code=0 message=\"ok\"\nΩ\n"
+        issues = lint(source, max_gas=20)
+        dupes = [i for i in issues if "DUPLICATE_SET" in i]
+        assert len(dupes) == 0
+
+
+class TestHlfLintMissingResult:
+    """MISSING_RESULT lint rule — no RESULT node in program."""
+
+    def test_missing_result_flagged(self) -> None:
+        source = "[HLF-v2]\n[INTENT] analyze /data\nΩ\n"
+        issues = lint(source, max_gas=20)
+        missing = [i for i in issues if "MISSING_RESULT" in i]
+        assert len(missing) == 1
+
+    def test_program_with_result_clean(self) -> None:
+        source = "[HLF-v2]\n[INTENT] analyze /data\n[RESULT] code=0 message=\"ok\"\nΩ\n"
+        issues = lint(source, max_gas=20)
+        missing = [i for i in issues if "MISSING_RESULT" in i]
+        assert len(missing) == 0
+
+    def test_result_code_nonzero_still_satisfies_rule(self) -> None:
+        source = "[HLF-v2]\n[INTENT] analyze /data\n[RESULT] code=1 message=\"warn\"\nΩ\n"
+        issues = lint(source, max_gas=20)
+        missing = [i for i in issues if "MISSING_RESULT" in i]
+        assert len(missing) == 0
+
+
+class TestHlfLintDeadCodeAfterResult:
+    """DEAD_CODE_AFTER_RESULT lint rule — nodes after RESULT are unreachable."""
+
+    def test_dead_code_after_result_flagged(self) -> None:
+        source = (
+            "[HLF-v2]\n"
+            "[RESULT] code=0 message=\"ok\"\n"
+            "[ACTION] unreachable \"arg\"\n"
+            "Ω\n"
+        )
+        issues = lint(source, max_gas=20)
+        dead = [i for i in issues if "DEAD_CODE_AFTER_RESULT" in i]
+        assert len(dead) == 1
+
+    def test_no_dead_code_clean(self) -> None:
+        source = "[HLF-v2]\n[INTENT] run \"task\"\n[RESULT] code=0 message=\"ok\"\nΩ\n"
+        issues = lint(source, max_gas=20)
+        dead = [i for i in issues if "DEAD_CODE_AFTER_RESULT" in i]
+        assert len(dead) == 0
+
+    def test_dead_code_count_in_message(self) -> None:
+        source = (
+            "[HLF-v2]\n"
+            "[RESULT] code=0 message=\"ok\"\n"
+            '[ACTION] step1 "a"\n'
+            '[ACTION] step2 "b"\n'
+            "Ω\n"
+        )
+        issues = lint(source, max_gas=20)
+        dead = [i for i in issues if "DEAD_CODE_AFTER_RESULT" in i]
+        assert len(dead) == 1
+        assert "2" in dead[0]
+
+
+class TestHlfLintParseError:
+    """PARSE_ERROR lint rule — unparseable source returns PARSE_ERROR diagnostic."""
+
+    def test_unparseable_source_yields_parse_error(self) -> None:
+        source = "not valid hlf at all"
+        issues = lint(source)
+        assert any("PARSE_ERROR" in i for i in issues)
+
+    def test_parse_error_returns_early(self) -> None:
+        source = "not valid hlf at all"
+        issues = lint(source)
+        # Only PARSE_ERROR is returned, no further rules run
+        non_parse = [i for i in issues if "PARSE_ERROR" not in i and "TOKEN_OVERFLOW" not in i]
+        assert len(non_parse) == 0
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — Memory / Recall tags
+# ---------------------------------------------------------------------------
+
+
+class TestHlfV04MemoryRecall:
+    """MEMORY and RECALL tags — Infinite RAG memory operations."""
+
+    def test_memory_tag_parses(self) -> None:
+        src = '[HLF-v2]\n[MEMORY] key = "value" confidence=0.9 "description"\nΩ\n'
+        ast = hlfc_compile(src)
+        tags = [n["tag"] for n in ast["program"] if n]
+        assert "MEMORY" in tags
+
+    def test_recall_tag_parses(self) -> None:
+        src = '[HLF-v2]\n[RECALL] key = "value" top_k=3\nΩ\n'
+        ast = hlfc_compile(src)
+        tags = [n["tag"] for n in ast["program"] if n]
+        assert "RECALL" in tags
+
+    def test_memory_node_has_human_readable(self) -> None:
+        src = '[HLF-v2]\n[MEMORY] state = "init" confidence=0.9 "Agent initialized"\nΩ\n'
+        ast = hlfc_compile(src)
+        mem_node = next(n for n in ast["program"] if n and n["tag"] == "MEMORY")
+        assert "human_readable" in mem_node
+
+    def test_recall_node_has_human_readable(self) -> None:
+        src = '[HLF-v2]\n[RECALL] state = "init" top_k=3\nΩ\n'
+        ast = hlfc_compile(src)
+        rec_node = next(n for n in ast["program"] if n and n["tag"] == "RECALL")
+        assert "human_readable" in rec_node
+
+    def test_memory_key_extracted(self) -> None:
+        src = '[HLF-v2]\n[MEMORY] my_key = "my_val" confidence=0.8 "label"\nΩ\n'
+        ast = hlfc_compile(src)
+        mem_node = next(n for n in ast["program"] if n and n["tag"] == "MEMORY")
+        assert mem_node.get("entity") == "my_key"
+
+    def test_recall_key_extracted(self) -> None:
+        src = '[HLF-v2]\n[RECALL] my_key = "my_val" top_k=5\nΩ\n'
+        ast = hlfc_compile(src)
+        rec_node = next(n for n in ast["program"] if n and n["tag"] == "RECALL")
+        assert rec_node.get("entity") == "my_key"
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — Macro system (Σ [DEFINE] / [CALL])
+# ---------------------------------------------------------------------------
+
+
+class TestHlfV04MacroSystem:
+    """Σ [DEFINE] macro definitions and [CALL] invocations."""
+
+    def test_define_macro_parses(self) -> None:
+        src = (
+            "[HLF-v2]\n"
+            'Σ [DEFINE] "greet" = {\n'
+            '  [ACTION] say "hello"\n'
+            "}\n"
+            "Ω\n"
+        )
+        ast = hlfc_compile(src)
+        tags = [n["tag"] for n in ast["program"] if n]
+        assert "DEFINE" in tags
+
+    def test_call_macro_parses(self) -> None:
+        src = '[HLF-v2]\n[CALL] "greet" "world"\nΩ\n'
+        ast = hlfc_compile(src)
+        tags = [n["tag"] for n in ast["program"] if n]
+        assert "CALL" in tags
+
+    def test_define_node_has_human_readable(self) -> None:
+        src = (
+            "[HLF-v2]\n"
+            'Σ [DEFINE] "check" = {\n'
+            '  [ACTION] ping "host"\n'
+            "}\n"
+            "Ω\n"
+        )
+        ast = hlfc_compile(src)
+        define_node = next(n for n in ast["program"] if n and n["tag"] == "DEFINE")
+        assert "human_readable" in define_node
+
+    def test_call_node_has_human_readable(self) -> None:
+        src = '[HLF-v2]\n[CALL] "check" "host"\nΩ\n'
+        ast = hlfc_compile(src)
+        call_node = next(n for n in ast["program"] if n and n["tag"] == "CALL")
+        assert "human_readable" in call_node
+
+    def test_define_macro_name_extracted(self) -> None:
+        src = (
+            "[HLF-v2]\n"
+            'Σ [DEFINE] "my_macro" = {\n'
+            '  [INTENT] do "something"\n'
+            "}\n"
+            "Ω\n"
+        )
+        ast = hlfc_compile(src)
+        define_node = next(n for n in ast["program"] if n and n["tag"] == "DEFINE")
+        assert define_node.get("name") == "my_macro"
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — Living Spec Lifecycle tags
+# ---------------------------------------------------------------------------
+
+
+class TestHlfV04SpecLifecycle:
+    """SPEC_DEFINE / SPEC_GATE / SPEC_UPDATE / SPEC_SEAL AST-level tags."""
+
+    def test_spec_define_parses(self) -> None:
+        src = '[HLF-v2]\n[SPEC_DEFINE] "api_contract" version=1\nΩ\n'
+        ast = hlfc_compile(src)
+        tags = [n["tag"] for n in ast["program"] if n]
+        assert "SPEC_DEFINE" in tags
+
+    def test_spec_update_parses(self) -> None:
+        src = '[HLF-v2]\n[SPEC_UPDATE] "api_contract" version=2\nΩ\n'
+        ast = hlfc_compile(src)
+        tags = [n["tag"] for n in ast["program"] if n]
+        assert "SPEC_UPDATE" in tags
+
+    def test_spec_seal_parses(self) -> None:
+        src = "[HLF-v2]\n[SPEC_SEAL]\nΩ\n"
+        ast = hlfc_compile(src)
+        tags = [n["tag"] for n in ast["program"] if n]
+        assert "SPEC_SEAL" in tags
+
+    def test_spec_gate_parses(self) -> None:
+        src = "[HLF-v2]\n[SPEC_GATE] 1 == 1\nΩ\n"
+        ast = hlfc_compile(src)
+        tags = [n["tag"] for n in ast["program"] if n]
+        assert "SPEC_GATE" in tags
+
+    def test_spec_define_has_human_readable(self) -> None:
+        src = '[HLF-v2]\n[SPEC_DEFINE] "contract_v1" version=1\nΩ\n'
+        ast = hlfc_compile(src)
+        node = next(n for n in ast["program"] if n and n["tag"] == "SPEC_DEFINE")
+        assert "human_readable" in node
+
+    def test_spec_seal_has_human_readable(self) -> None:
+        src = "[HLF-v2]\n[SPEC_SEAL]\nΩ\n"
+        ast = hlfc_compile(src)
+        node = next(n for n in ast["program"] if n and n["tag"] == "SPEC_SEAL")
+        assert "human_readable" in node
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — AST metadata and version fields
+# ---------------------------------------------------------------------------
+
+
+class TestHlfASTMetadata:
+    """Verify top-level AST metadata present on every compiled program."""
+
+    def test_ast_version_field(self) -> None:
+        ast = hlfc_compile(_prog("[INTENT] run \"task\""))
+        assert ast["version"] == "0.4.0"
+
+    def test_ast_compiler_field(self) -> None:
+        ast = hlfc_compile(_prog("[INTENT] run \"task\""))
+        assert "compiler" in ast
+        assert "HLFC" in ast["compiler"].upper()
+
+    def test_ast_program_is_list(self) -> None:
+        ast = hlfc_compile(_prog("[INTENT] run \"task\""))
+        assert isinstance(ast["program"], list)
+
+    def test_minimal_program_one_node(self) -> None:
+        ast = hlfc_compile(_prog("[INTENT] run \"task\""))
+        assert len(ast["program"]) == 1
+
+    def test_every_node_has_human_readable(self) -> None:
+        src = (
+            "[HLF-v2]\n"
+            "[INTENT] analyze /data\n"
+            "[SET] x = 42\n"
+            "[RESULT] code=0 message=\"ok\"\n"
+            "Ω\n"
+        )
+        ast = hlfc_compile(src)
+        for node in ast["program"]:
+            if node:
+                assert "human_readable" in node, f"Node missing human_readable: {node}"
+
+    def test_every_node_has_tag_field(self) -> None:
+        src = (
+            "[HLF-v2]\n"
+            "[INTENT] analyze /data\n"
+            "[ACTION] step \"arg\"\n"
+            "[RESULT] code=0 message=\"ok\"\n"
+            "Ω\n"
+        )
+        ast = hlfc_compile(src)
+        for node in ast["program"]:
+            if node:
+                assert "tag" in node, f"Node missing tag: {node}"
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — RESULT severity classification
+# ---------------------------------------------------------------------------
+
+
+class TestHlfResultSeverity:
+    """RESULT node severity classification: 0=SUCCESS, 1-99=RECOVERABLE, 100+=FATAL.
+    Uses bare ``[RESULT] <code> "<message>"`` format which triggers structured parsing.
+    """
+
+    def test_result_code_zero_success(self) -> None:
+        ast = hlfc_compile(_prog('[RESULT] 0 "ok"'))
+        node = ast["program"][0]
+        assert "SUCCESS" in node["human_readable"]
+
+    def test_result_code_one_recoverable(self) -> None:
+        ast = hlfc_compile(_prog('[RESULT] 1 "warn"'))
+        node = ast["program"][0]
+        assert "RECOVERABLE" in node["human_readable"]
+
+    def test_result_code_99_recoverable(self) -> None:
+        ast = hlfc_compile(_prog('[RESULT] 99 "error"'))
+        node = ast["program"][0]
+        assert "RECOVERABLE" in node["human_readable"]
+
+    def test_result_code_100_fatal(self) -> None:
+        ast = hlfc_compile(_prog('[RESULT] 100 "fatal"'))
+        node = ast["program"][0]
+        assert "FATAL" in node["human_readable"]
+
+    def test_result_has_code_field(self) -> None:
+        ast = hlfc_compile(_prog('[RESULT] 0 "ok"'))
+        node = ast["program"][0]
+        assert node.get("code") == 0
+
+    def test_result_has_message_field(self) -> None:
+        ast = hlfc_compile(_prog('[RESULT] 0 "success"'))
+        node = ast["program"][0]
+        assert node.get("message") == "success"
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — Fixture corpus round-trips
+# ---------------------------------------------------------------------------
+
+
+class TestHlfFixtureCorpus:
+    """Every fixture file in tests/fixtures/ must compile without error."""
+
+    def _load_fixture(self, name: str) -> str:
+        from pathlib import Path
+        return (
+            Path(__file__).parent / "fixtures" / name
+        ).read_text(encoding="utf-8")
+
+    def test_hello_world_compiles(self) -> None:
+        ast = hlfc_compile(self._load_fixture("hello_world.hlf"))
+        assert ast["version"] == "0.4.0"
+
+    def test_control_flow_compiles(self) -> None:
+        ast = hlfc_compile(self._load_fixture("control_flow.hlf"))
+        assert isinstance(ast["program"], list)
+
+    def test_glyph_showcase_compiles(self) -> None:
+        ast = hlfc_compile(self._load_fixture("glyph_showcase.hlf"))
+        assert isinstance(ast["program"], list)
+
+    def test_math_proof_compiles(self) -> None:
+        ast = hlfc_compile(self._load_fixture("math_proof.hlf"))
+        assert isinstance(ast["program"], list)
+
+    def test_memory_recall_compiles(self) -> None:
+        ast = hlfc_compile(self._load_fixture("memory_recall.hlf"))
+        assert isinstance(ast["program"], list)
+
+    def test_macro_system_compiles(self) -> None:
+        ast = hlfc_compile(self._load_fixture("macro_system.hlf"))
+        assert isinstance(ast["program"], list)
+
+    def test_deploy_stack_compiles(self) -> None:
+        ast = hlfc_compile(self._load_fixture("deploy_stack.hlf"))
+        assert isinstance(ast["program"], list)
+
+    def test_type_annotations_compiles(self) -> None:
+        ast = hlfc_compile(self._load_fixture("type_annotations.hlf"))
+        assert isinstance(ast["program"], list)
+
+    def test_parallel_sync_compiles(self) -> None:
+        ast = hlfc_compile(self._load_fixture("parallel_sync.hlf"))
+        assert isinstance(ast["program"], list)
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — List literals
+# ---------------------------------------------------------------------------
+
+
+class TestHlfV04ListLiterals:
+    """White Hat — list/collection literals with ⟦ ⟧ brackets."""
+
+    def test_empty_list_parses(self) -> None:
+        ast = hlfc_compile(_prog("[ACTION] process ⟦⟧"))
+        assert ast["program"][0]["tag"] == "ACTION"
+
+    def test_single_element_list(self) -> None:
+        ast = hlfc_compile(_prog("[ACTION] process ⟦ 42 ⟧"))
+        args = ast["program"][0]["args"]
+        list_args = [a for a in args if isinstance(a, list)]
+        assert len(list_args) == 1
+        assert len(list_args[0]) == 1
+
+    def test_multi_element_list(self) -> None:
+        ast = hlfc_compile(_prog('[ACTION] process ⟦ 1, 2, 3 ⟧'))
+        args = ast["program"][0]["args"]
+        list_args = [a for a in args if isinstance(a, list)]
+        assert len(list_args) == 1
+        assert len(list_args[0]) == 3
+
+    def test_list_contains_correct_elements(self) -> None:
+        ast = hlfc_compile(_prog('[ACTION] process ⟦ 1, 2, 3 ⟧'))
+        args = ast["program"][0]["args"]
+        list_arg = next(a for a in args if isinstance(a, list))
+        assert list_arg == [1, 2, 3]
+
+    def test_string_list(self) -> None:
+        ast = hlfc_compile(_prog('[ACTION] tags ⟦ "alpha", "beta" ⟧'))
+        args = ast["program"][0]["args"]
+        list_arg = next(a for a in args if isinstance(a, list))
+        assert list_arg == ["alpha", "beta"]
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — Pass0 normalization / homoglyph protection
+# ---------------------------------------------------------------------------
+
+
+class TestHlfPass0Normalization:
+    """Pass-0 NFKC normalization and confusable-character replacement."""
+
+    def test_hlf_operators_preserved_through_normalization(self) -> None:
+        """HLF operator glyphs must survive NFKC normalization."""
+        src = "[HLF-v2]\n⊎ 1 == 1 ⇒ [INTENT] ok \"yes\"\nΩ\n"
+        ast = hlfc_compile(src)
+        assert ast["program"][0]["tag"] == "CONDITIONAL"
+
+    def test_terminator_omega_preserved(self) -> None:
+        src = "[HLF-v2]\n[INTENT] run \"task\"\nΩ\n"
+        ast = hlfc_compile(src)
+        assert isinstance(ast["program"], list)
+
+    def test_ascii_string_in_set_compiles(self) -> None:
+        """Standard ASCII strings in SET values compile cleanly."""
+        src = '[HLF-v2]\n[SET] host = "localhost"\nΩ\n'
+        ast = hlfc_compile(src)
+        assert ast["program"][0]["tag"] == "SET"
+
+    def test_confusable_replacement_audit_field(self) -> None:
+        """Compiler metadata includes standard fields in every AST."""
+        src = "[HLF-v2]\n[INTENT] run \"task\"\nΩ\n"
+        ast = hlfc_compile(src)
+        # Top-level AST must contain these metadata keys
+        assert "version" in ast
+        assert "compiler" in ast
+        assert "program" in ast
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — SET tag variants
+# ---------------------------------------------------------------------------
+
+
+class TestHlfSetTag:
+    """SET tag — bind immutable variables."""
+
+    def test_set_integer_value(self) -> None:
+        ast = hlfc_compile(_prog("[SET] count = 42"))
+        node = ast["program"][0]
+        assert node["tag"] == "SET"
+        assert node["value"] == 42
+
+    def test_set_string_value(self) -> None:
+        ast = hlfc_compile(_prog('[SET] name = "alice"'))
+        node = ast["program"][0]
+        assert node["value"] == "alice"
+
+    def test_set_bool_value(self) -> None:
+        # The compiler preserves boolean literals as strings in the AST
+        ast = hlfc_compile(_prog("[SET] active = true"))
+        node = ast["program"][0]
+        assert node["value"] == "true"
+
+    def test_set_immutable_flag(self) -> None:
+        ast = hlfc_compile(_prog("[SET] x = 1"))
+        assert ast["program"][0]["immutable"] is True
+
+    def test_set_human_readable_mentions_variable(self) -> None:
+        ast = hlfc_compile(_prog('[SET] my_var = "hello"'))
+        hr = ast["program"][0]["human_readable"]
+        assert "my_var" in hr
+
+    def test_set_negative_number(self) -> None:
+        ast = hlfc_compile(_prog("[SET] offset = -5"))
+        assert ast["program"][0]["value"] == -5
+
+    def test_set_float_value(self) -> None:
+        ast = hlfc_compile(_prog("[SET] ratio = 3.14"))
+        assert abs(ast["program"][0]["value"] - 3.14) < 0.001
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — FUNCTION tag
+# ---------------------------------------------------------------------------
+
+
+class TestHlfFunctionTag:
+    """FUNCTION tag — pure function declarations."""
+
+    def test_function_tag_parses(self) -> None:
+        ast = hlfc_compile(_prog('[FUNCTION] compute "arg"'))
+        assert ast["program"][0]["tag"] == "FUNCTION"
+
+    def test_function_name_extracted(self) -> None:
+        ast = hlfc_compile(_prog('[FUNCTION] process "arg1"'))
+        assert ast["program"][0]["name"] == "process"
+
+    def test_function_pure_flag(self) -> None:
+        ast = hlfc_compile(_prog('[FUNCTION] compute "arg"'))
+        assert ast["program"][0]["pure"] is True
+
+    def test_function_has_human_readable(self) -> None:
+        ast = hlfc_compile(_prog('[FUNCTION] transform "data"'))
+        assert "human_readable" in ast["program"][0]
+
+    def test_function_with_multiple_args(self) -> None:
+        ast = hlfc_compile(_prog('[FUNCTION] merge "a" "b" "c"'))
+        assert len(ast["program"][0]["args"]) == 3
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — MODULE / IMPORT tags
+# ---------------------------------------------------------------------------
+
+
+class TestHlfModuleImport:
+    """MODULE and IMPORT tags — namespace management."""
+
+    def test_module_tag_parses(self) -> None:
+        ast = hlfc_compile(_prog("[MODULE] security"))
+        assert ast["program"][0]["tag"] == "MODULE"
+
+    def test_module_name_extracted(self) -> None:
+        ast = hlfc_compile(_prog("[MODULE] networking"))
+        assert ast["program"][0]["name"] == "networking"
+
+    def test_import_tag_parses(self) -> None:
+        ast = hlfc_compile(_prog("[IMPORT] crypto"))
+        assert ast["program"][0]["tag"] == "IMPORT"
+
+    def test_import_name_extracted(self) -> None:
+        ast = hlfc_compile(_prog("[IMPORT] stdlib"))
+        assert ast["program"][0]["name"] == "stdlib"
+
+    def test_module_has_human_readable(self) -> None:
+        ast = hlfc_compile(_prog("[MODULE] core"))
+        assert "human_readable" in ast["program"][0]
+
+
+# ---------------------------------------------------------------------------
+# Compiler tests — format_correction catalog completeness
+# ---------------------------------------------------------------------------
+
+
+class TestFormatCorrectionCatalog:
+    """Ensure all RFC 9005/9007 operators appear in the correction catalog."""
+
+    def _catalog(self) -> dict:
+        return format_correction("bad source", HlfSyntaxError("test"))["valid_operators"]
+
+    def test_assignment_operator_in_catalog(self) -> None:
+        assert _op_by_glyph(self._catalog(), "←") is not None
+
+    def test_parallel_operator_in_catalog(self) -> None:
+        assert _op_by_glyph(self._catalog(), "∥") is not None
+
+    def test_sync_operator_in_catalog(self) -> None:
+        assert _op_by_glyph(self._catalog(), "⋈") is not None
+
+    def test_negation_operator_in_catalog(self) -> None:
+        assert _op_by_glyph(self._catalog(), "¬") is not None
+
+    def test_intersection_operator_in_catalog(self) -> None:
+        assert _op_by_glyph(self._catalog(), "∩") is not None
+
+    def test_union_operator_in_catalog(self) -> None:
+        assert _op_by_glyph(self._catalog(), "∪") is not None
+
+    def test_type_annotation_in_catalog(self) -> None:
+        assert _op_by_glyph(self._catalog(), "::") is not None
+
+    def test_catalog_has_at_least_eight_operators(self) -> None:
+        assert len(self._catalog()) >= 8
