@@ -1,7 +1,7 @@
 # HLF Grammar Reference v0.4.0
 
 > Authoritative operator catalog for all agents. Consult before composing HLF.
-> RFC 9005 v3.0 + RFC 9007 | Updated: 2026-03-01
+> RFC 9005 v3.0 + RFC 9007 | Updated: 2026-03-10
 
 ---
 
