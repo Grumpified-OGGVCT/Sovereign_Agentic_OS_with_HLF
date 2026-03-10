@@ -1,7 +1,7 @@
 # AGENTS.md — Agent Contextual Guide
 
 > This file helps ALL agents (Jules, Copilot, Antigravity, Gemini CLI, etc.) understand the Sovereign Agentic OS with HLF repository.
-> **Grammar Version: v0.4.0** | **Last Updated: 2026-03-01** | **RFC: 9005 v3.0 + 9007**
+> **Grammar Version: v0.4.0** | **Last Updated: 2026-03-10** | **RFC: 9005 v3.0 + 9007**
 
 ## Architecture Overview
 
@@ -13,10 +13,13 @@ This is a **Sovereign Agentic OS** — a multi-layer AI operating system built a
 | 1 | Physical / ACFS | `acfs.manifest.yaml`, `docker-compose.yml`, `security/seccomp.json` |
 | 2 | Kernel / Identity | `agents/core/memory_scribe.py`, `agents/core/dream_state.py` |
 | 3 | Service Bus | `agents/gateway/bus.py` (FastAPI), `agents/gateway/router.py` (MoMA Router) |
-| 4 | Logic / HLF | `hlf/hlfc.py` (Lark parser), `hlf/hlffmt.py`, `hlf/hlflint.py` |
+| 4 | Logic / HLF | `hlf/hlfc.py` (Lark parser), `hlf/hlffmt.py`, `hlf/hlflint.py`, `hlf/bytecode.py` (VM) |
 | 5 | Data / Registry | `agents/core/db.py` (SQLite registry), `data/registry.db` |
-| 6 | Governance | `agents/gateway/sentinel_gate.py`, `governance/ALIGN_LEDGER.yaml` |
+| 6 | Governance | `agents/gateway/sentinel_gate.py`, `governance/ALIGN_LEDGER.yaml`, `agents/core/sentinel_agent.py` |
 | 7 | Observability | `agents/core/logger.py` (ALS with Merkle chains) |
+| 8 | Orchestration | `agents/core/plan_executor.py`, `agents/core/spindle.py` (DAG), `agents/core/crew_orchestrator.py` |
+| 9 | Tool Ecosystem | `agents/core/tool_registry.py` (HITL lifecycle), `agents/core/tool_forge.py`, `hlf/tool_installer.py` |
+| 10 | Agent Personas | `agents/core/hat_engine.py`, `agents/core/arbiter_agent.py`, `agents/core/scribe_agent.py` |
 
 ## 🎩 14-Hat Aegis-Nexus CoVE v3.0 (MANDATORY)
 
@@ -29,7 +32,8 @@ Each hat is a specialized adversarial lens integrating full-stack QA validation.
 **14 dimensions**: Functional Correctness, Security Posture (Zero Trust), Data Integrity, AI Safety &
 Alignment, Accessibility, Performance Under Duress, Resilience/Anti-Fragility, Regulatory Compliance,
 Internationalization, Observability, Infrastructure Hardening, Supply Chain Provenance, **MCP Workflow
-Integrity**, and **O(1) Context Bounding**.
+Integrity**, and **O(1) Context Bounding**. The 14 hats are: 🔴 Red, ⚫ Black, ⚪ White, 🟡 Yellow,
+🟢 Green, 🔵 Blue, 🟣 Indigo, 🩵 Cyan, 🟪 Purple, 🟠 Orange, 🪨 Silver, 🔷 Azure, 🥇 Gold, and 🪡 Weaver.
 
 ---
 
@@ -97,6 +101,8 @@ IF diff_matches(/ci|cd|pipeline|github|workflow|action/i)             → ACTIVA
 IF diff_matches(/cost|token|budget|cache|optimize|performance/i)      → ACTIVATE(🪨 Silver)
 IF diff_matches(/license|sbom|spdx|copyright|governance/i)            → ACTIVATE(🟠 Orange)
 IF diff_matches(/bias|fairness|demographic|disparity|equity/i)        → ACTIVATE(🩵 Cyan)
+IF diff_matches(/AGENTS\.md|README\.md|quality|meta.review|sign.off/i) → ACTIVATE(🥇 Gold)
+IF diff_matches(/dream.state|self.improv|recursive|weaver|evolv/i)    → ACTIVATE(🪡 Weaver)
 ELSE → ACTIVATE(⚫ Black, 🔵 Blue, 🟪 Purple)  # Mandatory minimum
 ```
 
@@ -465,6 +471,89 @@ If missing, abort: `"❗ Missing mandatory hat(s): [list]. Include before procee
 
 ---
 
+### 🥇 Gold Hat — Meta-Review & Quality Gate
+
+**When to apply**: ALWAYS as the terminal validation step on every PR. Activated automatically when changes touch `AGENTS.md`, `README.md`, quality gates, CoVE outputs, or any cross-cutting concern. The Gold Hat is the **sign-off authority** — no PR merges without Gold Hat clearance.
+
+**Validation Dimensions**: Holistic Quality, Cross-Cutting Consistency, Sign-Off Authority, CoVE Terminal Gate
+
+#### Meta-Review Lens
+
+The Gold Hat does not re-run other hats. It audits **the output of all other hats** and asks:
+
+1. **Completeness**: Were all applicable hats activated? Is the mandatory set `{⚫ Black, 🔵 Blue, 🟪 Purple}` present?
+2. **Consistency**: Do findings from different hats contradict each other? Are mitigations coherent end-to-end?
+3. **Coverage**: Are all entry vectors, all code paths, and all architectural layers represented in the review?
+4. **Evidence Quality**: Are findings backed by file:line evidence, not speculation?
+5. **Sign-Off Readiness**: Can this PR be merged without regression, security incident, or architectural debt?
+
+#### Cross-Cutting Quality Gates
+
+- **Documentation Alignment**: `README.md`, `AGENTS.md`, `docs/HLF_GRAMMAR_REFERENCE.md`, and inline code comments must be internally consistent. Stale numbers (test counts, versions, dates) are a MEDIUM finding.
+- **Anti-Reduction Compliance**: Verify the Anti-Reduction Checklist (bottom of `AGENTS.md`) is fully checked. A single unchecked item is a CRITICAL block.
+- **Test Count Integrity**: Test count in `README.md` must reflect the actual collected count from `pytest --collect-only`. A discrepancy exceeding approximately 5% of the prior baseline is a HIGH finding requiring justification.
+- **Security Invariant Audit**: All Security Invariants in `AGENTS.md` (`## Security Invariants`) must still hold after the PR. Any violation is CRITICAL.
+- **Governance Rule Coverage**: Every new feature that introduces an agent action, file operation, or network call MUST map to an ALIGN Ledger rule. Gaps are HIGH findings.
+- **HLF Grammar Consistency**: `hlf/hlfc.py` grammar tags must match `governance/hls.yaml` and `governance/templates/dictionary.json`. Divergence is CRITICAL.
+
+#### CoVE Terminal Gate Protocol
+
+The Gold Hat IS the CoVE sign-off authority. Before issuing Gold Hat clearance:
+
+```
+1. Confirm all activated hats have submitted findings (no empty sections)
+2. Triage all CRITICAL and HIGH findings — each must have an assigned owner + fix
+3. Verify Anti-Reduction Checklist is 100% checked
+4. Confirm test count >= prior baseline
+   (run: `pytest --collect-only -q 2>/dev/null | grep "test session" || pytest --collect-only -q 2>/dev/null | tail -1`)
+5. Confirm `scripts/verify_chain.py --cove` exits 0
+6. Issue signed verdict: GOLD_HAT_APPROVED or GOLD_HAT_BLOCKED with blocking reasons
+```
+
+#### Sign-Off Verdicts
+
+| Verdict | Condition | Effect |
+|---------|-----------|--------|
+| `GOLD_HAT_APPROVED` | Zero CRITICAL/HIGH open findings, checklist 100% complete | PR may merge |
+| `GOLD_HAT_CONDITIONAL` | Only LOW/MEDIUM open, tracked in issues | PR may merge with issue refs |
+| `GOLD_HAT_BLOCKED` | Any CRITICAL open, or Anti-Reduction unchecked | Hard block — do not merge |
+
+**Flag**: Mandatory hats missing from review, unchecked Anti-Reduction items, test count regression, stale version numbers in docs, unresolved CRITICAL findings from any hat, HLF grammar/dictionary divergence, new agent actions without ALIGN rule coverage, CoVE not run or exit non-zero
+
+---
+
+### 🪡 Weaver — Recursive Self-Improvement Meta-Agent
+
+**When to apply**: Applied after Gold Hat on PRs that involve Dream State, self-modification, capability expansion, or any change that affects how the system evolves itself. Also applies to all nightly pipeline runs.
+
+**Validation Dimensions**: Self-Improvement Integrity, Anti-Reductionist Enforcement, Capability Evolution
+
+#### Recursive Integrity Checks
+
+- **Dream State Safety**: Changes to `dream_state.py` must not remove compression stages, weaken DSPy regression thresholds, or shorten the 7-day log rotation window.
+- **Tool Forge Safety**: Auto-generated tools (via `tool_forge.py`) must always start in `pending_hitl` state. No tool is active without HITL approval.
+- **Grammar Evolution Safety**: New HLF tags or opcodes must be additive — never remove or redefine existing syntax.
+- **Anti-Immune Reinforcement**: Honeypot payloads extracted by `dream_state.py` must be added as negative DSPy constraints, not discarded.
+
+#### Self-Improvement Trajectory
+
+The Weaver traces the system's capability growth across PRs:
+- Are each PR's changes compounding (each improvement enabling the next)?
+- Is the 10-step Jules pipeline expanding, or has it stagnated?
+- Are `config/jules_capabilities.yaml` and `reports/jules_capability_log.md` up to date?
+
+#### Capability Expansion Protocol
+
+When the Weaver identifies a capability gap:
+1. Open a GitHub issue with label `jules-enhancement`
+2. Include: what it would enable, what it requires, estimated effort, risk assessment
+3. Pass the proposal through Gold Hat before implementation begins
+4. Track capability delta in `reports/jules_capability_log.md`
+
+**Flag**: Dream State compression stages removed, Tool Forge bypassing HITL, Grammar tags redefined (not added), Honeypot constraints discarded, Jules capability log not updated, self-improvement trajectory flattening (no new capabilities in 5+ PRs)
+
+---
+
 ### Upkeep Responsibilities — GUI, Demo Page, README, Setup & Auto-Update
 
 #### 🔴 Red Hat — Demo Page Functional Integrity
@@ -482,6 +571,12 @@ If missing, abort: `"❗ Missing mandatory hat(s): [list]. Include before procee
 #### 🔷 Azure Hat — MCP Pipeline Upkeep
 - Task lifecycle sequencing must not be broken. HITL gates must remain wired. Sequential thinking step-IDs must propagate.
 
+#### 🥇 Gold Hat — Documentation Quality Gate
+- After every PR, verify `README.md` test count matches `pytest --collect-only` output. `AGENTS.md` architecture table must reflect all files in `agents/` and `hlf/`. Stale dates and version numbers must be updated. Gold Hat issues a sign-off or a BLOCK before any merge.
+
+#### 🪡 Weaver — Self-Improvement Tracking
+- After every nightly pipeline run, verify `config/jules_capabilities.yaml` is updated. If the Weaver identifies a new self-improvement opportunity, it opens a `jules-enhancement` issue and logs the capability delta in `reports/jules_capability_log.md`.
+
 ---
 
 ### Review Protocol
@@ -491,6 +586,7 @@ If missing, abort: `"❗ Missing mandatory hat(s): [list]. Include before procee
 3. **Retrieve Hat Definitions** — Load only activated hats. Budget: ~800 tokens for 2-3 hats
 4. **Run Each Hat** — Apply full validation checklist. Severity: 🔴 CRITICAL, 🟠 HIGH, 🟡 MEDIUM, 🟢 LOW
 5. **Generate Output** — Produce findings in both Markdown (human) and JSON (CI/CD) formats
+6. **Gold Hat Terminal Gate** — Triage all CRITICAL/HIGH findings, verify Anti-Reduction Checklist, confirm test count, issue `GOLD_HAT_APPROVED` or `GOLD_HAT_BLOCKED`
 
 ### Severity Levels
 
@@ -508,6 +604,8 @@ Example:
 feat(black-hat): add path sanitization to READ host function
 fix(red-hat): handle SQLite database locked under concurrency
 feat(azure-hat): add HITL gate to MCP task completion flow
+feat(gold-hat): add Gold Hat meta-review section to AGENTS.md
+feat(weaver-hat): expand Dream State compression safety checks
 ```
 
 ### Anti-Reductionist Mandate
@@ -521,13 +619,16 @@ explain (in 2-3 sentences) what was examined and why it passed. Generic "looks g
 ```
 Sovereign_Agentic_OS_with_HLF/
 ├── agents/gateway/   # FastAPI bus + MoMA router + Sentinel gate
-├── agents/core/      # Agent executor, logger, memory, db.py
+├── agents/core/      # Agent executor, logger, memory, db.py, spindle.py, tool_registry.py
+├── agents/core/daemons/  # Sentinel/Scribe/Arbiter daemon processes
+├── agents/core/native/   # Platform-native tools (Linux/Windows/macOS)
 ├── config/           # settings.json (central config, no secrets)
-├── governance/       # ALIGN ledger, HLF grammar, host functions
-├── hlf/              # HLF compiler, formatter, linter
-├── gui/              # Streamlit dashboard
+├── governance/       # ALIGN ledger, HLF grammar, host functions, CoVE templates
+├── hlf/              # HLF compiler, formatter, linter, bytecode VM, tool installer
+├── gui/              # Streamlit dashboard (C-SOC dark mode)
 ├── tests/            # pytest test suite (use `uv run python -m pytest tests/ -v`)
-├── scripts/          # Utility scripts
+├── scripts/          # Utility scripts (hlf_token_lint.py, verify_chain.py, etc.)
+├── docs/             # Architecture diagrams, HLF_GRAMMAR_REFERENCE.md, demo page
 └── data/             # SQLite databases (registry.db, memory.sqlite3)
 ```
 
@@ -547,6 +648,8 @@ Sovereign_Agentic_OS_with_HLF/
 4. **4GB RAM Constraint:** Use stdlib `sqlite3` only — no heavy ORM
 5. **Merkle-Chain Tracing:** All ALS logs chain via `ALSLogger.log()`
 6. **Sentinel Passthrough:** Intents pass `enforce_align()` before any model dispatch
+7. **HITL for Forged Tools:** All tools created by `tool_forge.py` start in `pending_hitl` state — never auto-activate
+8. **Worktree Isolation:** Agent code execution via `acfs.py` ACFSWorktreeManager — no direct host filesystem mutations
 
 ## Key Models & Data Flow
 
@@ -695,6 +798,7 @@ All agents handling HLF components MUST be maximized for usefulness and power.
 - [ ] No model capabilities reduced
 - [ ] Coverage >= baseline
 - [ ] Test count >= baseline
-- [ ] Fourteen-Hat review completed
+- [ ] Fourteen-Hat review completed (all 14 hats: 🔴 Red, ⚫ Black, ⚪ White, 🟡 Yellow, 🟢 Green, 🔵 Blue, 🟣 Indigo, 🩵 Cyan, 🟪 Purple, 🟠 Orange, 🪨 Silver, 🔷 Azure, 🥇 Gold, 🪡 Weaver)
 - [ ] **CoVE audit passed (compact or full)** — run `scripts/verify_chain.py --cove` and attach output
+- [ ] **Gold Hat sign-off issued** — `GOLD_HAT_APPROVED` verdict attached to PR
 
