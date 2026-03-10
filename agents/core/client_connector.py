@@ -54,7 +54,7 @@ SUPPORTED_CLIENTS: list[ClientConfig] = [
             "name": "Sovereign Gateway",
             "base_url": "http://127.0.0.1:4000/v1/",
             "api_key": "sovereign-local",
-            "models": ["gemini/gemini-3-pro", "ollama/qwen3:8b", "openai/gpt-4o"],
+            "models": ["gemini/gemini-3-pro", "qwen3-vl:235b-cloud", "openai/gpt-4o"],
         },
         description="Add as Custom OpenAI-compatible provider in MSTY settings",
         install_check="msty",
@@ -122,7 +122,7 @@ SUPPORTED_CLIENTS: list[ClientConfig] = [
             "tabAutocompleteModel": {
                 "title": "Sovereign Autocomplete",
                 "provider": "openai",
-                "model": "ollama/qwen3:8b",
+                "model": "gemini/gemini-3-pro",
                 "apiBase": "http://127.0.0.1:4000/v1/",
                 "apiKey": "sovereign-local",
             },

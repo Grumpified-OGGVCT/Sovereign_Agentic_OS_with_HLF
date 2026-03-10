@@ -362,7 +362,7 @@ class TestGovernance:
         return json.loads(path.read_text())
 
     def test_version_1_2_0(self) -> None:
-        assert self._load_hf()["version"] == "1.2.0"
+        assert self._load_hf()["version"] == "1.4.0"
 
     def test_7_native_functions(self) -> None:
         fns = [f for f in self._load_hf()["functions"] if f["backend"] == "native_bridge"]

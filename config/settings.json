@@ -1,9 +1,9 @@
 {
   "deployment_tier": "hearth",
   "models": {
-    "primary": "qwen3-vl:32b-cloud",
+    "primary": "qwen3-vl:235b-cloud",
     "reasoning": "qwen-max",
-    "summarization": "qwen:7b",
+    "summarization": "qwen3-vl:235b-cloud",
     "embedding": "nomic-embed-text"
   },
   "providers": {
@@ -123,15 +123,31 @@
     "port": 4000,
     "host": "127.0.0.1",
     "default_model": "gemini/gemini-3-pro",
-    "fallback_model": "ollama/qwen3:8b",
+    "fallback_model": "qwen3-vl:235b-cloud",
     "providers": {
       "google": { "enabled": true, "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/" },
-      "openai": { "enabled": false, "base_url": "https://api.openai.com/v1/" },
+      "ollama-cloud": { "enabled": true, "base_url": "https://ollama.com/", "env_keys": ["OLLAMA_API_KEY", "OLLAMA_2_API_KEY"] },
+      "openrouter": { "enabled": true, "base_url": "https://openrouter.ai/api/v1/" },
+      "openai": { "enabled": true, "base_url": "https://api.openai.com/v1/" },
       "anthropic": { "enabled": false, "base_url": "https://api.anthropic.com/v1/" },
       "groq": { "enabled": false, "base_url": "https://api.groq.com/openai/v1/" },
       "ollama": { "enabled": true, "base_url": "http://localhost:11434/v1/" }
     },
     "rate_limit_rpm": 60,
     "log_requests": true
+  },
+  "external_apps": {
+    "anythingllm": {
+      "enabled": true,
+      "host": "http://localhost:3001",
+      "workspace_slug": "sovereign-os-deterministic-ai-blueprint",
+      "api_key_env": "ANYTHINGLLM_API_KEY"
+    },
+    "msty": {
+      "enabled": true,
+      "host": "http://localhost:11434",
+      "default_model": "qwen3:32b",
+      "knowledge_stacks_path": "~/.msty/knowledge_stacks"
+    }
   }
 }

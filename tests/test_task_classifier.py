@@ -26,8 +26,8 @@ from agents.core.task_classifier import (
 class TestRegistry:
     """Tests that the task type registry is well-formed."""
 
-    def test_registry_has_48_types(self):
-        assert len(TASK_TYPE_REGISTRY) == 48
+    def test_registry_has_50_types(self):
+        assert len(TASK_TYPE_REGISTRY) == 50
 
     def test_all_entries_have_required_keys(self):
         required = {"category", "default_size", "gas", "agent"}
@@ -45,7 +45,7 @@ class TestRegistry:
 
     def test_vocabulary_summary_structure(self):
         summary = get_vocabulary_summary()
-        assert summary["total_types"] == 48
+        assert summary["total_types"] == 50
         assert summary["categories"] == len(TaskCategory)
         assert summary["fast_path_types"] == len(FAST_PATH_TYPES)
         assert "by_category" in summary

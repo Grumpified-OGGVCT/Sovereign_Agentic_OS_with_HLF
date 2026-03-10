@@ -157,7 +157,7 @@ class TestOllamaDispatcher:
     def test_default_config(self) -> None:
         dispatcher = OllamaDispatcher()
         assert "11434" in dispatcher.ollama_host
-        assert dispatcher.fallback_model == "qwen:7b"
+        assert dispatcher.fallback_model == "qwen3-vl:235b-cloud"
 
     def test_custom_config(self) -> None:
         dispatcher = OllamaDispatcher(

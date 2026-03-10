@@ -30,7 +30,7 @@ External apps are **not** plugins, adapters, or browser embeddings. They are HLF
 | App | HLF Host Functions | API Endpoint (default) |
 |-----|-------------------|-------------|
 | **LOLLMS** | `lollms.generate`, `lollms.rag_query`, `lollms.list_models`, `lollms.run_skill` | `http://localhost:9600` |
-| **MSTY Studio** | `msty.knowledge_query`, `msty.split_chat`, `msty.persona_run` | Local storage / API |
+| **MSTY Studio** | `msty.knowledge_query`, `msty.split_chat`, `msty.persona_run`, `msty.vibe_catalog` | `http://localhost:11434` (Ollama-compat) |
 | **AnythingLLM** | `anythingllm.workspace_query`, `anythingllm.agent_flow`, `anythingllm.list_docs` | `http://localhost:3001/api/v1/` |
 | **Jan.ai**¹ | `jan.generate`, `jan.list_models` | `http://localhost:1337` |
 
@@ -39,7 +39,7 @@ External apps are **not** plugins, adapters, or browser embeddings. They are HLF
 ## Phased Build Sequence
 
 ### Phase 1: Foundation
-- [ ] Register external app HLF host functions in `HostFunctionRegistry`
+- [x] Register external app HLF host functions in `HostFunctionRegistry`
 - [ ] Wire API-Keeper as credential vault persistence for `agents/core/model_gateway.py`
 - [ ] Wire SearXng_MCP as `WEB_SEARCH` backend in `agents/core/host_function_dispatcher.py`
 
@@ -52,6 +52,8 @@ External apps are **not** plugins, adapters, or browser embeddings. They are HLF
 - [ ] Structured outputs (Pydantic + Instructor) wrapping Model Gateway
 - [ ] MoE routing merge from moe-ollama-endpoint into `agents/core/model_gateway.py`
 - [ ] ollama_pulse → `CLOUD_CATALOG` auto-sync
+- [ ] Exa deep research → `EXA_DEEP_RESEARCH` sovereign-tier host function (luxury search, not default)
+- [x] MSTY Vibe CLI Proxy → `MSTY_VIBE_CATALOG` with `remote_model`/`remote_host` fingerprinting + TTL cache
 
 ### Phase 4: Autonomy
 - [ ] POMDP lifecycle upgrades (belief states, pre-act safety projection)
@@ -73,3 +75,16 @@ External apps are **not** plugins, adapters, or browser embeddings. They are HLF
 - ParisNeo LOLLMS (daily commits Mar 4-9, 2026)
 - MSTY Studio architecture (Knowledge Stacks, Shadow Persona, Split Chats)
 - AnythingLLM architecture (workspace RAG, no-code agent builder, Developer API)
+- Exa API best practices (`auto`, `fast`, `instant`, `deep` search types)
+
+## Expansion Notes
+
+> These capture nuanced ideas from architect-level discussions that expand scope and core purpose.
+
+1. **Exa Deep Research as Luxury Tier** — Exa's `deep` search type provides multi-step reasoning with structured JSON output. This should be wired as `EXA_DEEP_RESEARCH` at sovereign tier (highest gas cost) — the "when you absolutely need the best" option. Ollama/MSTY remain the default workhorses. Exa API key is available in `.venv/API_Keys_and_Credentials.md`.
+
+2. **Provider Hint → Tier Mapping Evolution** — The `provider_hint` field extracted from `remote_host` currently shows `ollama.com` for all cloud models proxied through MSTY. As MSTY adds direct Google/Copilot/Anthropic connections, the `remote_host` will diversify, enabling automatic tier classification without hardcoding (e.g., `api.google.com` → Ultimate tier, `api.github.com` → Pro tier).
+
+3. **HLF Self-Programming Aspiration** — The long-term vision is for the OS to write its own HLF programs to orchestrate these integrations. The current Python implementation establishes the contracts and behaviors that HLF will eventually drive natively through the bytecode VM.
+
+4. **MSTY Knowledge Stacks + Personas** — MSTY Knowledge Stacks are desktop-only (no API). MSTY Personas are UI wrappers around system prompts. Our agents subsystem provides stronger persona control. When MSTY exposes API access to Knowledge Stacks, it becomes a prime RAG integration target.

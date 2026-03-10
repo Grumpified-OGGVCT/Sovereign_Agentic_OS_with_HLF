@@ -38,9 +38,10 @@ def config() -> GatewayConfig:
     return GatewayConfig(
         port=4001,
         default_model="gemini/gemini-3-pro",
-        fallback_model="ollama/qwen3:8b",
+        fallback_model="qwen3-vl:235b-cloud",
         providers={
             "google": {"enabled": True, "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
+            "ollama-cloud": {"enabled": True, "base_url": "https://ollama.com/"},
             "ollama": {"enabled": True, "base_url": "http://localhost:11434/v1/"},
         },
     )
@@ -50,7 +51,7 @@ def config() -> GatewayConfig:
 def registry() -> ModelRegistry:
     r = ModelRegistry()
     r.register(ModelInfo(id="gemini/gemini-3-pro", provider="google", base_url="https://api.google.com"))
-    r.register(ModelInfo(id="ollama/qwen3:8b", provider="ollama", base_url="http://localhost:11434/v1/", is_local=True))
+    r.register(ModelInfo(id="qwen3-vl:235b-cloud", provider="ollama-cloud", base_url="https://ollama.com/", is_local=False))
     return r
 
 
@@ -144,14 +145,14 @@ class TestRequestRouter:
 
     def test_route_explicit(self, config: GatewayConfig, registry: ModelRegistry) -> None:
         router = RequestRouter(config, registry)
-        decision = router.route("ollama/qwen3:8b")
-        assert decision.model_id == "ollama/qwen3:8b"
-        assert decision.provider == "ollama"
+        decision = router.route("qwen3-vl:235b-cloud")
+        assert decision.model_id == "qwen3-vl:235b-cloud"
+        assert decision.provider == "ollama-cloud"
 
     def test_route_fallback(self, config: GatewayConfig, registry: ModelRegistry) -> None:
         router = RequestRouter(config, registry)
         decision = router.route("nonexistent/model")
-        assert decision.model_id == "ollama/qwen3:8b"
+        assert decision.model_id == "qwen3-vl:235b-cloud"
         assert decision.is_fallback is True
 
     def test_route_tracks_requests(self, config: GatewayConfig, registry: ModelRegistry) -> None:
@@ -167,6 +168,75 @@ class TestRequestRouter:
         router = RequestRouter(config, registry, vault=mock_vault)
         decision = router.route("gemini/gemini-3-pro")
         assert decision.api_key == "AIzaFakeKey"
+
+    def test_route_cloud_uses_key_rotator(self, config: GatewayConfig, registry: ModelRegistry) -> None:
+        """Cloud models use the ApiKeyRotator instead of the vault."""
+        from agents.core.model_gateway import ApiKeyRotator, _ollama_key_rotator
+        rotator = ApiKeyRotator.__new__(ApiKeyRotator)
+        rotator._keys = ["key_AAA", "key_BBB"]
+        rotator._index = 0
+        rotator._lock = __import__("threading").Lock()
+        import agents.core.model_gateway as gw_mod
+        original = gw_mod._ollama_key_rotator
+        try:
+            gw_mod._ollama_key_rotator = rotator
+            router = RequestRouter(config, registry)
+            d1 = router.route("qwen3-vl:235b-cloud")
+            d2 = router.route("qwen3-vl:235b-cloud")
+            assert d1.api_key == "key_AAA"
+            assert d2.api_key == "key_BBB"
+            # Wraps around
+            d3 = router.route("qwen3-vl:235b-cloud")
+            assert d3.api_key == "key_AAA"
+        finally:
+            gw_mod._ollama_key_rotator = original
+
+
+class TestApiKeyRotator:
+    def test_round_robin(self) -> None:
+        from agents.core.model_gateway import ApiKeyRotator
+        rotator = ApiKeyRotator.__new__(ApiKeyRotator)
+        rotator._keys = ["key1", "key2", "key3"]
+        rotator._index = 0
+        rotator._lock = __import__("threading").Lock()
+        assert rotator.next_key() == "key1"
+        assert rotator.next_key() == "key2"
+        assert rotator.next_key() == "key3"
+        assert rotator.next_key() == "key1"  # wraps
+
+    def test_empty(self) -> None:
+        from agents.core.model_gateway import ApiKeyRotator
+        rotator = ApiKeyRotator.__new__(ApiKeyRotator)
+        rotator._keys = []
+        rotator._index = 0
+        rotator._lock = __import__("threading").Lock()
+        assert rotator.next_key() == ""
+
+    def test_single_key(self) -> None:
+        from agents.core.model_gateway import ApiKeyRotator
+        rotator = ApiKeyRotator.__new__(ApiKeyRotator)
+        rotator._keys = ["only_one"]
+        rotator._index = 0
+        rotator._lock = __import__("threading").Lock()
+        assert rotator.next_key() == "only_one"
+        assert rotator.next_key() == "only_one"
+
+    def test_key_count(self) -> None:
+        from agents.core.model_gateway import ApiKeyRotator
+        rotator = ApiKeyRotator.__new__(ApiKeyRotator)
+        rotator._keys = ["a", "b"]
+        rotator._index = 0
+        rotator._lock = __import__("threading").Lock()
+        assert rotator.key_count == 2
+
+    def test_masked_keys(self) -> None:
+        from agents.core.model_gateway import ApiKeyRotator
+        rotator = ApiKeyRotator.__new__(ApiKeyRotator)
+        rotator._keys = ["super_secret_key_123"]
+        rotator._index = 0
+        rotator._lock = __import__("threading").Lock()
+        masked = rotator.all_keys()
+        assert masked == ["super_se..."]
 
 
 # ─── Gateway ─────────────────────────────────────────────────────────────────
@@ -197,14 +267,13 @@ class TestChatCompletion:
         resp = gateway.handle_chat_completion(req)
         assert resp["object"] == "chat.completion"
         assert "choices" in resp
-        assert resp["_gateway"]["provider"] in ("google", "ollama")
+        assert resp["_gateway"]["provider"] in ("google", "ollama-cloud", "ollama")
 
     def test_handle_chat_no_model(self, gateway: ModelGateway) -> None:
         req = {"messages": [{"role": "user", "content": "Hello"}]}
         resp = gateway.handle_chat_completion(req)
         # Should resolve to some model (default or fallback)
         assert resp["model"] is not None
-        assert "/" in resp["model"]  # provider/model format
 
     def test_handle_chat_unknown_model(self, gateway: ModelGateway) -> None:
         req = {"model": "unknown/model", "messages": []}

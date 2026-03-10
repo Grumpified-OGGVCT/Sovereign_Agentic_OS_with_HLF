@@ -159,6 +159,8 @@ TASK_TYPE_REGISTRY: dict[str, dict[str, Any]] = {
     "knowledge_query":  {"category": TaskCategory.RESEARCH,   "default_size": TaskSize.MICRO,  "gas": 2,  "agent": "research-agent"},
     "summarize":        {"category": TaskCategory.RESEARCH,   "default_size": TaskSize.SMALL,  "gas": 4,  "agent": "research-agent"},
     "analyze":          {"category": TaskCategory.RESEARCH,   "default_size": TaskSize.MEDIUM, "gas": 6,  "agent": "research-agent"},
+    "deep_research":    {"category": TaskCategory.RESEARCH,   "default_size": TaskSize.LARGE,  "gas": 20, "agent": "research-agent"},
+    "convergence_analysis": {"category": TaskCategory.RESEARCH, "default_size": TaskSize.MEDIUM, "gas": 12, "agent": "research-agent"},
 
     # ── DOCS ──────────────────────────────────────────────────────────
     "update_readme":    {"category": TaskCategory.DOCS,       "default_size": TaskSize.SMALL,  "gas": 3,  "agent": "docs-agent"},

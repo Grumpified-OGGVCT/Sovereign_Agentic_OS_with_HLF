@@ -641,3 +641,11 @@ def register_native_tools(registry: Any) -> None:
         register_cli_tools(registry)
     except Exception as exc:
         _logger.log("CLI_TOOLS_LOAD_ERROR", {"error": str(exc)})
+
+    # ── External App Tools (MSTY Studio, AnythingLLM) ────────────────────
+    try:
+        from agents.core.native.external_app_tools import register_external_app_tools
+        register_external_app_tools(registry)
+    except Exception as exc:
+        _logger.log("EXTERNAL_APP_TOOLS_LOAD_ERROR", {"error": str(exc)})
+

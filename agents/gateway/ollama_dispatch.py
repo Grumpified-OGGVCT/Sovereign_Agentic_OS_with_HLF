@@ -222,7 +222,7 @@ class OllamaDispatcher:
         openrouter_key: str = _OPENROUTER_API_KEY,
         timeout: float = _DEFAULT_TIMEOUT,
         stream_timeout: float = _STREAM_TIMEOUT,
-        fallback_model: str = "qwen:7b",
+        fallback_model: str = "qwen3-vl:235b-cloud",
         strategy: str = "",
     ):
         self.ollama_host = ollama_host.rstrip("/")

@@ -1,12 +1,12 @@
 """
-Tier 2A AI Tools — Ollama-powered utilities for the Sovereign OS tool registry.
+Tier 2A AI Tools — Gateway-routed utilities for the Sovereign OS tool registry.
 
-These tools leverage the local Ollama instance (with dual failover) to provide
-AI-powered capabilities at zero additional cost.  Each tool:
-  - Uses the existing Ollama HTTP API
+These tools route through the Sovereign Model Gateway (cloud-first) to provide
+AI-powered capabilities using the best available model.  Each tool:
+  - Routes through the Gateway (Gemini → OpenRouter → Ollama fallback)
+  - Falls back to direct Ollama only if OLLAMA_DEFAULT_MODEL is explicitly set
   - Respects gas metering (higher gas for LLM calls)
   - Is feature-flag gated via settings.json
-  - Automatically detects available models
 
 Usage:
     from agents.core.native.ai_tools import register_ai_tools
@@ -25,10 +25,13 @@ from agents.core.logger import ALSLogger
 
 _logger = ALSLogger(agent_role="ai-tools", goal_id="registration")
 
-# ── Ollama endpoints (reuses the OS-level config) ────────────────────────────
-OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+# ── Inference endpoints (cloud-first via Gateway) ────────────────────────────
+# Default: route through the Sovereign Model Gateway (cloud-first)
+# Override: set OLLAMA_DEFAULT_MODEL to force a specific local model
+_GATEWAY_HOST = os.environ.get("SOVEREIGN_GATEWAY", "http://127.0.0.1:4000")
+OLLAMA_HOST = os.environ.get("OLLAMA_HOST", _GATEWAY_HOST)
 OLLAMA_HOST_SECONDARY = os.environ.get("OLLAMA_HOST_SECONDARY", "")
-_DEFAULT_MODEL = os.environ.get("OLLAMA_DEFAULT_MODEL", "llama3.2")
+_DEFAULT_MODEL = os.environ.get("OLLAMA_DEFAULT_MODEL", "qwen3-vl:235b-cloud")
 
 
 def _ollama_generate(prompt: str, system: str = "", model: str | None = None) -> str:

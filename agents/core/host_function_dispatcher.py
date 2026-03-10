@@ -2,12 +2,19 @@
 Host Function Dispatcher — Phase 5.1 Standard Library runtime.
 
 Routes [ACTION] tag calls to the backend defined in governance/host_functions.json:
-  - builtin          : local Python implementation (SLEEP)
-  - dapr_file_read   : Dapr file binding  (direct fs fallback for local dev)
-  - dapr_file_write  : Dapr file binding  (direct fs fallback for local dev)
-  - dapr_http_proxy  : Dapr HTTP proxy    (httpx fallback for local dev)
-  - docker_orchestrator : Docker SDK      (Tier 2/3 only)
-  - dapr_container_spawn: Dapr sidecar    (no direct fallback — requires Dapr)
+  - builtin            : local Python implementation (SLEEP)
+  - dapr_file_read     : Dapr file binding  (direct fs fallback for local dev)
+  - dapr_file_write    : Dapr file binding  (direct fs fallback for local dev)
+  - dapr_http_proxy    : Dapr HTTP proxy    (httpx fallback for local dev)
+  - docker_orchestrator: Docker SDK         (Tier 2/3 only)
+  - dapr_container_spawn: Dapr sidecar      (no direct fallback — requires Dapr)
+  - native_bridge      : Platform Abstraction Layer (OS-level operations)
+  - anythingllm_api    : AnythingLLM Developer API (v1, REST, Bearer auth)
+  - msty_bridge        : MSTY Studio bridge (Ollama-compatible + Knowledge Stacks)
+
+  NOTE: The if-chain in _dispatch_backend_inner() is growing (9 backends).
+  A future refactor could use a dict[str, Callable] dispatch table.
+  Deferring to keep this diff minimal and the pattern familiar.
 
 Security guarantees enforced here:
   - Tier enforcement: request is rejected if the caller's tier is not in meta["tier"]
@@ -138,6 +145,10 @@ def _dispatch_backend_inner(backend: str, name: str, args: list, meta: dict) -> 
         return _tool_forge(args)
     if backend == "native_bridge":
         return _native_bridge(name, args, meta)
+    if backend == "anythingllm_api":
+        return _anythingllm_api(name, args, meta)
+    if backend == "msty_bridge":
+        return _msty_bridge(name, args, meta)
     raise RuntimeError(f"Unknown backend: {backend}")
 
 
@@ -433,3 +444,331 @@ def _native_bridge(name: str, args: list, meta: dict) -> Any:
         ])
 
     raise RuntimeError(f"Unknown native_bridge function: {name}")
+
+
+# --------------------------------------------------------------------------- #
+# AnythingLLM Developer API backend
+# --------------------------------------------------------------------------- #
+# REST API docs: http://localhost:3001/api/docs
+# Auth: Bearer token via ANYTHINGLLM_API_KEY env var
+# Desktop Assistant coexists without conflict — it's a UI overlay on the same backend.
+#
+# Expansion: ALLM_AGENT_FLOW (no-code agent builder) and ALLM_DESKTOP_CAPTURE
+# (native bridge → CTRL+/ hotkey) are Phase 2/4 candidates.
+# --------------------------------------------------------------------------- #
+
+
+def _anythingllm_api(name: str, args: list, meta: dict) -> Any:
+    """Route AnythingLLM host function calls to the Developer API (v1)."""
+    host = os.environ.get("ANYTHINGLLM_HOST", "http://localhost:3001")
+    api_key = os.environ.get("ANYTHINGLLM_API_KEY", "")
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        if name == "ALLM_LIST_WORKSPACES":
+            resp = httpx.get(
+                f"{host}/api/v1/workspaces",
+                headers=headers,
+                timeout=15.0,
+            )
+            resp.raise_for_status()
+            return resp.text
+
+        if name == "ALLM_WORKSPACE_CHAT":
+            slug = str(args[0]) if args else ""
+            message = str(args[1]) if len(args) > 1 else ""
+            mode = str(args[2]) if len(args) > 2 else "chat"
+            resp = httpx.post(
+                f"{host}/api/v1/workspace/{slug}/chat",
+                headers=headers,
+                json={"message": message, "mode": mode},
+                timeout=120.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            # Return the textResponse plus source citations if present
+            text_response = data.get("textResponse", "")
+            sources = data.get("sources", [])
+            if sources:
+                return json.dumps({"response": text_response, "sources": sources})
+            return text_response
+
+        if name == "ALLM_VECTOR_SEARCH":
+            slug = str(args[0]) if args else ""
+            query = str(args[1]) if len(args) > 1 else ""
+            resp = httpx.post(
+                f"{host}/api/v1/workspace/{slug}/vector-search",
+                headers=headers,
+                json={"query": query},
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            return resp.text
+
+        if name == "ALLM_ADD_DOCUMENT":
+            slug = str(args[0]) if args else ""
+            title = str(args[1]) if len(args) > 1 else "untitled"
+            content = str(args[2]) if len(args) > 2 else ""
+            resp = httpx.post(
+                f"{host}/api/v1/workspace/{slug}/document/add-texts",
+                headers=headers,
+                json={"texts": [{"title": title, "content": content}]},
+                timeout=30.0,
+            )
+            resp.raise_for_status()
+            return True
+
+        raise RuntimeError(f"Unknown anythingllm_api function: {name}")
+
+    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
+        _logger.log(
+            "ANYTHINGLLM_UNAVAILABLE",
+            {"name": name, "error": str(exc)[:120]},
+            anomaly_score=0.4,
+        )
+        return f"ALLM_UNAVAILABLE: {exc}"
+
+
+# --------------------------------------------------------------------------- #
+# MSTY Studio bridge backend
+# --------------------------------------------------------------------------- #
+# MSTY is a local-first desktop app (v2.5.0+, Feb 2026) with no formal REST API.
+# It uses Ollama-compatible endpoints under the hood for inference,
+# and stores Knowledge Stacks as local files for RAG.
+#
+# Bridge strategy (v1 — Ollama-compatible baseline):
+#   - Generation/persona/models → Ollama-compatible API at MSTY_HOST
+#   - Knowledge queries → Ollama API with RAG context prefix
+#   - Split chats → Sequential calls to each model, combined response
+#
+# MSTY Studio full feature surface (deep-dive research, March 2026):
+#   - Toolbox (MCP)      : Local STDIO/JSON + Streamable HTTP MCP servers
+#   - Vibe CLI Proxy     : Proxies CLI model providers including Antigravity,
+#                          Claude Code, Codex, Gemini, Copilot, iFlow
+#   - Live Contexts      : Real-time JSON endpoint injection into conversations
+#   - Knowledge Stacks   : Full RAG with Next-Gen reranking, folder sync,
+#                          PII scrubbing, chunk visualization.
+#                          ⚠ Desktop-only — NOT exposed via Remote Connections.
+#                          MSTY_KNOWLEDGE_QUERY requires co-located execution.
+#   - Crew Mode          : Multi-persona collaboration (v2.5.0)
+#   - Turnstiles         : Workflow sequencing with persona/tool chaining
+#   - Personas           : System-prompt presets (UI convenience layer).
+#                          Our 14-Hat + 19-agent framework is far more capable.
+#   - Remote Connections : Authenticated tunnel (Connection Token) exposing
+#                          local models, MCP tools, and real-time data via
+#                          a single proxy endpoint. Could replace raw Ollama
+#                          bridge in Phase 2 for full-stack MSTY access.
+#   - Workspaces         : Isolated environments with per-workspace settings
+#
+# Expansion candidates (Phase 2+):
+#   - MSTY_MCP_TOOL       : Invoke MSTY's MCP Toolbox directly from HLF
+#   - MSTY_LIVE_CONTEXT   : Inject real-time JSON endpoints as chat context
+#   - MSTY_CREW_RUN       : Launch a Crew Mode conversation with multiple personas
+#   - MSTY_TURNSTILE_EXEC : Execute a predefined Turnstile workflow
+#   - MSTY_VIBE_PROXY     : Route inference through MSTY's Vibe CLI Proxy
+#                          (could loop back to Antigravity — recursive HLF!)
+#   - MSTY_REMOTE_CONNECT : Full-stack access via Remote Tools Connector
+#                          (auth token, local+tunnel URLs, models+tools+data)
+#
+# User has lifetime license on both MSTY Studio and AnythingLLM.
+# --------------------------------------------------------------------------- #
+
+
+def _msty_bridge(name: str, args: list, meta: dict) -> Any:
+    """Route MSTY Studio host function calls through Ollama-compatible API."""
+    host = os.environ.get("MSTY_HOST", "http://localhost:11434")
+    default_model = os.environ.get("MSTY_DEFAULT_MODEL", "qwen3:32b")
+
+    try:
+        if name == "MSTY_VIBE_CATALOG":
+            # Dynamic provider fingerprinting with TTL-based auto-refresh.
+            # No hardcoded provider/tier mappings — new CLI providers added to
+            # MSTY Desktop will automatically appear as new family clusters.
+            force = bool(args[0]) if args else False
+            cache_ttl = int(os.environ.get("MSTY_CATALOG_TTL_SEC", "300"))  # 5m default
+
+            # Check cache (module-level)
+            now = __import__("time").time()
+            cached = getattr(_msty_bridge, "_catalog_cache", None)
+            if cached and not force and (now - cached["ts"]) < cache_ttl:
+                return cached["data"]
+
+            resp = httpx.get(f"{host}/api/tags", timeout=15.0)
+            resp.raise_for_status()
+            raw_models = resp.json().get("models", [])
+
+            # Classify each model using remote_model/remote_host as the
+            # primary cloud signal (populated by MSTY's Ollama-compatible API).
+            # Falls back to format/family heuristics only when those fields
+            # are absent.
+            catalog = {"local": [], "cloud": [], "image": [], "summary": {}}
+            for m in raw_models:
+                mname = m.get("name", "")
+                det = m.get("details", {})
+                fmt = det.get("format", "")
+                family = det.get("family", "")
+                remote_model = m.get("remote_model", "")
+                remote_host = m.get("remote_host", "")
+                entry = {
+                    "name": mname,
+                    "family": family,
+                    "params": det.get("parameter_size", ""),
+                    "quant": det.get("quantization_level", ""),
+                    "format": fmt,
+                    "remote_host": remote_host,
+                }
+
+                # Primary signal: remote_model/remote_host present → cloud
+                if remote_model or remote_host:
+                    entry["source"] = "cloud"
+                    # Extract provider hint from remote_host domain
+                    if remote_host:
+                        try:
+                            from urllib.parse import urlparse
+                            host_domain = urlparse(remote_host).hostname or ""
+                            entry["provider_hint"] = host_domain
+                        except Exception:
+                            entry["provider_hint"] = remote_host
+                    catalog["cloud"].append(entry)
+                elif fmt == "gguf":
+                    entry["source"] = "local"
+                    catalog["local"].append(entry)
+                elif fmt == "safetensors":
+                    entry["source"] = "local-image"
+                    catalog["image"].append(entry)
+                elif ":cloud" in mname or (not fmt and not family):
+                    # Fallback heuristic for models without remote fields
+                    entry["source"] = "cloud"
+                    catalog["cloud"].append(entry)
+                else:
+                    entry["source"] = "unknown"
+                    catalog["local"].append(entry)
+
+            # Build family cluster summary for cloud models
+            family_clusters = {}
+            for m in catalog["cloud"]:
+                fam = m["family"] if m["family"] else "(unknown-provider)"
+                if fam not in family_clusters:
+                    family_clusters[fam] = []
+                family_clusters[fam].append(m["name"])
+
+            catalog["summary"] = {
+                "total": len(raw_models),
+                "local_count": len(catalog["local"]),
+                "cloud_count": len(catalog["cloud"]),
+                "image_count": len(catalog["image"]),
+                "cloud_family_clusters": {
+                    k: len(v) for k, v in family_clusters.items()
+                },
+                "cache_ttl_sec": cache_ttl,
+                "refreshed_at": now,
+            }
+
+            result = json.dumps(catalog)
+            # Store in cache
+            _msty_bridge._catalog_cache = {"ts": now, "data": result}
+            _logger.log(
+                "MSTY_VIBE_CATALOG",
+                {
+                    "total": catalog["summary"]["total"],
+                    "cloud": catalog["summary"]["cloud_count"],
+                    "local": catalog["summary"]["local_count"],
+                    "families": len(family_clusters),
+                    "forced": force,
+                },
+            )
+            return result
+
+        if name == "MSTY_LIST_MODELS":
+            resp = httpx.get(f"{host}/api/tags", timeout=10.0)
+            resp.raise_for_status()
+            return resp.text
+
+        if name == "MSTY_KNOWLEDGE_QUERY":
+            stack_name = str(args[0]) if args else ""
+            query = str(args[1]) if len(args) > 1 else ""
+            # Inject Knowledge Stack context as system prompt prefix
+            system_prompt = (
+                f"You are answering questions using the '{stack_name}' knowledge stack. "
+                f"Ground your answers in the documents from this stack. "
+                f"If the stack has no relevant information, say so explicitly."
+            )
+            resp = httpx.post(
+                f"{host}/api/generate",
+                json={
+                    "model": default_model,
+                    "prompt": query,
+                    "system": system_prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.3, "num_ctx": 8192},
+                },
+                timeout=120.0,
+            )
+            resp.raise_for_status()
+            result = resp.json().get("response", "").strip()
+            _logger.log(
+                "MSTY_KNOWLEDGE_QUERY",
+                {"stack": stack_name, "model": default_model, "preview": result[:80]},
+            )
+            return result
+
+        if name == "MSTY_PERSONA_RUN":
+            persona = str(args[0]) if args else "default"
+            prompt = str(args[1]) if len(args) > 1 else ""
+            system_prompt = (
+                f"You are the '{persona}' persona. Stay fully in character. "
+                f"Respond as this persona would, using their voice and expertise."
+            )
+            resp = httpx.post(
+                f"{host}/api/generate",
+                json={
+                    "model": default_model,
+                    "prompt": prompt,
+                    "system": system_prompt,
+                    "stream": False,
+                },
+                timeout=120.0,
+            )
+            resp.raise_for_status()
+            return resp.json().get("response", "").strip()
+
+        if name == "MSTY_SPLIT_CHAT":
+            models = list(args[0]) if args else []
+            prompt = str(args[1]) if len(args) > 1 else ""
+            if not models:
+                return "MSTY_SPLIT_CHAT_ERROR: No models specified"
+            # Sequential fan-out to each model, collect responses
+            responses = {}
+            for model in models:
+                try:
+                    resp = httpx.post(
+                        f"{host}/api/generate",
+                        json={
+                            "model": str(model),
+                            "prompt": prompt,
+                            "stream": False,
+                        },
+                        timeout=120.0,
+                    )
+                    resp.raise_for_status()
+                    responses[str(model)] = resp.json().get("response", "").strip()
+                except (httpx.RequestError, httpx.HTTPStatusError) as model_exc:
+                    responses[str(model)] = f"ERROR: {model_exc}"
+            _logger.log(
+                "MSTY_SPLIT_CHAT",
+                {"models": [str(m) for m in models], "response_count": len(responses)},
+            )
+            return json.dumps(responses)
+
+        raise RuntimeError(f"Unknown msty_bridge function: {name}")
+
+    except (httpx.RequestError, httpx.HTTPStatusError, PermissionError, OSError) as exc:
+        _logger.log(
+            "MSTY_UNAVAILABLE",
+            {"name": name, "error": str(exc)[:120]},
+            anomaly_score=0.4,
+        )
+        return f"MSTY_UNAVAILABLE: {exc}"

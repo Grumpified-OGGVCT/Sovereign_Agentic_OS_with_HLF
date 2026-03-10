@@ -20,7 +20,7 @@ Configuration (settings.json → "gateway"):
         "port": 4000,
         "host": "127.0.0.1",
         "default_model": "gemini/gemini-3-pro",
-        "fallback_model": "ollama/qwen3:8b",
+        "fallback_model": "qwen3-vl:235b-cloud",
         "rate_limit_rpm": 60,
         "log_requests": true
     }
@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 import threading
 from dataclasses import dataclass, field
@@ -38,8 +39,65 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# ── Cloud Model Detection ────────────────────────────────────────────────────
 
-# ─── Gateway Config ──────────────────────────────────────────────────────────
+def is_cloud_model(model_id: str) -> bool:
+    """Detect Ollama Cloud models by naming convention.
+
+    Patterns:
+      - model:cloud        (e.g., glm-4.6:cloud, kimi-k2.5:cloud)
+      - model:tag-cloud    (e.g., qwen3-coder:480b-cloud, qwen3-vl:32b-cloud)
+      - model-cloud        (e.g., legacy naming)
+    """
+    m = model_id.strip().lower()
+    if ":" in m:
+        tag = m.split(":")[-1]
+        return tag == "cloud" or tag.endswith("-cloud")
+    return m.endswith("-cloud")
+
+
+# ── API Key Rotation ─────────────────────────────────────────────────────────
+
+class ApiKeyRotator:
+    """Round-robin API key rotator for load sharing across multiple accounts.
+
+    Reads keys from env vars.  Falls back gracefully if only one key exists.
+    Thread-safe via itertools.cycle.
+    """
+
+    def __init__(self, env_vars: list[str] | None = None) -> None:
+        self._env_vars = env_vars or ["OLLAMA_API_KEY", "OLLAMA_2_API_KEY"]
+        self._keys: list[str] = []
+        for var in self._env_vars:
+            val = os.environ.get(var, "").strip()
+            if val:
+                self._keys.append(val)
+        self._index = 0
+        self._lock = threading.Lock()
+
+    @property
+    def key_count(self) -> int:
+        return len(self._keys)
+
+    def next_key(self) -> str:
+        """Return the next API key in round-robin order."""
+        if not self._keys:
+            return ""
+        with self._lock:
+            key = self._keys[self._index % len(self._keys)]
+            self._index += 1
+            return key
+
+    def all_keys(self) -> list[str]:
+        """Return all loaded keys (masked for logging)."""
+        return [k[:8] + "..." for k in self._keys]
+
+
+# Module-level rotator (loaded once from env)
+_ollama_key_rotator = ApiKeyRotator()
+
+
+# ── Gateway Config ───────────────────────────────────────────────────────────
 
 @dataclass
 class GatewayConfig:
@@ -49,7 +107,7 @@ class GatewayConfig:
     host: str = "127.0.0.1"
     port: int = 4000
     default_model: str = "gemini/gemini-3-pro"
-    fallback_model: str = "ollama/qwen3:8b"
+    fallback_model: str = "qwen3-vl:235b-cloud"
     rate_limit_rpm: int = 60
     log_requests: bool = True
     providers: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -206,14 +264,21 @@ class RequestRouter:
             provider = model_info.provider
             base_url = model_info.base_url
         else:
-            # Extract provider from model_id format "provider/model"
+            # Detect provider: explicit "provider/model" format, or cloud model
             parts = target.split("/", 1)
-            provider = parts[0] if len(parts) > 1 else "ollama"
-            base_url = self._config.providers.get(provider, {}).get("base_url", "")
+            if len(parts) > 1:
+                provider = parts[0]
+            elif is_cloud_model(target):
+                provider = "ollama-cloud"
+            else:
+                provider = "ollama-cloud"  # Cloud-first default
+            base_url = self._config.providers.get(provider, {}).get("base_url", "https://ollama.com/")
 
-        # Get API key from vault
+        # Get API key — use rotator for Ollama Cloud, vault for others
         api_key = ""
-        if self._vault:
+        if provider == "ollama-cloud" and _ollama_key_rotator.key_count > 0:
+            api_key = _ollama_key_rotator.next_key()
+        elif self._vault:
             try:
                 from agents.core.credential_vault import ProviderType
                 prov_type = ProviderType(provider)
@@ -301,13 +366,25 @@ class ModelGateway:
 
         # Always register fallback
         fb_parts = self._config.fallback_model.split("/", 1)
+        fb_model = self._config.fallback_model
+        # Detect cloud models by :cloud or :tag-cloud patterns
+        if is_cloud_model(fb_model):
+            fb_provider = "ollama-cloud"
+            fb_base = self._config.providers.get("ollama-cloud", {}).get("base_url", "https://ollama.com/")
+            fb_local = False
+        elif len(fb_parts) > 1:
+            fb_provider = fb_parts[0]
+            fb_base = self._config.providers.get(fb_provider, {}).get("base_url", "https://ollama.com/")
+            fb_local = fb_provider == "ollama"
+        else:
+            fb_provider = "ollama-cloud"
+            fb_base = "https://ollama.com/"
+            fb_local = False
         self._registry.register(ModelInfo(
-            id=self._config.fallback_model,
-            provider=fb_parts[0] if len(fb_parts) > 1 else "ollama",
-            base_url=self._config.providers.get(
-                fb_parts[0], {}
-            ).get("base_url", "http://localhost:11434/v1/"),
-            is_local=True,
+            id=fb_model,
+            provider=fb_provider,
+            base_url=fb_base,
+            is_local=fb_local,
         ))
 
     def register_model(self, model: ModelInfo) -> None:

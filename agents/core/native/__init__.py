@@ -62,6 +62,8 @@ def _load_native_config() -> dict[str, Any]:
             "process_list": True,
             "browseros": True,
             "cli_tools": True,
+            "msty_studio": True,
+            "anythingllm": True,
         },
         "shell": {
             "rate_limit_per_minute": 10,
