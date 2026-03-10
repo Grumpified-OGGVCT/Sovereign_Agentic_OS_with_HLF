@@ -1,11 +1,11 @@
 [HLF-v3]
-[SET] STACK sovereign-prod
-[SET] REPLICAS 3
-[SET] TIER forge
+[SET] STACK = "sovereign-prod"
+[SET] REPLICAS = 3
+[SET] TIER = "forge"
 ⌘ [DEPLOY] stack="${STACK}" replicas="${REPLICAS}"
-  Ж [CONSTRAINT] tier="${TIER}"
-  Ж [CONSTRAINT] health_check="true"
-  ∇ [PARAM] rollback_on_fail="true"
-  ⩕ [PRIORITY] level="urgent"
+Ж [CONSTRAINT] tier="${TIER}"
+Ж [CONSTRAINT] health_check="true"
+∇ [PARAM] rollback_on_fail="true"
+⩕ [PRIORITY] level="urgent"
 [RESULT] code=0 message="deploy_initiated"
 Ω

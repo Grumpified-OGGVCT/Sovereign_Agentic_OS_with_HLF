@@ -1,0 +1,8 @@
+[HLF-v2]
+# Type-annotated assignments — RFC 9005 §2.3
+count :: ℕ ← 42
+label :: 𝕊 ← "sovereign"
+active :: 𝔹 ← true
+Point ≡ { x: ℕ, y: ℕ }
+[RESULT] code=0 message="type_annotations_verified"
+Ω
