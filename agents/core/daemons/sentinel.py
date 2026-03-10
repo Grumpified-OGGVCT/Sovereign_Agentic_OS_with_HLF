@@ -33,6 +33,7 @@ class AlertSeverity(Enum):
     """Severity levels for Sentinel alerts."""
     INFO = "info"
     WARNING = "warning"
+    HIGH = "high"
     CRITICAL = "critical"
 
 
@@ -62,6 +63,40 @@ _INJECTION_PATTERNS = [
     re.compile(r";\s*DROP\s+TABLE", re.IGNORECASE),
     re.compile(r"<script\b", re.IGNORECASE),
     re.compile(r"\{\{.*\}\}", re.IGNORECASE),  # template injection
+    re.compile(r"<\?xml.*SYSTEM\b", re.IGNORECASE),  # XXE
+    re.compile(r"\bLDAP[Ii]nject|cn=.*\*\)", re.IGNORECASE),  # LDAP injection
+    re.compile(r"\bunion\s+select\b", re.IGNORECASE),  # SQL UNION injection
+    re.compile(r"javascript\s*:\s*", re.IGNORECASE),  # JS protocol injection
+    re.compile(r"vbscript\s*:\s*", re.IGNORECASE),  # VBScript protocol injection
+]
+
+# ─── Data Exfiltration Patterns ──────────────────────────────────────────────
+
+_EXFILTRATION_PATTERNS = [
+    re.compile(r"(?i)(password\s*[:=]\s*\S+)"),                           # password in payload
+    re.compile(r"[A-Za-z0-9+/]{80,}={0,2}"),                             # large base64 blob
+    re.compile(r"\b[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}\b"),  # credit card number
+    re.compile(r"\b[0-9]{3}-[0-9]{2}-[0-9]{4}\b"),                       # SSN
+    re.compile(r"(?i)(private_key|secret_key|api_key|bearer\s+[a-zA-Z0-9\-_.~+/]{20,})"),  # secrets
+    re.compile(r"(?i)(exfil|data\s+leak|dump\s+(db|database)|harvest.*cred)"),             # explicit exfil verbs
+]
+
+# ─── Config Tampering Patterns ───────────────────────────────────────────────
+
+_CONFIG_TAMPERING_PATTERNS = [
+    re.compile(r"(?i)(ALIGN_LEDGER|governance/|sentinel_gate\.py|settings\.json)"),  # governance files
+    re.compile(r"(?i)(open\s*\([^)]*['\"]w['\"]|write\s*\([^)]*governance)"),        # write to governance
+    re.compile(r"(?i)(_compiled_rules\s*=|_load_ledger\s*\()"),                      # overwrite sentinel internals
+    re.compile(r"(?i)(setattr\s*\(\s*sentinel|monkey.?patch.*sentinel)"),             # monkey-patching sentinel
+]
+
+# ─── SSRF / Path Traversal Patterns ─────────────────────────────────────────
+
+_SSRF_PATTERNS = [
+    re.compile(r"(?i)(https?://(localhost|127\.0\.0\.1|0\.0\.0\.0|169\.254\.|10\.|192\.168\.|172\.1[6-9]\.|172\.2[0-9]\.|172\.3[0-1]\.|::1|\[::1\]|\[::ffff:127\.0\.0\.1\]))"),  # SSRF to internal IPv4/IPv6
+    re.compile(r"(?i)(file://|gopher://|dict://|ftp://)"),                             # unsafe URL schemes
+    re.compile(r"(\.\./){2,}|(%2e%2e%2f){2,}", re.IGNORECASE),                        # path traversal (2+ levels)
+    re.compile(r"(?i)(/etc/passwd|/etc/shadow|/proc/self/environ|/proc/self/cmdline)"),  # sensitive file paths
 ]
 
 
@@ -168,6 +203,21 @@ class SentinelDaemon:
         if align_alert:
             alerts.append(align_alert)
 
+        # Check for data exfiltration
+        exfil_alert = self._check_data_exfiltration(event)
+        if exfil_alert:
+            alerts.append(exfil_alert)
+
+        # Check for config tampering
+        tamper_alert = self._check_config_tampering(event)
+        if tamper_alert:
+            alerts.append(tamper_alert)
+
+        # Check for SSRF / path traversal
+        ssrf_alert = self._check_ssrf(event)
+        if ssrf_alert:
+            alerts.append(ssrf_alert)
+
         # Record and emit
         self._alerts.extend(alerts)
         self._check_count += 1
@@ -202,9 +252,17 @@ class SentinelDaemon:
             "check_count": self._check_count,
             "total_alerts": len(self._alerts),
             "critical_alerts": len([a for a in self._alerts if a.severity == AlertSeverity.CRITICAL]),
+            "high_alerts": len([a for a in self._alerts if a.severity == AlertSeverity.HIGH]),
+            "warning_alerts": len([a for a in self._alerts if a.severity == AlertSeverity.WARNING]),
             "gas_history_size": len(self._gas_history),
             "last_check_ms": round(self._last_check_ms, 2),
         }
+
+    def clear_alerts(self) -> int:
+        """Clear all recorded alerts and return how many were cleared."""
+        count = len(self._alerts)
+        self._alerts = []
+        return count
 
     # ─── Detection Methods ───────────────────────────────────────────────
 
@@ -289,3 +347,48 @@ class SentinelDaemon:
             evidence={"rule": rule_id, "details": violation},
             recommendation=f"Review ALIGN rule {rule_id} compliance.",
         )
+
+    def _check_data_exfiltration(self, event: dict[str, Any]) -> SentinelAlert | None:
+        """Detect data exfiltration patterns in payload."""
+        payload = str(event.get("payload", ""))
+        for pattern in _EXFILTRATION_PATTERNS:
+            match = pattern.search(payload)
+            if match:
+                return SentinelAlert(
+                    pattern="data_exfiltration",
+                    severity=AlertSeverity.HIGH,
+                    source=event.get("source", "unknown"),
+                    evidence={"matched": match.group()[:80], "pattern": pattern.pattern},
+                    recommendation="Potential sensitive data exposure detected. Redact and review payload.",
+                )
+        return None
+
+    def _check_config_tampering(self, event: dict[str, Any]) -> SentinelAlert | None:
+        """Detect attempts to modify governance or sentinel configuration."""
+        payload = str(event.get("payload", ""))
+        for pattern in _CONFIG_TAMPERING_PATTERNS:
+            match = pattern.search(payload)
+            if match:
+                return SentinelAlert(
+                    pattern="config_tampering",
+                    severity=AlertSeverity.CRITICAL,
+                    source=event.get("source", "unknown"),
+                    evidence={"matched": match.group()[:80], "pattern": pattern.pattern},
+                    recommendation="Governance file modification attempt blocked. Route to human approval.",
+                )
+        return None
+
+    def _check_ssrf(self, event: dict[str, Any]) -> SentinelAlert | None:
+        """Detect SSRF and path traversal patterns in payload."""
+        payload = str(event.get("payload", ""))
+        for pattern in _SSRF_PATTERNS:
+            match = pattern.search(payload)
+            if match:
+                return SentinelAlert(
+                    pattern="ssrf_or_path_traversal",
+                    severity=AlertSeverity.HIGH,
+                    source=event.get("source", "unknown"),
+                    evidence={"matched": match.group()[:80], "pattern": pattern.pattern},
+                    recommendation="SSRF or path traversal attempt detected. Validate and sanitize URLs/paths.",
+                )
+        return None

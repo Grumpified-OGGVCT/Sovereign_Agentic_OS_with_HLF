@@ -32,8 +32,20 @@ _PRIVESC_PATTERNS: list[tuple[str, str]] = [
     (r"(?i)(setuid|setgid|linux_capabilities|cap_sys_admin)", "PRIVESC-003"),
     (r"(?i)(ptrace|SYS_ADMIN|CAP_SYS_PTRACE)", "PRIVESC-004"),
     (r"(?i)(token.*exfil|steal.*credential|dump.*secret)", "PRIVESC-005"),
+    (r"(?i)(nsenter|chroot\s+\/|unshare\s+--mount)", "PRIVESC-006"),   # container escape
+    (r"(?i)(python.*-c.*import\s+os.*system|perl\s+-e.*exec)", "PRIVESC-007"),  # shell via interpreter
 ]
 _COMPILED_PRIVESC: list[tuple[re.Pattern[str], str]] = [(re.compile(pat), rid) for pat, rid in _PRIVESC_PATTERNS]
+
+# Data exfiltration patterns
+_EXFIL_PATTERNS: list[tuple[str, str]] = [
+    (r"[A-Za-z0-9+/]{80,}={0,2}", "EXFIL-001"),                                         # large base64 blob
+    (r"(?i)(private_key|secret_key|api_key|bearer\s+[a-zA-Z0-9\-_.~+/]{20,})", "EXFIL-002"),  # embedded secrets
+    (r"\b[0-9]{3}-[0-9]{2}-[0-9]{4}\b", "EXFIL-003"),                                   # SSN pattern
+    (r"\b[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}[- ]?[0-9]{4}\b", "EXFIL-004"),            # credit card number
+    (r"(?i)(exfil|data\s+leak|dump\s+(db|database)|harvest.*cred)", "EXFIL-005"),       # explicit exfil verbs
+]
+_COMPILED_EXFIL: list[tuple[re.Pattern[str], str]] = [(re.compile(pat), rid) for pat, rid in _EXFIL_PATTERNS]
 
 # Redis stream names
 SENTINEL_EVENTS_STREAM = "sentinel_events"
@@ -42,6 +54,14 @@ _CONSUMER_GROUP = "sentinel-group"
 
 # Gas cost per scan
 SCAN_GAS_COST = 1
+
+# Thread-safe scan metrics
+_stats_lock = threading.Lock()
+_scan_count: int = 0
+_block_count: int = 0
+_exfil_block_count: int = 0
+_privesc_block_count: int = 0
+_align_block_count: int = 0
 
 
 @dataclass
@@ -73,6 +93,19 @@ def get_agent_profile() -> dict[str, Any]:
     }
 
 
+def get_stats() -> dict[str, Any]:
+    """Return Sentinel Agent scan statistics (thread-safe snapshot)."""
+    with _stats_lock:
+        return {
+            "scan_count": _scan_count,
+            "block_count": _block_count,
+            "align_block_count": _align_block_count,
+            "privesc_block_count": _privesc_block_count,
+            "exfil_block_count": _exfil_block_count,
+            "block_rate": round(_block_count / _scan_count, 4) if _scan_count else 0.0,
+        }
+
+
 def scan_payload(payload: str | dict[str, Any]) -> SentinelVerdict:
     """
     Scan a payload for security violations.
@@ -80,10 +113,16 @@ def scan_payload(payload: str | dict[str, Any]) -> SentinelVerdict:
     Evaluation order:
       1. ALIGN Ledger patterns (authoritative).
       2. Extended PrivEsc patterns.
+      3. Data exfiltration patterns.
 
     Returns a :class:`SentinelVerdict`.
     """
+    global _scan_count, _block_count, _align_block_count, _privesc_block_count, _exfil_block_count
+
     text = json.dumps(payload) if isinstance(payload, dict) else str(payload)
+
+    with _stats_lock:
+        _scan_count += 1
 
     # 1. ALIGN Ledger check
     blocked, rule_id = enforce_align(text)
@@ -93,6 +132,9 @@ def scan_payload(payload: str | dict[str, Any]) -> SentinelVerdict:
             {"rule_id": rule_id, "preview": text[:120]},
             anomaly_score=0.9,
         )
+        with _stats_lock:
+            _block_count += 1
+            _align_block_count += 1
         return SentinelVerdict(blocked=True, rule_id=rule_id, severity="HIGH", source="align")
 
     # 2. Extended PrivEsc patterns
@@ -103,7 +145,23 @@ def scan_payload(payload: str | dict[str, Any]) -> SentinelVerdict:
                 {"rule_id": rid, "preview": text[:120]},
                 anomaly_score=0.85,
             )
+            with _stats_lock:
+                _block_count += 1
+                _privesc_block_count += 1
             return SentinelVerdict(blocked=True, rule_id=rid, severity="CRITICAL", source="privesc")
+
+    # 3. Data exfiltration patterns
+    for pattern, rid in _COMPILED_EXFIL:
+        if pattern.search(text):
+            _logger.log(
+                "SENTINEL_BLOCKED_EXFIL",
+                {"rule_id": rid, "preview": text[:120]},
+                anomaly_score=0.8,
+            )
+            with _stats_lock:
+                _block_count += 1
+                _exfil_block_count += 1
+            return SentinelVerdict(blocked=True, rule_id=rid, severity="HIGH", source="exfil")
 
     return SentinelVerdict(blocked=False, source="clean")
 
