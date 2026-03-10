@@ -7,11 +7,40 @@ quick-access tools, and OS controls. Uses pystray (Win/Linux) or rumps (macOS).
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 import threading
+import webbrowser
+from pathlib import Path
 from typing import Any, Callable
 
 from agents.core.native.bridge import TrayMenuItem
+
+
+class _ServiceState:
+    """Tracks a managed subprocess lifecycle."""
+    __slots__ = ("name", "process", "running")
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.process: subprocess.Popen | None = None
+        self.running: bool = False
+
+    def start(self, cmd: list[str], *, env: dict | None = None, notify: Callable | None = None) -> None:
+        if self.running:
+            return
+        self.process = subprocess.Popen(cmd, env=env or os.environ.copy())
+        self.running = True
+        if notify:
+            notify(f"{self.name} started.")
+
+    def stop(self, notify: Callable | None = None) -> None:
+        if self.running and self.process:
+            self.process.terminate()
+            self.running = False
+            if notify:
+                notify(f"{self.name} stopped.")
 
 
 class SovereignTray:
@@ -28,6 +57,80 @@ class SovereignTray:
         self._backend: str | None = None
         self._tray: Any = None
         self._running = False
+
+        # Managed services (unified from gui/tray_manager.py)
+        self._backend_svc = _ServiceState("OS Backend")
+        self._gui_svc = _ServiceState("Command Center GUI")
+        self._mcp_svc = _ServiceState("MCP Server")
+
+    # ── Service Lifecycle ────────────────────────────────────────────────
+
+    def _notify(self, message: str) -> None:
+        """Send a tray notification if the backend supports it."""
+        if self._tray is not None:
+            try:
+                self._tray.notify(message)
+            except Exception:
+                pass
+        print(f"[Tray] {message}")
+
+    def start_backend(self, profile: str = "hearth") -> None:
+        """Start Docker Compose backend with the given profile."""
+        env = os.environ.copy()
+        env["DEPLOYMENT_TIER"] = profile
+        self._backend_svc.start(
+            ["docker", "compose", "--profile", profile, "up", "-d"],
+            env=env,
+            notify=self._notify,
+        )
+
+    def stop_backend(self) -> None:
+        """Stop Docker Compose backend."""
+        if self._backend_svc.running:
+            subprocess.Popen(["docker", "compose", "down"])
+            self._backend_svc.running = False
+            self._notify("OS Backend stopped.")
+
+    def start_gui(self, gui_path: str = "gui/app.py", port: int = 8501) -> None:
+        """Start Streamlit GUI and open browser after delay."""
+        self._gui_svc.start(
+            ["uv", "run", "streamlit", "run", gui_path, "--server.headless", "true"],
+            notify=self._notify,
+        )
+
+        def _open_browser() -> None:
+            import time as _t
+            _t.sleep(3)
+            webbrowser.open(f"http://localhost:{port}")
+
+        threading.Thread(target=_open_browser, daemon=True).start()
+
+    def stop_gui(self) -> None:
+        """Stop Streamlit GUI."""
+        self._gui_svc.stop(notify=self._notify)
+
+    def start_mcp(self, mcp_script: str = "mcp/sovereign_mcp_server.py") -> None:
+        """Start the MCP server."""
+        self._mcp_svc.start(
+            ["uv", "run", "python", mcp_script],
+            notify=self._notify,
+        )
+
+    def stop_mcp(self) -> None:
+        """Stop the MCP server."""
+        self._mcp_svc.stop(notify=self._notify)
+
+    def stop_all_services(self) -> None:
+        """Gracefully shut down all managed services."""
+        self.stop_gui()
+        self.stop_mcp()
+        self.stop_backend()
+
+    def auto_launch_all(self) -> None:
+        """Auto-launch backend, GUI, and MCP (called by --auto-launch)."""
+        self.start_backend()
+        self.start_gui()
+        self.start_mcp()
 
     def register_callback(self, action: str, callback: Callable[[], None]) -> None:
         """Register a callback for a menu action."""
