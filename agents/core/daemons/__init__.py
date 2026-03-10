@@ -138,7 +138,12 @@ class DaemonManager:
         self._bridge = None  # set via attach_bridge()
 
     def start_all(self) -> dict[str, str]:
-        """Start all enabled daemons and the bridge (if attached). Returns status dict."""
+        """Start all enabled daemons, wire cross-daemon routing, and start bridge.
+
+        Cross-daemon routing:
+          - Sentinel alerts are auto-translated by Scribe into InsAIts prose.
+          - Critical Sentinel alerts are auto-escalated to Arbiter for adjudication.
+        """
         results = {}
         for daemon in self._daemons:
             name = daemon.name
@@ -148,6 +153,9 @@ class DaemonManager:
             except Exception as e:
                 results[name] = f"error: {e}"
                 _logger.error("Failed to start %s: %s", name, e)
+
+        # Wire cross-daemon event routing
+        self.event_bus.subscribe(self._route_daemon_event)
 
         # Auto-start bridge if attached
         if self._bridge is not None:
@@ -159,6 +167,39 @@ class DaemonManager:
                 _logger.error("Failed to start DaemonBridge: %s", e)
 
         return results
+
+    def _route_daemon_event(self, event: DaemonEvent) -> None:
+        """Route events between daemons for cross-daemon intelligence.
+
+        Sentinel → Scribe:  every alert becomes InsAIts prose.
+        Sentinel → Arbiter: critical alerts open a dispute for adjudication.
+        """
+        # Sentinel alert → Scribe translation
+        if event.source == "sentinel" and event.event_type == "alert":
+            if self.scribe.status == DaemonStatus.RUNNING:
+                self.scribe.translate({
+                    "type": f"sentinel_{event.data.get('pattern', 'alert')}",
+                    "name": event.data.get("pattern", "unknown"),
+                    "source": "sentinel",
+                    **event.data.get("evidence", {}),
+                })
+
+        # Critical Sentinel alert → Arbiter escalation
+        if (
+            event.source == "sentinel"
+            and event.event_type == "alert"
+            and event.severity == "critical"
+        ):
+            if self.arbiter.status == DaemonStatus.RUNNING:
+                try:
+                    source_agent = event.data.get("evidence", {}).get("source", "unknown")
+                    self.arbiter.open_dispute(
+                        rule=event.data.get("pattern", "unknown"),
+                        subject=f"Critical security alert: {event.data.get('pattern', '')}",
+                        parties=["sentinel", source_agent],
+                    )
+                except RuntimeError:
+                    pass  # Arbiter not running
 
     def stop_all(self) -> dict[str, str]:
         """Gracefully stop all daemons and the bridge."""
