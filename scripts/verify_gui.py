@@ -32,7 +32,7 @@ def test_gui_changes():
             expect(welcome_msg).to_be_visible()
 
             # Take screenshot of chat tab
-            page.screenshot(path="chat_empty_state.png")
+            page.screenshot(path="assets/chat_empty_state.png")
 
             # 2. Verify Intent Dispatch Button State
             print("Checking dispatch button state...")
@@ -46,7 +46,7 @@ def test_gui_changes():
             expect(dispatch_btn).to_be_disabled()
 
             # Take screenshot of dispatch tab
-            page.screenshot(path="dispatch_disabled_btn.png")
+            page.screenshot(path="assets/dispatch_disabled_btn.png")
 
             print("Verification successful!")
 
