@@ -200,13 +200,162 @@ class TestHatPersistence:
         conn.close()
 
 
+class TestMetaHatRouter:
+    """Tests for the deterministic Meta-Hat Router."""
+
+    def test_mandatory_hats_always_present_no_diff(self) -> None:
+        from agents.core.hat_engine import MANDATORY_HATS, meta_hat_route
+
+        result = meta_hat_route("")
+        for hat in MANDATORY_HATS:
+            assert hat in result, f"Mandatory hat '{hat}' missing when diff is empty"
+
+    def test_mandatory_hats_always_present_unrelated_diff(self) -> None:
+        from agents.core.hat_engine import MANDATORY_HATS, meta_hat_route
+
+        result = meta_hat_route("refactor some helper utilities")
+        for hat in MANDATORY_HATS:
+            assert hat in result, f"Mandatory hat '{hat}' missing for unrelated diff"
+
+    def test_result_is_sorted_and_deduplicated(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        result = meta_hat_route("auth security token cost")
+        assert result == sorted(set(result)), "Result must be sorted and deduplicated"
+
+    def test_security_keywords_activate_black(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("auth", "security", "crypto", "secret", "jwt", "oauth", "password"):
+            result = meta_hat_route(keyword)
+            assert "black" in result, f"'black' not activated for keyword '{keyword}'"
+
+    def test_mcp_keywords_activate_azure(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("mcp", "tool", "workflow"):
+            result = meta_hat_route(keyword)
+            assert "azure" in result, f"'azure' not activated for keyword '{keyword}'"
+
+    def test_docker_keywords_activate_orange(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("docker", "k8s", "infra", "deploy", "config/deploy.yaml"):
+            result = meta_hat_route(keyword)
+            assert "orange" in result, f"'orange' not activated for keyword '{keyword}'"
+
+    def test_test_keywords_activate_yellow(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("test", "spec", "coverage"):
+            result = meta_hat_route(keyword)
+            assert "yellow" in result, f"'yellow' not activated for keyword '{keyword}'"
+
+    def test_llm_keywords_activate_cyan(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("prompt", "llm", "model", "embedding", "rag", "agent", "ai"):
+            result = meta_hat_route(keyword)
+            assert "cyan" in result, f"'cyan' not activated for keyword '{keyword}'"
+
+    def test_frontend_keywords_activate_red(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("frontend", "ui", "component", "jsx", "tsx", "css", "a11y"):
+            result = meta_hat_route(keyword)
+            assert "red" in result, f"'red' not activated for keyword '{keyword}'"
+
+    def test_i18n_keywords_activate_green(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("i18n", "locale", "translation", "rtl", "utf"):
+            result = meta_hat_route(keyword)
+            assert "green" in result, f"'green' not activated for keyword '{keyword}'"
+
+    def test_ci_keywords_activate_blue(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("ci", "cd", "pipeline", "github", "action"):
+            result = meta_hat_route(keyword)
+            assert "blue" in result, f"'blue' not activated for keyword '{keyword}'"
+
+    def test_cost_keywords_activate_silver(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("cost", "token", "budget", "cache", "optimize", "performance"):
+            result = meta_hat_route(keyword)
+            assert "silver" in result, f"'silver' not activated for keyword '{keyword}'"
+
+    def test_governance_keywords_activate_orange(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("license", "sbom", "spdx", "copyright", "governance"):
+            result = meta_hat_route(keyword)
+            assert "orange" in result, f"'orange' not activated for keyword '{keyword}'"
+
+    def test_bias_keywords_activate_cyan(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        for keyword in ("bias", "fairness", "demographic", "disparity", "equity"):
+            result = meta_hat_route(keyword)
+            assert "cyan" in result, f"'cyan' not activated for keyword '{keyword}'"
+
+    def test_multiple_patterns_all_fire(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        # auth triggers black; docker triggers orange; test triggers yellow
+        result = meta_hat_route("update auth docker test coverage")
+        assert "black" in result
+        assert "orange" in result
+        assert "yellow" in result
+
+    def test_case_insensitive_matching(self) -> None:
+        from agents.core.hat_engine import meta_hat_route
+
+        assert "black" in meta_hat_route("AUTH")
+        assert "azure" in meta_hat_route("MCP")
+        assert "yellow" in meta_hat_route("TEST")
+
+    def test_all_returned_hats_are_known(self) -> None:
+        from agents.core.hat_engine import HAT_DEFINITIONS, meta_hat_route
+
+        result = meta_hat_route("auth docker test llm frontend i18n ci cost governance bias")
+        for hat in result:
+            assert hat in HAT_DEFINITIONS, f"Unknown hat '{hat}' returned by meta_hat_route"
+
+    def test_mandatory_hats_constant(self) -> None:
+        from agents.core.hat_engine import MANDATORY_HATS
+
+        assert "black" in MANDATORY_HATS
+        assert "blue" in MANDATORY_HATS
+        assert "purple" in MANDATORY_HATS
+
+
+# ===========================================================================
+# System Context — ALIGN_LEDGER.yaml casing
+# ===========================================================================
+
+
 class TestSystemContext:
     """Test system context building for hat analysis."""
 
     def test_context_includes_align_rules(self, tmp_path: Path) -> None:
         from agents.core.hat_engine import _build_system_context
 
-        # Create minimal governance structure
+        # Create minimal governance structure using canonical uppercase filename
+        gov = tmp_path / "governance"
+        gov.mkdir()
+        (gov / "ALIGN_LEDGER.yaml").write_text("version: 1.0\nrules: []")
+
+        with patch.dict("os.environ", {"BASE_DIR": str(tmp_path)}):
+            ctx = _build_system_context()
+
+        assert "ALIGN RULES" in ctx
+
+    def test_context_includes_align_rules_lowercase_fallback(self, tmp_path: Path) -> None:
+        from agents.core.hat_engine import _build_system_context
+
+        # Fallback: only the lowercase variant exists (legacy layout)
         gov = tmp_path / "governance"
         gov.mkdir()
         (gov / "align_ledger.yaml").write_text("version: 1.0\nrules: []")
@@ -215,6 +364,7 @@ class TestSystemContext:
             ctx = _build_system_context()
 
         assert "ALIGN RULES" in ctx
+
 
     def test_context_with_db_stats(self, tmp_path: Path) -> None:
         from agents.core.hat_engine import _build_system_context

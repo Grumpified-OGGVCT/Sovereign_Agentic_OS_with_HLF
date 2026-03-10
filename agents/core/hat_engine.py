@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import sqlite3
 import time
 import urllib.error
@@ -333,6 +334,66 @@ HAT_DEFINITIONS: dict[str, dict] = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Meta-Hat Router — deterministic, zero LLM tokens
+# ---------------------------------------------------------------------------
+
+#: Hats that MUST always be present in every CoVE review cycle.
+MANDATORY_HATS: frozenset[str] = frozenset({"black", "blue", "purple"})
+
+#: Ordered routing table: (compiled_pattern, hat_name).
+#: All matching rules fire — a single diff can activate multiple hats.
+_META_HAT_ROUTES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"auth|security|crypto|secret|jwt|oauth|password", re.IGNORECASE), "black"),
+    (re.compile(r"mcp|tool|server|context7|sequential|workflow", re.IGNORECASE), "azure"),
+    (re.compile(r"docker|k8s|\.tf|\.yaml|\.yml|infra|deploy", re.IGNORECASE), "orange"),
+    (re.compile(r"test|spec|\.test\.|\.spec\.|coverage", re.IGNORECASE), "yellow"),
+    (re.compile(r"prompt|llm|model|embedding|rag|agent|ai", re.IGNORECASE), "cyan"),
+    (re.compile(r"frontend|ui|component|jsx|tsx|css|a11y", re.IGNORECASE), "red"),
+    (re.compile(r"i18n|locale|translation|rtl|utf", re.IGNORECASE), "green"),
+    (re.compile(r"ci|cd|pipeline|github|workflow|action", re.IGNORECASE), "blue"),
+    (re.compile(r"cost|token|budget|cache|optimize|performance", re.IGNORECASE), "silver"),
+    (re.compile(r"license|sbom|spdx|copyright|governance", re.IGNORECASE), "orange"),
+    (re.compile(r"bias|fairness|demographic|disparity|equity", re.IGNORECASE), "cyan"),
+]
+
+
+def meta_hat_route(diff_text: str) -> list[str]:
+    """Deterministic Meta-Hat Router — zero LLM tokens consumed.
+
+    Applies regex routing rules against *diff_text* (a git diff, file path
+    list, or any descriptive text) to select the relevant hats for a CoVE
+    review cycle.  Rules are evaluated independently — multiple hats can be
+    activated by a single diff.  The mandatory set
+    ``{black, blue, purple}`` is ALWAYS included regardless of which rules
+    fire.
+
+    Returns a sorted, deduplicated list of hat names ready for
+    :func:`run_all_hats`.
+
+    Raises :class:`RuntimeError` if mandatory hats are absent from the
+    result — this indicates a programming error inside this module and
+    should never occur in normal operation.
+    """
+    activated: set[str] = set()
+    for pattern, hat in _META_HAT_ROUTES:
+        if pattern.search(diff_text):
+            activated.add(hat)
+
+    # Always union with mandatory hats regardless of pattern matches
+    activated |= MANDATORY_HATS
+
+    # Self-check: mandatory hats MUST be present (programming-error guard)
+    missing = MANDATORY_HATS - activated
+    if missing:  # pragma: no cover
+        raise RuntimeError(
+            f"❗ Missing mandatory hat(s): {sorted(missing)}. "
+            "This is a programming error in meta_hat_route()."
+        )
+
+    return sorted(activated)
+
+
 def _build_system_context(conn: sqlite3.Connection | None = None) -> str:
     """
     Gather live system context that hats will analyze.
@@ -343,8 +404,11 @@ def _build_system_context(conn: sqlite3.Connection | None = None) -> str:
     base_dir = Path(os.environ.get("BASE_DIR", "."))
     context_parts = []
 
-    # 1. ALIGN rules
-    align_path = base_dir / "governance" / "align_ledger.yaml"
+    # 1. ALIGN rules — prefer canonical uppercase, fall back to legacy lowercase
+    align_path = base_dir / "governance" / "ALIGN_LEDGER.yaml"
+    if not align_path.exists():
+        # Fallback for legacy lowercase name or case-insensitive filesystems
+        align_path = base_dir / "governance" / "align_ledger.yaml"
     if align_path.exists():
         context_parts.append(f"=== ALIGN RULES ===\n{align_path.read_text()}")
 
