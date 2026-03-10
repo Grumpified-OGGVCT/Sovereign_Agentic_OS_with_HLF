@@ -35,6 +35,8 @@ dependencies = [
     "chromadb>=1.5.2",
     "sentence-transformers>=5.2.3",
     "markdownify>=1.2.2",
+    "pygls>=2.0.0",
+    "lsprotocol>=2024.0.0",
 ]
 
 [project.optional-dependencies]

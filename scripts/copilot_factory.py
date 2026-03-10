@@ -111,7 +111,7 @@ TEMPLATES: dict[str, AgentTemplate] = {
             "Do NOT delete or modify existing HLF tags",
             "Do NOT reduce grammar coverage",
             "Do NOT simplify error handling",
-            "All 217+ tests must pass after changes",
+            "All 2017+ tests must pass after changes",
         ],
     ),
     "hlf-test": AgentTemplate(
@@ -209,7 +209,7 @@ TEMPLATES: dict[str, AgentTemplate] = {
         invariants=[
             "Do NOT remove any CI jobs",
             "Do NOT reduce test coverage",
-            "All 217+ tests must pass after changes",
+            "All 2017+ tests must pass after changes",
         ],
     ),
 }

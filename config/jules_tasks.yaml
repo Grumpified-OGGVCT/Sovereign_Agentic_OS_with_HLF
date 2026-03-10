@@ -80,7 +80,7 @@ daily_pipeline:
     invariants:
       - never_simplify_cognitive_loops
       - additive_only
-    eleven_hats_review: true
+    fourteen_hat_review: true
     output: "reports/daily/dream-cycle-enhancement.md"
 
   # ─── Step 3: ALIGN Hardener ───────────────────────────────────
@@ -98,7 +98,7 @@ daily_pipeline:
       - never_weaken_governance
       - never_remove_alignment_rules
       - additive_only
-    eleven_hats_review: true
+    fourteen_hat_review: true
     output: "reports/daily/align-hardening.md"
 
   # ─── Step 4: Transparency Assessor ────────────────────────────
@@ -123,7 +123,7 @@ daily_pipeline:
       - "ALS log stream accessible"
       - "User level toggle (minimal/standard/detailed) working"
       - "Inter-agent communication logged and displayable"
-    eleven_hats_review: true
+    fourteen_hat_review: true
     output: "reports/daily/transparency-assessment.md"
 
   # ─── Step 5: GUI Feature Builder ──────────────────────────────
@@ -140,7 +140,7 @@ daily_pipeline:
       - never_remove_gui_features
       - maintain_transparency_panels
       - additive_only
-    eleven_hats_review: true
+    fourteen_hat_review: true
     output: "reports/daily/gui-feature-build.md"
 
   # ─── Step 6: Gemini Model Integrator ──────────────────────────
@@ -157,7 +157,7 @@ daily_pipeline:
     invariants:
       - proper_api_key_management
       - tier_walk_integrity
-    eleven_hats_review: true
+    fourteen_hat_review: true
     output: "reports/daily/gemini-integration.md"
 
   # ─── Step 7: Self-Capability Tracker ──────────────────────────
@@ -173,7 +173,7 @@ daily_pipeline:
     invariants:
       - never_overstate_capabilities
       - must_pass_fourteen_hat
-    eleven_hats_review: true
+    fourteen_hat_review: true
     output: "reports/daily/self-capability-update.md"
 
   # ─── Step 8: CI Fixer ─────────────────────────────────────────
@@ -192,7 +192,7 @@ daily_pipeline:
     invariants:
       - never_delete_tests
       - never_reduce_coverage
-    eleven_hats_review: true
+    fourteen_hat_review: true
     output: "reports/daily/ci-fixes.md"
 
   # ─── Step 9: HLF Maximizer ────────────────────────────────────
@@ -211,7 +211,7 @@ daily_pipeline:
       - coverage_gte_baseline
       - never_simplify_hlf
       - additive_only
-    eleven_hats_review: true
+    fourteen_hat_review: true
     output: "reports/daily/hlf-maximization.md"
 
   # ─── Step 10: README Updater (CAPSTONE) ───────────────────────
@@ -226,7 +226,7 @@ daily_pipeline:
       - never_remove_readme_sections
       - reflect_all_daily_changes
       - additive_only
-    eleven_hats_review: true
+    fourteen_hat_review: true
     output: "reports/daily/readme-update.md"
     capstone: true            # marks this as the final step
 
