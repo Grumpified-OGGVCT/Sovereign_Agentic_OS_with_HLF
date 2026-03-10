@@ -34,6 +34,7 @@ import logging
 import time
 from collections import deque
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -387,6 +388,160 @@ class SpindleExecutor:
 
         result.total_duration = time.time() - start_time
         return result
+
+    def run_parallel(
+        self,
+        context: dict[str, Any] | None = None,
+        *,
+        max_workers: int = 4,
+    ) -> SpindleResult:
+        """Execute the DAG with parallel wave execution.
+
+        Nodes within the same wave have no inter-dependencies and run
+        concurrently via ThreadPoolExecutor.  Waves execute sequentially.
+        If any node in a wave fails, remaining futures in that wave are
+        cancelled and Saga compensation runs.
+
+        Args:
+            context: Shared mutable context dict passed to all fns.
+            max_workers: Max threads in the pool (default: 4).
+
+        Returns:
+            SpindleResult with execution details.
+        """
+        if context is None:
+            context = {}
+
+        self.dag.validate()
+        result = SpindleResult()
+        start_time = time.time()
+
+        waves = self.dag.get_execution_waves()
+        logger.info(f"Spindle: parallel execution — {len(waves)} waves")
+
+        self._log_align("SPINDLE_PARALLEL_START", {
+            "wave_count": len(waves),
+            "max_workers": max_workers,
+        })
+
+        for wave_idx, wave in enumerate(waves):
+            logger.info(f"Spindle: wave {wave_idx + 1}/{len(waves)} — {wave}")
+
+            self._log_align("SPINDLE_WAVE_START", {
+                "wave_index": wave_idx,
+                "nodes": wave,
+            })
+
+            # Filter out interrupted and dependency-failed nodes
+            runnable = []
+            for nid in wave:
+                if nid in self._interrupted_nodes:
+                    self.dag.get_node(nid).status = NodeStatus.SKIPPED
+                    reason = self._interrupt_reasons.get(nid, "unknown")
+                    self._log_align("SPINDLE_NODE_INTERRUPTED", {
+                        "node_id": nid, "reason": reason,
+                    })
+                    continue
+
+                node = self.dag.get_node(nid)
+                deps_ok = all(
+                    self.dag.get_node(d).status == NodeStatus.COMPLETED
+                    for d in node.depends_on
+                )
+                if not deps_ok:
+                    node.status = NodeStatus.SKIPPED
+                    continue
+
+                runnable.append(nid)
+
+            if not runnable:
+                continue
+
+            # Execute all runnable nodes in this wave concurrently
+            wave_failed = False
+            with ThreadPoolExecutor(max_workers=min(max_workers, len(runnable))) as pool:
+                futures = {
+                    pool.submit(self._execute_single_node, nid, context): nid
+                    for nid in runnable
+                }
+
+                for future in as_completed(futures):
+                    nid = futures[future]
+                    node = self.dag.get_node(nid)
+                    try:
+                        node_result = future.result()
+                        result.completed_nodes.append(nid)
+                        result.execution_order.append(nid)
+                        result.node_results[nid] = node_result
+                    except Exception as e:
+                        node.status = NodeStatus.FAILED
+                        node.error = e
+                        result.success = False
+                        result.failed_node = nid
+                        result.execution_order.append(nid)
+                        wave_failed = True
+
+                        self._log_align("SPINDLE_NODE_FAILED", {
+                            "node_id": nid, "error": str(e),
+                        })
+                        logger.warning(f"Spindle: node '{nid}' failed in wave {wave_idx}: {e}")
+
+            if wave_failed:
+                self._compensate(context, result)
+                break
+
+            self._log_align("SPINDLE_WAVE_COMPLETE", {
+                "wave_index": wave_idx,
+                "completed": runnable,
+            })
+
+        result.total_duration = time.time() - start_time
+        return result
+
+    def _execute_single_node(
+        self,
+        node_id: str,
+        context: dict[str, Any],
+    ) -> Any:
+        """Execute a single node.  Used by both sequential and parallel runners.
+
+        Sets status, publishes events, records duration.  Raises on failure
+        so the caller can handle Saga compensation.
+        """
+        node = self.dag.get_node(node_id)
+        node.status = NodeStatus.RUNNING
+        node_start = time.time()
+
+        self._log_align("SPINDLE_NODE_START", {
+            "node_id": node_id,
+            "agent_id": node.agent_id or "unassigned",
+        })
+
+        if self._event_bus:
+            try:
+                from agents.core.event_bus import EventType, SpindleEvent
+                self._event_bus.publish(SpindleEvent(
+                    event_type=EventType.NODE_STARTED,
+                    source=node_id,
+                    payload={"agent_id": node.agent_id or "unassigned"},
+                ))
+            except ImportError:
+                logger.debug("Event bus not available; skipping event publish")
+
+        try:
+            if node.execute_fn:
+                node.result = node.execute_fn(context)
+            node.status = NodeStatus.COMPLETED
+            node.duration = time.time() - node_start
+
+            self._log_align("SPINDLE_NODE_COMPLETE", {
+                "node_id": node_id,
+                "duration": node.duration,
+            })
+            return node.result
+        except Exception:
+            node.duration = time.time() - node_start
+            raise
 
     def _compensate(
         self,
