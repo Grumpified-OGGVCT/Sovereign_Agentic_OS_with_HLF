@@ -55,6 +55,8 @@ class PlanTaskType(StrEnum):
     MODIFY_FILE = "modify_file"
     REFACTOR = "refactor"
     DELETE_FILE = "delete_file"
+    DOCUMENTATION = "documentation"
+    INSTALL_DEPS = "install_deps"
     RUN_TESTS = "run_tests"
     RUN_LINT = "run_lint"
     CHECK_SYNTAX = "check_syntax"
@@ -68,6 +70,8 @@ class PlanTaskType(StrEnum):
             PlanTaskType.MODIFY_FILE,
             PlanTaskType.REFACTOR,
             PlanTaskType.DELETE_FILE,
+            PlanTaskType.DOCUMENTATION,
+            PlanTaskType.INSTALL_DEPS,
         }
         return "code-agent" if self in code_types else "build-agent"
 
@@ -98,6 +102,28 @@ class PlanStep:
 
 
 @dataclass
+class PlanDecompositionReport:
+    """Quality metrics for a task decomposition.
+
+    Attributes:
+        total_tasks: Total number of tasks in the plan.
+        code_tasks: Number of code-agent tasks.
+        build_tasks: Number of build-agent tasks.
+        explicit_deps_count: Tasks that declared explicit ``depends_on``.
+        unknown_types: Task types not recognised by PlanTaskType.
+        tasks_without_description: Tasks that have no ``description`` field.
+        dag_summary: SpindleDAGAnalyzer.decomposition_summary() output.
+    """
+    total_tasks: int
+    code_tasks: int
+    build_tasks: int
+    explicit_deps_count: int
+    unknown_types: list[str] = field(default_factory=list)
+    tasks_without_description: list[str] = field(default_factory=list)
+    dag_summary: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class PlanExecutionResult:
     """Result of executing a full plan.
 
@@ -108,6 +134,7 @@ class PlanExecutionResult:
         test_results: Aggregate test pass/fail from BuildAgent.
         total_duration: Total execution time.
         error: Error message if the plan failed.
+        decomposition_report: Optional quality report from analyze_decomposition.
     """
     success: bool
     steps: list[PlanStep] = field(default_factory=list)
@@ -115,6 +142,7 @@ class PlanExecutionResult:
     test_results: dict[str, int] = field(default_factory=dict)
     total_duration: float = 0.0
     error: str | None = None
+    decomposition_report: PlanDecompositionReport | None = None
 
 
 # --------------------------------------------------------------------------- #
@@ -131,6 +159,11 @@ class PlanExecutor:
     3. Executes each node through CodeAgent or BuildAgent.
     4. Collects results into a PlanExecutionResult.
 
+    Tasks may optionally include a ``depends_on`` list of node IDs (using the
+    auto-generated ``step-NNN-<type>`` format) to express arbitrary dependency
+    graphs beyond the default sequential code → build chain.  When explicit
+    ``depends_on`` is present it takes precedence over the implicit wiring.
+
     Attributes:
         code_agent: The CodeAgent for file operations.
         build_agent: The BuildAgent for verification tasks.
@@ -145,12 +178,80 @@ class PlanExecutor:
         self.build_agent = build_agent or BuildAgent()
         self._task_registry: dict[str, dict[str, Any]] = {}
 
+    def analyze_decomposition(self, tasks: list[dict[str, Any]]) -> PlanDecompositionReport:
+        """Analyse a task list for decomposition quality without executing it.
+
+        The Strategist planning lens: inspect the plan for structural issues,
+        unknown task types, missing metadata, and DAG characteristics (critical
+        path, parallelism factor, wave count).
+
+        Args:
+            tasks: List of task specifications (same format as execute_plan).
+
+        Returns:
+            PlanDecompositionReport with quality metrics.
+        """
+        code_count = 0
+        build_count = 0
+        unknown_types: list[str] = []
+        tasks_without_description: list[str] = []
+        explicit_deps_count = 0
+
+        for i, task in enumerate(tasks):
+            task_type = task.get("type", "unknown")
+            node_id = f"step-{i:03d}-{task_type}"
+            try:
+                pt = PlanTaskType(task_type)
+                if pt.agent_type == "code-agent":
+                    code_count += 1
+                else:
+                    build_count += 1
+            except ValueError:
+                unknown_types.append(task_type)
+
+            if not task.get("description"):
+                tasks_without_description.append(node_id)
+
+            if task.get("depends_on"):
+                explicit_deps_count += 1
+
+        # Build DAG for structural analysis (best-effort; skip on error)
+        dag_summary: dict[str, Any] = {}
+        try:
+            dag = self.plan_to_dag(tasks)
+            from agents.core.spindle import SpindleDAGAnalyzer
+            dag_summary = SpindleDAGAnalyzer(dag).decomposition_summary()
+        except ValueError as exc:
+            logger.debug("analyze_decomposition: DAG construction failed: %s", exc)
+        except Exception as exc:
+            logger.warning(
+                "analyze_decomposition: unexpected error during DAG analysis: %s",
+                exc,
+            )
+
+        return PlanDecompositionReport(
+            total_tasks=len(tasks),
+            code_tasks=code_count,
+            build_tasks=build_count,
+            explicit_deps_count=explicit_deps_count,
+            unknown_types=unknown_types,
+            tasks_without_description=tasks_without_description,
+            dag_summary=dag_summary,
+        )
+
     def plan_to_dag(self, tasks: list[dict[str, Any]]) -> SpindleDAG:
         """Convert a list of task specs into a SpindleDAG.
 
         Each task dict must have a 'type' field matching a PlanTaskType.
-        Tasks are added as nodes.  Code tasks are linked sequentially,
-        then all build tasks depend on the last code task.
+        Tasks are added as nodes.  Dependency wiring rules (in priority order):
+
+        1. **Explicit ``depends_on``**: if a task dict contains a ``depends_on``
+           key (list of node IDs in ``step-NNN-<type>`` format), those edges
+           are used directly and implicit wiring is skipped for that node.
+        2. **Implicit sequential code chain**: code tasks without explicit deps
+           are chained sequentially (each depends on the previous code task).
+        3. **Implicit build-after-code**: build tasks without explicit deps
+           depend on the last code task in the list.
 
         Args:
             tasks: List of task specifications.
@@ -170,7 +271,7 @@ class PlanExecutor:
         code_node_ids: list[str] = []
         build_node_ids: list[str] = []
 
-        # First pass: categorize tasks
+        # First pass: categorize tasks and collect node IDs
         task_entries: list[tuple[str, str, dict[str, Any]]] = []
         for i, task in enumerate(tasks):
             task_type = task.get("type", "unknown")
@@ -200,18 +301,27 @@ class PlanExecutor:
 
         # Second pass: create nodes with depends_on
         for node_id, agent_id, task in task_entries:
-            deps: list[str] = []
-            if agent_id == "code-agent":
-                prev_dep = code_prev_map.get(node_id)
-                if prev_dep is not None:
-                    deps.append(prev_dep)
-            elif agent_id == "build-agent" and code_node_ids:
-                deps.append(code_node_ids[-1])
+            # Honour explicit depends_on if provided in the task spec
+            explicit_deps: list[str] | None = task.get("depends_on")
+            if explicit_deps is not None:
+                deps = list(explicit_deps)
+            else:
+                deps = []
+                if agent_id == "code-agent":
+                    prev_dep = code_prev_map.get(node_id)
+                    if prev_dep is not None:
+                        deps.append(prev_dep)
+                elif agent_id == "build-agent" and code_node_ids:
+                    deps.append(code_node_ids[-1])
 
             node = SpindleNode(
                 node_id=node_id,
                 agent_id=agent_id,
                 depends_on=deps,
+                metadata={
+                    "task_type": task.get("type", "unknown"),
+                    "description": task.get("description", ""),
+                },
             )
             dag.add_node(node)
             self._task_registry[node_id] = task
@@ -353,6 +463,15 @@ class PlanExecutor:
                     result_error = s.result.error
                     break
 
+        # Attach decomposition report (best-effort; never blocks execution)
+        decomp_report: PlanDecompositionReport | None = None
+        try:
+            decomp_report = self.analyze_decomposition(tasks)
+        except Exception as exc:
+            logger.warning(
+                "execute_plan: decomposition analysis failed (non-fatal): %s", exc
+            )
+
         return PlanExecutionResult(
             success=overall_success,
             steps=steps,
@@ -364,6 +483,7 @@ class PlanExecutor:
             },
             total_duration=time.time() - start,
             error=result_error,
+            decomposition_report=decomp_report,
         )
 
     # ------------------------------------------------------------------ #

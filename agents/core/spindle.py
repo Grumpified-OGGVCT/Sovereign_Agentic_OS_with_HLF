@@ -26,6 +26,15 @@ Usage::
     result = executor.run(context={"topic": "auth upgrade"})
 
 All operations log to the ALIGN Ledger for forensic traceability.
+
+Architecture analysis is available via :class:`SpindleDAGAnalyzer`::
+
+    from agents.core.spindle import SpindleDAGAnalyzer
+
+    analyzer = SpindleDAGAnalyzer(dag)
+    print(analyzer.critical_path())       # longest dependency chain
+    print(analyzer.parallelism_factor())  # 0.0–1.0 parallelism potential
+    print(analyzer.node_depths())         # depth level per node
 """
 
 from __future__ import annotations
@@ -62,6 +71,8 @@ class SpindleNode:
         compensate_fn: Callable(context) -> None. Undo logic if downstream fails.
         depends_on: List of node_ids that must complete before this node runs.
         agent_id: Optional agent assignment for worktree isolation.
+        metadata: Optional free-form dict for rich task annotations (description,
+            estimated_duration_s, task_type, owner, etc.).
         status: Current execution status.
         result: Return value from execute_fn.
         error: Exception if execution failed.
@@ -72,6 +83,7 @@ class SpindleNode:
     compensate_fn: Callable[[dict[str, Any]], None] | None = None
     depends_on: list[str] = field(default_factory=list)
     agent_id: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
     status: NodeStatus = NodeStatus.PENDING
     result: Any = None
     error: Exception | None = None
@@ -211,6 +223,181 @@ class SpindleDAG:
             remaining -= set(wave)
 
         return waves
+
+
+class SpindleDAGAnalyzer:
+    """Architecture-review lens for a SpindleDAG.
+
+    Provides Strategist-level insights into decomposition quality:
+    critical path, parallelism potential, node depths, and structural
+    connectivity metrics.  All analysis is read-only — the underlying
+    DAG is never modified.
+
+    Example::
+
+        analyzer = SpindleDAGAnalyzer(dag)
+        print(analyzer.critical_path())       # ["A", "B", "D"]
+        print(analyzer.parallelism_factor())  # 0.5
+        print(analyzer.node_depths())         # {"A": 0, "B": 1, ...}
+    """
+
+    def __init__(self, dag: SpindleDAG) -> None:
+        self._dag = dag
+
+    def root_nodes(self) -> list[str]:
+        """Return node_ids that have no dependencies (DAG entry points).
+
+        These are the tasks that can start immediately with no preconditions.
+        A healthy plan normally has exactly one root unless tasks are truly
+        independent.
+        """
+        return sorted(
+            nid
+            for nid, node in self._dag.nodes.items()
+            if not node.depends_on
+        )
+
+    def leaf_nodes(self) -> list[str]:
+        """Return node_ids that nothing else depends on (DAG exit points).
+
+        These are the final deliverables of the plan.  More than one leaf
+        indicates the plan produces multiple independent outcomes.
+        """
+        all_deps: set[str] = set()
+        for node in self._dag.nodes.values():
+            all_deps.update(node.depends_on)
+        return sorted(nid for nid in self._dag.nodes if nid not in all_deps)
+
+    def node_depths(self) -> dict[str, int]:
+        """Return the depth (longest path from any root) for each node.
+
+        Depth 0 = root node (no dependencies).
+        Depth n = node whose longest dependency chain is n hops.
+
+        Returns:
+            Mapping of node_id → depth.
+
+        Raises:
+            ValueError: If the DAG contains a cycle.
+        """
+        order = self._dag.topological_order()
+        depths: dict[str, int] = {}
+        for nid in order:
+            node = self._dag.get_node(nid)
+            if not node.depends_on:
+                depths[nid] = 0
+            else:
+                depths[nid] = 1 + max(depths[dep] for dep in node.depends_on)
+        return depths
+
+    def critical_path(self) -> list[str]:
+        """Return the critical path — the longest chain of dependent nodes.
+
+        The critical path determines the minimum total execution time even
+        when all parallelism is exploited.  A plan with a long critical path
+        and few parallel branches should be refactored for concurrency.
+
+        Returns:
+            Ordered list of node_ids forming the longest dependency chain.
+            When multiple nodes share the maximum depth, the lexicographically
+            largest node_id is chosen as the terminal (deterministic tiebreak).
+
+        Raises:
+            ValueError: If the DAG contains a cycle or is empty.
+        """
+        nodes = self._dag.nodes
+        if not nodes:
+            return []
+
+        depths = self.node_depths()
+
+        # Walk backwards from the deepest node.
+        # Tiebreak among nodes at max depth: lexicographically largest for
+        # reproducible results across runs.
+        max_depth = max(depths.values())
+        current = max(
+            (nid for nid, d in depths.items() if d == max_depth),
+            key=lambda n: n,
+        )
+
+        path: list[str] = [current]
+        while True:
+            node = self._dag.get_node(current)
+            if not node.depends_on:
+                break
+            # Among parents, follow the one with the highest depth
+            current = max(node.depends_on, key=lambda p: depths[p])
+            path.append(current)
+
+        return list(reversed(path))
+
+    def parallelism_factor(self) -> float:
+        """Estimate how parallelizable this DAG is (0.0 = serial, 1.0 = fully parallel).
+
+        Calculated as::
+
+            1.0 - (critical_path_length / total_nodes)
+
+        A value close to 1 means most tasks can run in parallel.
+        A value of 0 means all tasks must run sequentially.
+
+        Returns:
+            Float in the range [0.0, 1.0].  Returns 1.0 for an empty DAG.
+        """
+        total = len(self._dag.nodes)
+        if total == 0:
+            return 1.0
+        cp_len = len(self.critical_path())
+        return 1.0 - (cp_len / total)
+
+    def decomposition_summary(self) -> dict[str, Any]:
+        """Return a structured summary of DAG quality for logging / reporting.
+
+        Returns a dict with keys:
+            - ``total_nodes``: total number of nodes
+            - ``root_count``: number of entry-point nodes
+            - ``leaf_count``: number of exit-point nodes
+            - ``critical_path_length``: length of the critical path
+            - ``critical_path``: the critical path node_ids
+            - ``parallelism_factor``: float parallelism score
+            - ``max_depth``: deepest level in the DAG
+            - ``wave_count``: number of parallel execution waves, or ``None``
+                if the DAG contains a cycle.
+
+        When the DAG contains a cycle, ``node_depths``, ``critical_path``, and
+        ``wave_count`` cannot be computed; they default to ``[]``/``0``/``None``
+        respectively, and the remaining counters are still populated.
+        """
+        depths: dict[str, int] = {}
+        cp: list[str] = []
+        parallelism: float = 1.0
+        max_depth: int = 0
+        wave_count: int | None
+
+        try:
+            if self._dag.nodes:
+                depths = self.node_depths()
+                cp = self.critical_path()
+                parallelism = self.parallelism_factor()
+                max_depth = max(depths.values(), default=0)
+        except ValueError:
+            pass  # cycle present — leave defaults
+
+        try:
+            wave_count = len(self._dag.get_execution_waves())
+        except ValueError:
+            wave_count = None  # cycle present
+
+        return {
+            "total_nodes": len(self._dag.nodes),
+            "root_count": len(self.root_nodes()),
+            "leaf_count": len(self.leaf_nodes()),
+            "critical_path_length": len(cp),
+            "critical_path": cp,
+            "parallelism_factor": parallelism,
+            "max_depth": max_depth,
+            "wave_count": wave_count,
+        }
 
 
 class SpindleExecutor:
@@ -575,7 +762,7 @@ class SpindleExecutor:
     def _log_align(self, event: str, data: dict) -> None:
         """Log an event to the ALIGN ledger."""
         try:
-            from agents.core.als_logger import ALSLogger
+            from agents.core.logger import ALSLogger
             als = ALSLogger()
             als.log(event, data)
         except ImportError:
