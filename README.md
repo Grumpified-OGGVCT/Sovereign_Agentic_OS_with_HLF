@@ -1,10 +1,10 @@
 # Sovereign Agentic OS with HLF
 
-> 🟢 **Development Status — Updated Mar 8, 2026**
+> 🟢 **Development Status — Updated Mar 10, 2026**
 > Full Antigravity, Jules, and GitHub Copilot integration. HLF v0.4 Bytecode VM + Instinct spec-driven execution operational.
 >
-> **✅ Working**: 14-Hat Aegis-Nexus Engine (19 named cloud agents), HLF v0.4 Bytecode VM (compiler + stack-machine + disassembler), **Instinct Living Spec Opcodes** (SPEC_DEFINE/GATE/UPDATE/SEAL — deterministic spec lifecycle), **SDD Lifecycle Enforcement** (Specify→Plan→Execute→Verify→Merge with CoVE gating), **ACFS Worktree Isolation** (parallel agent execution via Git worktrees), Gateway Bus + ALIGN, Dream Mode (23/23), C-SOC GUI (dark mode), Ollama Matrix, **934+ passing tests**, Jules 10-step daily pipeline with anti-reductionist mandate, MCP Server auto-launch, **Infinite RAG Memory Matrix** (SQLite WAL + MCP bridge + Dream State + bytecode-level RAG opcodes), **[Project Janus](https://github.com/Grumpified-OGGVCT/Project_Janus)** (sovereign archival intelligence — 4-model Infinite RAG pipeline, full-site Markdown cloner, LanceDB knowledge graph, Code-Awareness Service, Ollama-native MCP tool loop), HLF metrics & benchmark infrastructure, OpenClaw orchestration plugin (PR pending), **Tool Ecosystem Pipeline** (`hlf install/uninstall/upgrade/health/audit` — 12-point CoVE verification gate, zero-trust sandboxing, lazy-load dispatch, lockfile reproducibility, gas & staleness monitoring), **Agent Orchestration Layer** (PlanExecutor → SpindleDAG → CodeAgent/BuildAgent pipeline).
-> **🛠️ In Progress**: Aegis-Nexus operational wiring (Sentinel/Scribe/Arbiter agents scaffolded), HLF Tool Forge host functions, vector embeddings (sqlite-vec), Redis active context tiering, fractal summarization, GUI Cognitive SOC dashboard.
+> **✅ Working**: 14-Hat Aegis-Nexus Engine (19 named cloud agents), HLF v0.4 Bytecode VM (compiler + stack-machine + disassembler), **Instinct Living Spec Opcodes** (SPEC_DEFINE/GATE/UPDATE/SEAL — deterministic spec lifecycle), **SDD Lifecycle Enforcement** (Specify→Plan→Execute→Verify→Merge with CoVE gating), **ACFS Worktree Isolation** (parallel agent execution via Git worktrees), Gateway Bus + ALIGN, Dream Mode (23/23), C-SOC GUI (dark mode), Ollama Matrix, **2,046+ passing tests**, Jules 10-step daily pipeline with anti-reductionist mandate, MCP Server auto-launch, **Infinite RAG Memory Matrix** (SQLite WAL + MCP bridge + Dream State + bytecode-level RAG opcodes), **[Project Janus](https://github.com/Grumpified-OGGVCT/Project_Janus)** (sovereign archival intelligence — 4-model Infinite RAG pipeline, full-site Markdown cloner, LanceDB knowledge graph, Code-Awareness Service, Ollama-native MCP tool loop), HLF metrics & benchmark infrastructure, OpenClaw orchestration plugin (PR pending), **Tool Ecosystem Pipeline** (`hlf install/uninstall/upgrade/health/audit` — 12-point CoVE verification gate, zero-trust sandboxing, lazy-load dispatch, lockfile reproducibility, gas & staleness monitoring), **Agent Orchestration Layer** (PlanExecutor → SpindleDAG → CodeAgent/BuildAgent pipeline), **SpindleDAG Saga Executor** (task DAG with compensating transactions + critical path analysis), **Z3 Formal Verifier** (HLF constraint and invariant prover with pure-Python fallback), **EGL Monitor** (Evolutionary Generality Loss tracking — diversity scores, specialization index, MAP-Elites quality-diversity grid), **MAESTRO Intent Classifier** (P5 SAFE architecture: rule-based fast path + LLM deep classification → IntentCapsule tier mapping), **Credential Vault** (encrypted API key storage + provider auto-discovery via OS keyring / AES-GCM fallback), **HLF Package Manager** (`hlfpm` — OCI-based module install/update/freeze/search), **HLF Language Server** (`hlflsp` — LSP 3.17 for IDE diagnostics, completions, hover, go-to-definition), **HLF Shell** (`hlfsh` — interactive REPL with history, multi-line editing, Merkle-chained session log), **HLF Test Runner** (`hlftest` — HLF-native spec + assertion framework with CoVE validation), **ZAI Provider Integration** (GLM-5, GLM-4.6V, CogView-4, GLM-OCR — full OpenAI-SDK-compatible routing), **Aegis Daemons operational** (Sentinel HIGH-severity checks, Scribe token auditor, Arbiter decision adjudicator — all wired via DaemonBridge), **Tool Registry HITL** (ToolLifecycleState enum: pending_hitl→active→deprecated; sequential step-ID workflow ledger; approve/reject/pending gates), **Context Tiering** (hot Redis ↔ warm SQLite vector cluster transfer), **Fractal Summarization** (standalone map-reduce compression module), **InsAIts V2** (every AST node carries `human_readable` transparency field), **Gardiner Taxonomy** (hieroglyphic symbol→semantic mapping for cross-model alignment).
+> **🛠️ In Progress**: Vector embeddings (sqlite-vec C-extension), SHA-256 embedding dedup cache, GUI Cognitive SOC real-time panels, HLF Tool Forge host functions.
 > **⏸️ Paused**: Pure cloud-only orchestrations, LOLLMS integration (stretch goal).
 >
 > 🌐 **[Live Demo →](https://grumpified-oggvct.github.io/Sovereign_Agentic_OS_with_HLF/)** | 📊 **[HLF Progress Report →](docs/HLF_PROGRESS.md)** | 📓 **[NotebookLM Research Notebook →](https://notebooklm.google.com/notebook/13b9e9f1-77aa-4eba-8760-e38dbdc98bdc)**
@@ -257,7 +257,59 @@ uv run python scripts/hlf_benchmark.py --output docs/benchmark.json
 
 ---
 
-## ♾️ Infinite RAG Memory Matrix
+## 🛠️ Extended HLF Toolchain
+
+The HLF toolchain has grown to a full developer platform. All tools are CLI-executable and importable as Python APIs.
+
+| Tool | CLI | Description |
+|------|-----|-------------|
+| **Compiler** | `uv run hlfc` | LALR(1) parser → JSON AST → `.hlb` bytecode |
+| **Formatter** | `uv run hlffmt` | Canonical formatting: uppercase tags, trailing `Ω`, no whitespace drift |
+| **Linter** | `uv run hlflint` | Token budget, gas limits, unused variables, recursion depth |
+| **Runtime** | `uv run hlfrun` | Stack-machine bytecode interpreter, 34+ opcodes |
+| **Shell** | `uv run hlfsh` | Interactive REPL with history, multi-line editing, Merkle-chained session log |
+| **Test Runner** | `uv run hlftest` | HLF-native spec + assertion framework with CoVE validation gate |
+| **Package Manager** | `uv run hlfpm` | OCI-based module install, update, freeze, search (`hlfpm install math@v1.0.0`) |
+| **Language Server** | `uv run hlflsp` | LSP 3.17 for VS Code / Neovim — diagnostics, completion, hover, go-to-definition |
+| **Token Linter** | `python scripts/hlf_token_lint.py` | CI guard: fails if any intent exceeds 30 tokens |
+
+### HLF Shell (`hlfsh`) — Interactive REPL
+
+```bash
+uv run hlfsh
+# hlf> [INTENT] analyze /security/seccomp.json
+# hlf> [CONSTRAINT] mode="ro"
+# hlf> Ω
+# { "status": "compiled", "nodes": 3, "gas": 2 }
+```
+
+### HLF Package Manager (`hlfpm`) — OCI Module Registry
+
+```bash
+# Install a versioned module
+uv run hlfpm install math@v1.0.0
+
+# List installed modules
+uv run hlfpm list
+
+# Freeze lockfile for reproducible builds
+uv run hlfpm freeze
+```
+
+### HLF Language Server (`hlflsp`) — IDE Support
+
+The LSP server provides real-time `.hlf` IDE support. Requires the **HLF VS Code extension** (or any LSP-capable editor). Add to VS Code `settings.json`:
+
+```json
+{
+  "hlf.lsp.serverCommand": ["uv", "run", "hlflsp"],
+  "hlf.lsp.serverArgs": []
+}
+```
+
+Capabilities: live syntax diagnostics, tag auto-completion, host function signatures on hover, IMPORT target navigation, and SET/FUNCTION symbol outline.
+
+---
 
 The Sovereign OS uses a **3-tier memory architecture** that eliminates the context window ceiling found in traditional RAG:
 
@@ -296,10 +348,10 @@ HLF and the Infinite RAG are designed to amplify each other:
 - ✅ MCP RAG Bridge — `query_memory()` tool wired and operational
 - ✅ Dream State — Context compression every 03:00
 - ✅ DB Schema — `fact_store` + `rolling_context` + `identity_core` tables
+- ✅ Context Tiering — `context_tiering.py` hot/warm vector cluster transfer operational
+- ✅ Fractal Summarization — `fractal_summarization.py` map-reduce compression operational
 - 🔨 Vector Embeddings — `sqlite-vec` C-extension installation needed
-- 🔨 Redis Hot Cache — Active Context Tiering spec'd, not yet coded
 - 🔨 SHA-256 Dedup Cache — designed, implementation pending
-- 🔨 Fractal Summarization — summarization model map-reduce spec'd
 
 > 🌐 See the **[Infinite RAG explainer popup](https://grumpified-oggvct.github.io/Sovereign_Agentic_OS_with_HLF/)** on the live demo page for interactive comparison with traditional RAG.
 
@@ -316,6 +368,12 @@ The Sovereign Agentic OS represents a paradigm shift in AI autonomy:
 - **Glass-Box Transparency**: The C-SOC dashboard allows you to see every "thought" and "action" in real-time—no secret LLM decision-making.
 - **Anti-Reductionist Mandate**: 9 non-negotiable mandates enforced across all agents — never simplify, never reduce, never delete to make something "work." The correct response to difficulty is understanding, not removal. Formalized in `config/personas/_shared_mandates.md`.
 - **Self-Building Architecture**: Agents build the infrastructure for the next agent in a 10-step daily pipeline. The system is designed to self-improve through recursive observation of its own usage patterns.
+- **SpindleDAG Saga Executor**: Task DAGs execute with automatic rollback — if any node fails, all completed nodes run their compensation functions in reverse order (Saga pattern). The `SpindleDAGAnalyzer` computes critical paths, parallelism factors, node depths, and decomposition summaries for architecture review. All operations log to the ALIGN Ledger for forensic traceability.
+- **Z3 Formal Verifier**: Mathematically proves HLF constraints are satisfiable, SPEC_GATE assertions hold under all inputs, type invariants are consistent, and gas budgets are feasible. Uses Z3 theorem prover when available; falls back to a lightweight pure-Python constraint evaluator.
+- **EGL Monitor (Evolutionary Generality Loss)**: Tracks whether the agent swarm is over-specializing over time. Inspired by MAP-Elites quality-diversity algorithms: records behavior × performance across capabilities, computes diversity scores, specialization indices, and generality-loss trend lines. Alerts when capability narrowing exceeds threshold.
+- **MAESTRO Intent Classifier**: P5 SAFE architecture Tier 1 classifier. Maps incoming requests to `IntentCapsule` security tiers (QUERY→hearth, CODE_GEN→forge, SYSTEM_ADMIN→sovereign, DELEGATION→forge+, SECURITY_SCAN→sovereign). Uses a two-tier strategy: rule-based fast path first, LLM deep classification for ambiguous requests.
+- **Credential Vault**: Encrypted API key storage with OS keyring integration (Windows/macOS/Linux) and AES-GCM JSON fallback. When a key is added, the vault auto-probes the provider, catalogs available models and capabilities, and registers them in the HostFunctionRegistry — making new AI providers instantly available to HLF programs.
+- **InsAIts V2 Transparency**: Every AST node compiled by `hlfc` carries a `human_readable` field. Agents, dashboards, and audit logs all read from this field — no opaque machine-code-only execution paths.
 
 ## 🔏 Security Features & Governance
 
@@ -330,6 +388,9 @@ The Sovereign Agentic OS represents a paradigm shift in AI autonomy:
 - **ACFS Confinement** — Directory permission enforcement at the kernel level.
 - **ACFS Worktree Isolation** — Git worktree-based agent sandboxing with Merkle-hashed shadow commits.
 - **Living Spec Enforcement** — SPEC_GATE opcodes halt execution on constraint violations, SPEC_SEAL locks specs with SHA-256 checksums.
+- **Sentinel Daemon (High-Severity Threat Detection)** — Real-time scans for data exfiltration, config tampering, and SSRF patterns; `clear_alerts()` for post-remediation state reset.
+- **Tool Registry HITL Gate** — Forged tools enter `pending_hitl` state; require explicit `approve_forged_tool()` before becoming active. Sequential step-ID workflow ledger prevents out-of-order approvals.
+- **Z3 Formal Verification** — HLF constraints and SPEC_GATE assertions are formally proved before execution; unsatisfiable constraints are rejected at parse time.
 
 ---
 
@@ -416,6 +477,59 @@ Every routing decision returns a structured `AgentProfile` dataclass containing:
 
 ---
 
+## 🧠 Agent Layer
+
+The Sovereign OS ships a full agent execution stack beyond the basic PlanExecutor → SpindleDAG → CodeAgent/BuildAgent pipeline.
+
+### Orchestration Agents
+
+| Agent | Module | Role |
+|-------|--------|------|
+| **MAESTRO Classifier** | `agents/core/maestro.py` | Intent tier classification (P5 SAFE architecture) |
+| **Maestro Router** | `agents/core/maestro_router.py` | Maps classified intents to execution profiles |
+| **Crew Orchestrator** | `agents/core/crew_orchestrator.py` | Multi-agent crew lifecycle management |
+| **Plan Executor** | `agents/core/plan_executor.py` | Sequential/parallel task plan dispatch |
+| **SpindleDAG Executor** | `agents/core/spindle.py` | DAG execution with Saga rollback + critical-path analysis |
+| **Arbiter Agent** | `agents/core/arbiter_agent.py` | Decision adjudication for conflicting agent outputs |
+| **Scheduler** | `agents/core/scheduler.py` | Cron-based and event-driven task scheduling |
+
+### Specialist Agents
+
+| Agent | Module | Role |
+|-------|--------|------|
+| **Code Agent** | `agents/core/code_agent.py` | Code generation, refactoring, and test synthesis |
+| **Build Agent** | `agents/core/build_agent.py` | Build, test, lint pipeline orchestration |
+| **Canary Agent** | `agents/core/canary_agent.py` | Canary deployment health monitoring |
+| **Scribe Agent** | `agents/core/scribe_agent.py` | Token audit + rolling context management |
+| **Sentinel Agent** | `agents/core/sentinel_agent.py` | ALIGN rule enforcement + threat detection |
+| **Tool Forge** | `agents/core/tool_forge.py` | Forges new tools on agent failure; HITL lifecycle management |
+
+### Observability Agents
+
+| Agent | Module | Role |
+|-------|--------|------|
+| **EGL Monitor** | `agents/core/egl_monitor.py` | Evolutionary Generality Loss — MAP-Elites diversity/specialization grid |
+| **Formal Verifier** | `agents/core/formal_verifier.py` | Z3/fallback proof of HLF constraints and gas budgets |
+| **Outlier Trap** | `agents/core/outlier_trap.py` | Semantic anomaly detection; routes suspicious traces to Sentinel |
+| **Memory Anchor** | `agents/core/memory_anchor.py` | Anchors critical memory facts with immutability guarantees |
+
+### Infrastructure Services
+
+| Service | Module | Role |
+|---------|--------|------|
+| **Credential Vault** | `agents/core/credential_vault.py` | Encrypted API key store; OS keyring + AES-GCM fallback; auto-discovery |
+| **Context Tiering** | `agents/core/context_tiering.py` | Hot (Redis) ↔ Warm (SQLite) vector cluster transfer |
+| **Context Pruner** | `agents/core/context_pruner.py` | Removes low-relevance embeddings from active context |
+| **Fractal Summarization** | `agents/core/fractal_summarization.py` | Map-reduce compression to 1,500-token summaries |
+| **Dead Man's Switch** | `agents/core/dead_man_switch.py` | Auto-severs network after 3 panics in 5 min |
+| **SPIFFE Identity** | `agents/core/spiffe_identity.py` | KYA (Know Your Agent) with SPIFFE/x509 certificates |
+| **Redis Transport** | `agents/core/redis_transport.py` | Typed Redis stream publish/consume abstraction |
+| **Model Gateway** | `agents/core/model_gateway.py` | Provider-agnostic LLM dispatch (Ollama, OpenRouter, ZAI) |
+| **ZAI Client** | `agents/core/zai_client.py` | OpenAI-SDK-compatible GLM-5, CogView-4, GLM-OCR integration |
+| **Discord Client** | `agents/core/discord_client.py` | Discord notification webhooks for agent events |
+
+---
+
 ## 🤖 Jules Autonomous Integration
 
 The OS leverages **[Google Jules](https://jules.google)** as an autonomous maintenance and evolution agent. Jules is configured via `AGENTS.md` (in repo root) and the **Master Handoff** ([#67](https://github.com/Grumpified-OGGVCT/Sovereign_Agentic_OS_with_HLF/issues/67)) to understand the full self-building agent architecture before making any changes.
@@ -484,11 +598,11 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 | Registry | `agents/core/db.py` (9-table schema) |
 | Containers | Docker Compose |
 | Pub/Sub | Dapr |
-| Backend | Ollama + OpenRouter |
+| Backend | Ollama + OpenRouter + ZAI |
 | ML Optimization | DSPy |
 | Parser | Lark LALR(1) |
 | Bytecode VM | Custom stack-machine with 34+ opcodes, SHA-256 checksums, gas metering |
-| Package Manager | uv |
+| Package Manager | uv (Python) + `hlfpm` (HLF modules via OCI) |
 | Hat Engine | 14-Hat Aegis-Nexus (19 named cloud agents) |
 | Autonomous Agent | Google Jules (10-step daily pipeline + anti-reductionist mandate) |
 | Code Agent | GitHub Copilot (agent runners + review) |
@@ -496,10 +610,21 @@ Dive deeper into the comprehensive design documentation that informs the OS spec
 | Cloud Platform | Google Ultimate Plan |
 | MCP Server | Antigravity + Jules MCP |
 | GUI Framework | Streamlit (dark mode default) |
+| HLF Language Server | `hlflsp` — LSP 3.17 (diagnostics, completion, hover, go-to-definition) |
+| HLF Shell | `hlfsh` — interactive REPL with Merkle-chained session log |
+| HLF Test Runner | `hlftest` — HLF-native spec + assertion framework |
+| Formal Verifier | Z3 theorem prover (optional) + pure-Python fallback |
+| DAG Executor | SpindleDAG — task DAG with Saga compensating transactions |
+| Intent Classifier | MAESTRO — P5 SAFE architecture (rule-based + LLM deep classification) |
+| Credential Vault | AES-GCM encrypted + OS keyring; provider auto-discovery |
+| EGL Monitor | MAP-Elites quality-diversity grid; diversity + specialization metrics |
+| Tool Registry | ToolLifecycleState HITL gates + sequential step-ID workflow ledger |
+| Context Tiering | Hot (Redis) ↔ Warm (SQLite) vector cluster transfer |
+| Fractal Summarization | Standalone map-reduce context compression |
 | Installation Tests | 65 deep verification tests |
 | Auto-Update | git-based with GUI approval flow |
 | HLF Test Fixtures | 7 domain-specific `.hlf` files |
-| Total Tests | **934+** (pytest collected) |
+| Total Tests | **2,046+** (pytest collected) |
 | Benchmarking | tiktoken cl100k_base compression analysis |
 | CI Pipeline | ruff lint + model_policy_lint + HLF token lint + pytest |
 | Live Demo | [GitHub Pages](https://grumpified-oggvct.github.io/Sovereign_Agentic_OS_with_HLF/) |
