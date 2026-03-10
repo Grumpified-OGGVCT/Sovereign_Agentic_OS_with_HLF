@@ -414,9 +414,16 @@ class AgentSandbox:
             metadata={"exit_code": result.exit_code},
         )
 
-    def run_lint(self, paths: str = ".") -> ToolResult:
-        """Run ruff linter within the worktree."""
+    def run_lint(self, paths: str = ".", extra_args: str = "") -> ToolResult:
+        """Run ruff linter within the worktree.
+
+        Args:
+            paths: Paths to lint.
+            extra_args: Additional ruff arguments (e.g. ``"--select E,F"``).
+        """
         cmd = f"ruff check {paths}"
+        if extra_args:
+            cmd = f"{cmd} {extra_args}"
         result = self.run_command(cmd)
         return ToolResult(
             success=result.exit_code == 0,
