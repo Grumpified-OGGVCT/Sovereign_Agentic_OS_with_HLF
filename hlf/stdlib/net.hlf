@@ -1,0 +1,29 @@
+[HLF-v3]
+[MODULE] net
+[INTENT] provide "network communication, HTTP, and DNS utility functions"
+
+[FUNCTION] http_get "url"
+[FUNCTION] http_post "url" "body"
+[FUNCTION] http_put "url" "body"
+[FUNCTION] http_delete "url"
+[FUNCTION] http_head "url"
+[FUNCTION] fetch_json "url"
+[FUNCTION] dns_resolve "hostname"
+[FUNCTION] ping "host"
+[FUNCTION] url_encode "text"
+[FUNCTION] url_decode "text"
+[FUNCTION] parse_url "url"
+[FUNCTION] websocket_connect "url"
+[FUNCTION] websocket_send "connection" "message"
+
+[SET] HTTP_OK=200
+[SET] HTTP_CREATED=201
+[SET] HTTP_BAD_REQUEST=400
+[SET] HTTP_UNAUTHORIZED=401
+[SET] HTTP_FORBIDDEN=403
+[SET] HTTP_NOT_FOUND=404
+[SET] HTTP_SERVER_ERROR=500
+[SET] DEFAULT_TIMEOUT=30
+
+[RESULT] code=0 message="net stdlib loaded"
+Ω

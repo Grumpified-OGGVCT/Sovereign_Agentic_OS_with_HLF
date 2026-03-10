@@ -1,0 +1,33 @@
+[HLF-v3]
+[MODULE] system
+[INTENT] provide "OS-level system operations, process management, and environment access"
+
+[FUNCTION] env_get "name"
+[FUNCTION] env_set "name" "value"
+[FUNCTION] env_list "prefix"
+[FUNCTION] exec "command"
+[FUNCTION] exec_async "command"
+[FUNCTION] process_list "filter"
+[FUNCTION] process_kill "pid"
+[FUNCTION] hostname "format"
+[FUNCTION] platform "detail"
+[FUNCTION] uptime "unit"
+[FUNCTION] memory_usage "unit"
+[FUNCTION] disk_usage "path"
+[FUNCTION] cpu_count "logical"
+[FUNCTION] timestamp "format"
+[FUNCTION] sleep "milliseconds"
+[FUNCTION] exit "code"
+
+[SET] OS_WINDOWS="windows"
+[SET] OS_LINUX="linux"
+[SET] OS_MACOS="darwin"
+[SET] PATH_SEP_WIN="BACKSLASH"
+[SET] PATH_SEP_UNIX="/"
+[SET] EXIT_SUCCESS=0
+[SET] EXIT_FAILURE=1
+[SET] SIGNAL_TERM=15
+[SET] SIGNAL_KILL=9
+
+[RESULT] code=0 message="system stdlib loaded"
+Ω

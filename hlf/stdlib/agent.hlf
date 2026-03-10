@@ -1,0 +1,37 @@
+[HLF-v3]
+[MODULE] agent
+[INTENT] provide "agent lifecycle, dispatch, orchestration, and inter-agent communication"
+
+[FUNCTION] spawn "agent_class" "config"
+[FUNCTION] dispatch "agent_id" "intent"
+[FUNCTION] kill "agent_id"
+[FUNCTION] status "agent_id"
+[FUNCTION] list_agents "filter"
+[FUNCTION] send_message "from_agent" "to_agent" "payload"
+[FUNCTION] broadcast "from_agent" "channel" "payload"
+[FUNCTION] subscribe "agent_id" "channel"
+[FUNCTION] get_result "task_id"
+[FUNCTION] wait_for "agent_id" "timeout"
+[FUNCTION] classify_task "description"
+[FUNCTION] run_pipeline "pipeline_name" "input"
+[FUNCTION] health_check "agent_id"
+[FUNCTION] policy_check "agent_id" "action"
+[FUNCTION] security_scan "target"
+[FUNCTION] gas_remaining "agent_id"
+[FUNCTION] gas_consume "agent_id" "amount" "context"
+
+[SET] AGENT_SENTINEL="sentinel"
+[SET] AGENT_SCRIBE="scribe"
+[SET] AGENT_ARBITER="arbiter"
+[SET] AGENT_STRATEGIST="strategist"
+[SET] AGENT_CODE="code_agent"
+[SET] AGENT_BUILD="build_agent"
+[SET] AGENT_PLAN="plan_executor"
+[SET] STATUS_IDLE="idle"
+[SET] STATUS_RUNNING="running"
+[SET] STATUS_DONE="done"
+[SET] STATUS_FAILED="failed"
+[SET] STATUS_TIMEOUT="timeout"
+
+[RESULT] code=0 message="agent stdlib loaded"
+Ω

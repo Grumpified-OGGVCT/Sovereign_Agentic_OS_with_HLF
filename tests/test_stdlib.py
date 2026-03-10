@@ -37,7 +37,7 @@ class TestStdlibDirectories:
 
 # ── Stdlib module inventory ──────────────────────────────────────────────────
 
-EXPECTED_STDLIB_MODULES = ["math", "string", "io", "crypto", "collections"]
+EXPECTED_STDLIB_MODULES = ["math", "string", "io", "crypto", "collections", "net", "system", "agent"]
 
 
 class TestStdlibInventory:
