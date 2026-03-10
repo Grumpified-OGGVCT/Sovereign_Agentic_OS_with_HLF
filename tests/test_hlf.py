@@ -792,3 +792,108 @@ class TestHlfV04Comments:
     def test_inline_comment_after_statement(self) -> None:
         ast = hlfc_compile(_prog('[SET] x = 42 # set x to 42'))
         assert ast['program'][0]['tag'] == 'SET'
+
+
+# ---------------------------------------------------------------------------
+# Yellow Hat — new lint rule tests
+# ---------------------------------------------------------------------------
+
+
+class TestHlfLintNewRules:
+    """Tests for the four new hlflint rules added by the Yellow Hat pass."""
+
+    def test_duplicate_set_flagged(self) -> None:
+        source = _prog('[SET] x = 1\n[SET] x = 2')
+        issues = lint(source, max_gas=20)
+        dup = [i for i in issues if "DUPLICATE_SET" in i]
+        assert dup, f"Expected DUPLICATE_SET in {issues}"
+        assert "x" in dup[0]
+
+    def test_no_duplicate_set_when_unique(self) -> None:
+        source = _prog('[SET] a = 1\n[SET] b = 2')
+        issues = lint(source, max_gas=20)
+        assert not any("DUPLICATE_SET" in i for i in issues)
+
+    def test_redundant_constraint_flagged(self) -> None:
+        source = _prog('[CONSTRAINT] mode "fast"\n[INTENT] run "job"\n[CONSTRAINT] mode "slow"\n[RESULT] code=0 message="ok"')
+        issues = lint(source, max_gas=20)
+        redundant = [i for i in issues if "REDUNDANT_CONSTRAINT" in i]
+        assert redundant, f"Expected REDUNDANT_CONSTRAINT in {issues}"
+        assert "mode" in redundant[0]
+
+    def test_no_redundant_constraint_when_unique_keys(self) -> None:
+        source = _prog('[CONSTRAINT] mode "fast"\n[INTENT] run "job"\n[CONSTRAINT] timeout 30\n[RESULT] code=0 message="ok"')
+        issues = lint(source, max_gas=20)
+        assert not any("REDUNDANT_CONSTRAINT" in i for i in issues)
+
+    def test_dead_code_after_result_flagged(self) -> None:
+        source = _prog('[INTENT] do "thing"\n[RESULT] code=0 message="done"\n[ACTION] unreachable "step"')
+        issues = lint(source, max_gas=20)
+        dead = [i for i in issues if "DEAD_CODE" in i]
+        assert dead, f"Expected DEAD_CODE in {issues}"
+
+    def test_no_dead_code_when_result_is_last(self) -> None:
+        source = _prog('[INTENT] do "thing"\n[RESULT] code=0 message="done"')
+        issues = lint(source, max_gas=20)
+        assert not any("DEAD_CODE" in i for i in issues)
+
+    def test_missing_result_flagged(self) -> None:
+        source = _prog('[INTENT] do "thing"\n[ACTION] perform "step"')
+        issues = lint(source, max_gas=20)
+        missing = [i for i in issues if "MISSING_RESULT" in i]
+        assert missing, f"Expected MISSING_RESULT in {issues}"
+
+    def test_no_missing_result_when_present(self) -> None:
+        source = _prog('[INTENT] do "thing"\n[RESULT] code=0 message="ok"')
+        issues = lint(source, max_gas=20)
+        assert not any("MISSING_RESULT" in i for i in issues)
+
+    def test_no_missing_result_when_no_intent(self) -> None:
+        """Programs without [INTENT] should not trigger MISSING_RESULT."""
+        source = _prog('[ACTION] "step"')
+        issues = lint(source, max_gas=20)
+        assert not any("MISSING_RESULT" in i for i in issues)
+
+
+# ---------------------------------------------------------------------------
+# Yellow Hat — quick_gas_estimate tests
+# ---------------------------------------------------------------------------
+
+
+class TestQuickGasEstimate:
+    """Tests for the fast O(n) gas heuristic added in hlf/__init__.py."""
+
+    def test_empty_program_zero_gas(self) -> None:
+        from hlf import quick_gas_estimate
+        source = "[HLF-v2]\nΩ\n"
+        assert quick_gas_estimate(source) == 0
+
+    def test_single_intent_counts_one(self) -> None:
+        from hlf import quick_gas_estimate
+        source = _prog('[INTENT] greet "world"')
+        assert quick_gas_estimate(source) == 1
+
+    def test_multiple_tags_counted(self) -> None:
+        from hlf import quick_gas_estimate
+        source = _prog('[INTENT] do "x"\n[ACTION] run "y"\n[RESULT] code=0 message="ok"')
+        assert quick_gas_estimate(source) == 3
+
+    def test_version_header_excluded(self) -> None:
+        from hlf import quick_gas_estimate
+        source = "[HLF-v3]\n[INTENT] do \"x\"\nΩ\n"
+        # [HLF-v3] must not be counted; only [INTENT]
+        assert quick_gas_estimate(source) == 1
+
+    def test_tool_execution_counted(self) -> None:
+        from hlf import quick_gas_estimate
+        source = _prog("↦ τ(file.read) /path")
+        assert quick_gas_estimate(source) >= 1
+
+    def test_estimate_is_lower_bound_of_compiled_count(self) -> None:
+        """quick_gas_estimate should never exceed the true AST node count."""
+        from hlf import compile as hlfc_compile
+        from hlf import quick_gas_estimate
+        source = _prog('[INTENT] do "x"\n[CONSTRAINT] mode "fast"\n[RESULT] code=0 message="ok"')
+        estimate = quick_gas_estimate(source)
+        true_count = len(hlfc_compile(source)["program"])
+        assert estimate <= true_count
