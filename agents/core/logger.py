@@ -5,8 +5,10 @@ Every log entry is JSON with Merkle chain trace IDs.
 
 from __future__ import annotations
 
+import collections
 import hashlib
 import json
+import threading
 import time
 import warnings
 from pathlib import Path
@@ -15,6 +17,26 @@ from typing import Any
 _DEFAULT_HASH_DIR = Path(__file__).parent.parent.parent / "observability" / "openllmetry"
 _LAST_HASH_FILE = _DEFAULT_HASH_DIR / "last_hash.txt"
 _SEED_HASH = "0" * 64
+
+# ---------------------------------------------------------------------------
+# Module-level ring buffer — stores the most recent ALS log entries so that
+# the GUI and other consumers can read them without disk I/O.
+# A threading.Lock protects concurrent appends from multiple FastAPI workers.
+# ---------------------------------------------------------------------------
+_ALS_RING_BUFFER: collections.deque[dict[str, Any]] = collections.deque(maxlen=200)
+_ALS_RING_LOCK: threading.Lock = threading.Lock()
+
+
+def get_recent_entries(n: int = 50) -> list[dict[str, Any]]:
+    """Return up to *n* most-recent ALS log entries (newest first).
+
+    Reads from the in-process ring buffer populated by :class:`ALSLogger`.
+    Returns an empty list when no entries have been logged yet.
+    """
+    with _ALS_RING_LOCK:
+        entries = list(_ALS_RING_BUFFER)
+    entries.reverse()  # newest first
+    return entries[:n]
 
 
 def _read_last_hash() -> str:
@@ -84,6 +106,8 @@ class ALSLogger:
         if anomaly_score > 0.85:
             self._fire_sentinel_webhook(entry)
 
+        with _ALS_RING_LOCK:
+            _ALS_RING_BUFFER.append(entry)
         print(json.dumps(entry))
         return entry
 
