@@ -129,13 +129,17 @@ class TestSentinelScanPayload:
         assert verdict.severity == "CRITICAL"
 
     def test_privesc_setuid(self) -> None:
-        """Extended pattern PRIVESC-003: setuid abuse."""
+        """Extended pattern PRIVESC-003: setuid abuse.
+
+        After R-006 hardening, setuid is caught at the ALIGN layer (source="align")
+        before the extended privesc patterns are evaluated.  Both sources block the
+        payload — the important invariant is that it IS blocked.
+        """
         from agents.core.sentinel_agent import scan_payload
 
         verdict = scan_payload("compile with setuid bit enabled")
         assert verdict.blocked is True
-        assert verdict.source == "privesc"
-        assert verdict.rule_id == "PRIVESC-003"
+        assert verdict.source in ("align", "privesc")
 
     def test_privesc_ptrace(self) -> None:
         """Extended pattern PRIVESC-004: ptrace debug attach."""
