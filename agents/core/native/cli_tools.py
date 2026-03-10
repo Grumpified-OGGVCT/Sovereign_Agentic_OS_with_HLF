@@ -325,6 +325,13 @@ def get_setup_wizard_steps(tools: dict[str, CLIToolInfo]) -> list[dict]:
                 "priority": "optional",
             })
 
+    # Step 6: BrowserOS (optional addon)
+    try:
+        from agents.core.native.browseros import get_browseros_wizard_step
+        steps.append(get_browseros_wizard_step())
+    except Exception:
+        pass  # BrowserOS module not available on non-Windows
+
     return steps
 
 

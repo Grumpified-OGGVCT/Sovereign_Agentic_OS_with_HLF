@@ -60,6 +60,8 @@ def _load_native_config() -> dict[str, Any]:
             "sysinfo": True,
             "app_launch": True,
             "process_list": True,
+            "browseros": True,
+            "cli_tools": True,
         },
         "shell": {
             "rate_limit_per_minute": 10,
@@ -193,4 +195,5 @@ __all__ = [
     "check_dependencies",
     "install_instructions",
     "PLATFORM",
+    "_load_native_config",
 ]
