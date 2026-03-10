@@ -141,47 +141,22 @@ class SovereignTray:
         self._menu_items = items
 
     def _create_default_menu(self) -> list[TrayMenuItem]:
-        """Create the default Sovereign OS tray menu."""
-        return [
-            TrayMenuItem(label="Sovereign OS", action="header", enabled=False),
-            TrayMenuItem(label="Status: Active", action="status", enabled=False, separator_before=True),
-            TrayMenuItem(label="System Info", action="sysinfo", separator_before=True),
-            TrayMenuItem(label="Clipboard History", action="clipboard"),
-            TrayMenuItem(label="Notifications", action="notifications"),
-            TrayMenuItem(
-                label="Agents",
-                action="agents",
-                separator_before=True,
-                children=[
-                    TrayMenuItem(label="List Running", action="agents_list"),
-                    TrayMenuItem(label="Pause All", action="agents_pause"),
-                    TrayMenuItem(label="Resume All", action="agents_resume"),
-                ],
-            ),
-            TrayMenuItem(
-                label="Tools",
-                action="tools",
-                children=[
-                    TrayMenuItem(label="Open Workspace", action="open_workspace"),
-                    TrayMenuItem(label="Launch GUI", action="launch_gui"),
-                    TrayMenuItem(label="View Logs", action="view_logs"),
-                    TrayMenuItem(label="Run Preflight", action="run_preflight"),
-                ],
-            ),
-            TrayMenuItem(
-                label="Gateway",
-                action="gateway",
-                children=[
-                    TrayMenuItem(label="Start Gateway", action="gateway_start"),
-                    TrayMenuItem(label="Stop Gateway", action="gateway_stop"),
-                    TrayMenuItem(label="Restart Gateway", action="gateway_restart"),
-                    TrayMenuItem(label="Health Check", action="gateway_health"),
-                ],
-            ),
-            TrayMenuItem(label="Settings", action="settings", separator_before=True),
-            TrayMenuItem(label="Restart Services", action="restart"),
-            TrayMenuItem(label="Quit", action="quit", separator_before=True),
-        ]
+        """Create the default Sovereign OS tray menu.
+
+        Delegates to action_menu.build_os_action_menu() for the full
+        Phase 6 hierarchical menu with 38 items across 9 categories.
+        """
+        try:
+            from agents.core.native.action_menu import build_os_action_menu
+            return build_os_action_menu()
+        except ImportError:
+            # Fallback if action_menu not available
+            return [
+                TrayMenuItem(label="Sovereign OS", action="header", enabled=False),
+                TrayMenuItem(label="Status: Active", action="status", enabled=False),
+                TrayMenuItem(label="System Info", action="sysinfo"),
+                TrayMenuItem(label="Quit", action="quit", separator_before=True),
+            ]
 
     def _detect_backend(self) -> str | None:
         """Detect which tray backend is available."""

@@ -395,7 +395,7 @@ class TestTrayMenu:
         tray = SovereignTray()
         menu = tray._create_default_menu()
         labels = [item.label for item in menu]
-        assert "Sovereign OS" in labels
+        assert any("Sovereign" in l for l in labels)
         assert "Quit" in labels
         assert "System Info" in labels
 
@@ -411,10 +411,10 @@ class TestTrayMenu:
         from agents.core.native.tray import SovereignTray
         tray = SovereignTray()
         menu = tray._create_default_menu()
-        agents = next(i for i in menu if i.label == "Agents")
-        tools = next(i for i in menu if i.label == "Tools")
+        agents = next(i for i in menu if "Agents" in i.label)
+        security = next(i for i in menu if "Security" in i.label)
         assert len(agents.children) > 0
-        assert len(tools.children) > 0
+        assert len(security.children) > 0
 
 
 # ── User Tool Validation ────────────────────────────────────────────────────
