@@ -349,7 +349,7 @@ class TestListTools:
         assert "tool_mem_only" in names
 
     def test_list_tool_summary_fields(self, forge_dir: Path, safe_tool_code: str) -> None:
-        """Each entry in list_tools() has name, description, sha256."""
+        """Each entry in list_tools() has name, description, sha256, lifecycle_state."""
         import agents.core.tool_forge as tf
         from agents.core.tool_forge import list_tools
 
@@ -364,6 +364,7 @@ class TestListTools:
         assert "name" in entry
         assert "description" in entry
         assert "sha256" in entry
+        assert "lifecycle_state" in entry
         assert "code" not in entry  # code is NOT included in the summary
 
 
@@ -452,7 +453,7 @@ class TestACFSManifest:
 
 class TestALIGNLedgerEntries:
     def test_forge_writes_align_entry(self, forge_dir: Path, safe_tool_code: str) -> None:
-        """Successful forge_tool logs TOOL_FORGE_REGISTERED via ALSLogger."""
+        """Successful forge_tool logs TOOL_FORGE_PENDING_HITL via ALSLogger."""
         from agents.core.tool_forge import forge_tool
 
         with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code), \
@@ -460,9 +461,15 @@ class TestALIGNLedgerEntries:
             result = forge_tool("add two numbers together", loop_count=3)
 
         assert result != {}
+        # The final log event is TOOL_FORGE_PENDING_HITL (tool awaits human sign-off)
         mock_logger.log.assert_called_with(
-            "TOOL_FORGE_REGISTERED",
-            {"name": result["name"], "sha256": result["sha256"], "task": "add two numbers together"},
+            "TOOL_FORGE_PENDING_HITL",
+            {
+                "step_id": result["step_id"],
+                "name": result["name"],
+                "sha256": result["sha256"],
+                "task": "add two numbers together",
+            },
         )
 
     def test_import_writes_align_entry(self, forge_dir: Path, safe_tool_code: str) -> None:
@@ -530,3 +537,160 @@ class TestInsAItsOpenClawTool:
         assert "Invoke OpenClaw tool 'OPENCLAW_SUMMARIZE'" in prose
         assert "1 argument(s)" in prose
 
+
+
+# --------------------------------------------------------------------------- #
+# Azure Hat — Tool Forge HITL Workflow Tests
+# --------------------------------------------------------------------------- #
+
+
+class TestForgeHITLWorkflow:
+    """Azure Hat: Forged tools start pending_hitl and require human approval."""
+
+    def test_forged_tool_starts_pending_hitl(self, forge_dir: Path, safe_tool_code: str) -> None:
+        """forge_tool() returns lifecycle_state == pending_hitl, not approved."""
+        from agents.core.tool_forge import ForgeWorkflowState, forge_tool
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code):
+            result = forge_tool("add two numbers together", loop_count=3)
+
+        assert result != {}
+        assert result["lifecycle_state"] == ForgeWorkflowState.PENDING_HITL
+
+    def test_forged_tool_has_step_id(self, forge_dir: Path, safe_tool_code: str) -> None:
+        """forge_tool() stamps the result with a step_id for ledger tracking."""
+        from agents.core.tool_forge import forge_tool
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code):
+            result = forge_tool("add two numbers together", loop_count=3)
+
+        assert "step_id" in result
+        assert result["step_id"].startswith("forge-")
+
+    def test_pending_hitl_tools_returns_pending(self, forge_dir: Path, safe_tool_code: str) -> None:
+        """pending_hitl_tools() lists tools that need human sign-off."""
+        from agents.core.tool_forge import forge_tool, pending_hitl_tools
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code):
+            forge_tool("add two numbers together", loop_count=3)
+
+        pending = pending_hitl_tools()
+        assert len(pending) >= 1
+        names = [t["name"] for t in pending]
+        assert "tool_add_two_numbers_toge" in names
+
+    def test_approve_forged_tool(self, forge_dir: Path, safe_tool_code: str) -> None:
+        """approve_forged_tool() transitions tool to approved state."""
+        from agents.core.tool_forge import (
+            ForgeWorkflowState,
+            approve_forged_tool,
+            forge_tool,
+        )
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code):
+            result = forge_tool("add two numbers together", loop_count=3)
+
+        assert result["lifecycle_state"] == ForgeWorkflowState.PENDING_HITL
+        name = result["name"]
+
+        approved = approve_forged_tool(name, approver="operator-alice")
+        assert approved != {}
+        assert approved["lifecycle_state"] == ForgeWorkflowState.APPROVED
+        assert approved["approved_by"] == "operator-alice"
+        assert "approved_at" in approved
+
+    def test_approve_unknown_tool_returns_empty(self, forge_dir: Path) -> None:
+        """Approving a tool that doesn't exist returns empty dict."""
+        from agents.core.tool_forge import approve_forged_tool
+
+        result = approve_forged_tool("nonexistent_tool_xyz")
+        assert result == {}
+
+    def test_approve_already_approved_returns_empty(
+        self, forge_dir: Path, safe_tool_code: str
+    ) -> None:
+        """Approving an already-approved tool is a no-op and returns {}."""
+        from agents.core.tool_forge import (
+            ForgeWorkflowState,
+            approve_forged_tool,
+            forge_tool,
+        )
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code):
+            result = forge_tool("add two numbers together", loop_count=3)
+
+        name = result["name"]
+        approve_forged_tool(name)  # first approval
+        second = approve_forged_tool(name)  # second call on already-approved tool
+        assert second == {}
+
+    def test_reject_forged_tool(self, forge_dir: Path, safe_tool_code: str) -> None:
+        """reject_forged_tool() marks the tool as rejected."""
+        from agents.core.tool_forge import (
+            ForgeWorkflowState,
+            forge_tool,
+            reject_forged_tool,
+        )
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code):
+            result = forge_tool("add two numbers together", loop_count=3)
+
+        name = result["name"]
+        ok = reject_forged_tool(name, reason="fails safety review", approver="operator-bob")
+        assert ok is True
+
+        import agents.core.tool_forge as tf
+
+        meta = tf._registered_tools[name]
+        assert meta["lifecycle_state"] == ForgeWorkflowState.REJECTED
+        assert meta["rejected_by"] == "operator-bob"
+        assert meta["rejection_reason"] == "fails safety review"
+
+    def test_reject_unknown_tool_returns_false(self, forge_dir: Path) -> None:
+        from agents.core.tool_forge import reject_forged_tool
+
+        assert reject_forged_tool("ghost_tool_xyz") is False
+
+    def test_approved_tool_removed_from_pending(
+        self, forge_dir: Path, safe_tool_code: str
+    ) -> None:
+        """After approval, tool no longer appears in pending_hitl_tools()."""
+        from agents.core.tool_forge import (
+            approve_forged_tool,
+            forge_tool,
+            pending_hitl_tools,
+        )
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code):
+            result = forge_tool("add two numbers together", loop_count=3)
+
+        name = result["name"]
+        approve_forged_tool(name)
+
+        pending = pending_hitl_tools()
+        assert name not in [t["name"] for t in pending]
+
+    def test_forge_workflow_state_tracking(self, forge_dir: Path, safe_tool_code: str) -> None:
+        """_forge_workflow_states tracks the state for each forged tool."""
+        import agents.core.tool_forge as tf
+        from agents.core.tool_forge import ForgeWorkflowState, forge_tool
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code):
+            result = forge_tool("add two numbers together", loop_count=3)
+
+        name = result["name"]
+        assert tf._forge_workflow_states.get(name) == ForgeWorkflowState.PENDING_HITL
+
+    def test_list_tools_includes_lifecycle_state(
+        self, forge_dir: Path, safe_tool_code: str
+    ) -> None:
+        """list_tools() summary includes lifecycle_state field."""
+        from agents.core.tool_forge import forge_tool, list_tools
+
+        with patch("agents.core.tool_forge._generate_via_llm", return_value=safe_tool_code):
+            forge_tool("add two numbers together", loop_count=3)
+
+        tools = list_tools()
+        assert len(tools) >= 1
+        for t in tools:
+            assert "lifecycle_state" in t

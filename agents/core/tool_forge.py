@@ -1,6 +1,14 @@
 """
 Tool Forge — auto-generates tools when an agent loops 3x on the same task.
 Generates Python script + pytest test, validates through LLMJudge, registers dynamically.
+
+MCP Workflow Integrity (Azure Hat):
+  - Forged tools start in ``pending_hitl`` state and MUST be approved by a human
+    operator via ``approve_forged_tool()`` before they are activated.
+  - Each forge attempt is stamped with a step-ID for the workflow ledger.
+  - ``pending_hitl_tools()`` lists all tools awaiting human sign-off.
+  - ``reject_forged_tool()`` hard-rejects a tool (marks it as rejected without
+    ever activating it).
 """
 
 from __future__ import annotations
@@ -10,6 +18,9 @@ import hashlib
 import json
 import os
 import textwrap
+import time
+import uuid
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +33,25 @@ _logger = ALSLogger(agent_role="tool-forge", goal_id="forge")
 
 _registered_tools: dict[str, Any] = {}
 _task_loop_counter: dict[str, int] = {}
+# Azure Hat: per-tool workflow state {tool_name: ForgeWorkflowState}
+_forge_workflow_states: dict[str, str] = {}
+
+
+# --------------------------------------------------------------------------- #
+# Forge Workflow States (Azure Hat — MCP Workflow Integrity)
+# --------------------------------------------------------------------------- #
+
+
+class ForgeWorkflowState(StrEnum):
+    """State machine for the tool forge pipeline.
+
+    PENDING_GENERATION → PENDING_HITL → APPROVED (active)
+                       ↘ REJECTED (by any gate, including human operator)
+    """
+    PENDING_GENERATION = "pending_generation"
+    PENDING_HITL = "pending_hitl"      # Awaiting human operator sign-off
+    APPROVED = "approved"              # Human approved; tool is active
+    REJECTED = "rejected"              # Rejected at any gate
 
 
 def record_task_attempt(task_description: str) -> int:
@@ -118,7 +148,14 @@ def _validate_align(code: str) -> bool:
 def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
     """
     If loop_count >= 3, attempt to auto-generate a Python utility tool.
-    Returns the registered tool metadata or empty dict on failure.
+
+    The tool is validated through the full 3-gate pipeline (AST + ALIGN +
+    LLM Judge) but is registered with ``lifecycle_state = "pending_hitl"``.
+    A human operator must call ``approve_forged_tool()`` before the tool
+    is considered active.
+
+    Returns the registered tool metadata (including ``lifecycle_state``) or
+    empty dict on failure.
     """
     if loop_count < 3:
         return {}
@@ -132,14 +169,23 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
     if tool_name in _registered_tools:
         return _registered_tools[tool_name]
 
+    # Azure Hat: stamp this forge attempt with a workflow step-ID
+    step_id = f"forge-{uuid.uuid4().hex[:12]}"
+    _forge_workflow_states[tool_name] = ForgeWorkflowState.PENDING_GENERATION
+    _logger.log("TOOL_FORGE_ATTEMPT", {"step_id": step_id, "tool_name": tool_name, "task": task_description})
+
     tool_code = _generate_via_llm(task_description, tool_name)
 
     # Gate 1: AST
     if not _validate_ast(tool_code):
+        _forge_workflow_states[tool_name] = ForgeWorkflowState.REJECTED
+        _logger.log("TOOL_FORGE_REJECTED", {"step_id": step_id, "tool_name": tool_name, "gate": "ast"})
         return {}
 
     # Gate 2: ALIGN
     if not _validate_align(tool_code):
+        _forge_workflow_states[tool_name] = ForgeWorkflowState.REJECTED
+        _logger.log("TOOL_FORGE_REJECTED", {"step_id": step_id, "tool_name": tool_name, "gate": "align"})
         return {}
 
     # Gate 3: Sandbox load (Syntax check already done in _validate_ast)
@@ -158,6 +204,8 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
     judge = LLMJudge()
     approved, _ = judge.evaluate(tool_code)
     if not approved:
+        _forge_workflow_states[tool_name] = ForgeWorkflowState.REJECTED
+        _logger.log("TOOL_FORGE_REJECTED", {"step_id": step_id, "tool_name": tool_name, "gate": "llm_judge"})
         return {}
 
     # Gate 4: Runtime Syntax/Safety Check (Phase 5.1 Hard Timeout)
@@ -184,13 +232,19 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
 
             if p.is_alive():
                 p.terminate()
+                _forge_workflow_states[tool_name] = ForgeWorkflowState.REJECTED
                 return {}
 
             res = q.get()
             if isinstance(res, Exception) or not res:
+                _forge_workflow_states[tool_name] = ForgeWorkflowState.REJECTED
                 return {}
         except Exception:
+            _forge_workflow_states[tool_name] = ForgeWorkflowState.REJECTED
             return {}
+
+    # Azure Hat: tool passes all automated gates but awaits HITL sign-off
+    _forge_workflow_states[tool_name] = ForgeWorkflowState.PENDING_HITL
 
     tool_meta = {
         "name": tool_name,
@@ -200,6 +254,8 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
         "sha256": sha256,
         "version": "1.0.0",
         "approved": True,
+        "lifecycle_state": ForgeWorkflowState.PENDING_HITL,
+        "step_id": step_id,
         "human_readable": f"Auto-generated tool '{tool_name}' for task: {task_description}",
         "sandbox_strategy": "strategy-c",
         "sandbox_limits": {"memory": "256M", "pids_limit": 50, "network": "none"},
@@ -211,10 +267,10 @@ def forge_tool(task_description: str, loop_count: int = 3) -> dict[str, Any]:
     storage_dir = _get_storage_dir()
     (storage_dir / f"{tool_name}.json").write_text(json.dumps(tool_meta))
 
-    # ALIGN ledger entry for tool registration
+    # ALIGN ledger entry for tool registration (pending HITL)
     _logger.log(
-        "TOOL_FORGE_REGISTERED",
-        {"name": tool_name, "sha256": sha256, "task": task_description},
+        "TOOL_FORGE_PENDING_HITL",
+        {"step_id": step_id, "name": tool_name, "sha256": sha256, "task": task_description},
     )
 
     return tool_meta
@@ -254,7 +310,14 @@ def import_tool(bundle: dict[str, Any]) -> dict[str, Any]:
         return {}
 
     bundle["approved"] = True
+    # Validate and normalise lifecycle_state from the imported bundle
+    raw_state = bundle.get("lifecycle_state", ForgeWorkflowState.PENDING_HITL)
+    valid_states = {s.value for s in ForgeWorkflowState}
+    bundle["lifecycle_state"] = (
+        raw_state if raw_state in valid_states else ForgeWorkflowState.PENDING_HITL
+    )
     _registered_tools[name] = bundle
+    _forge_workflow_states[name] = bundle["lifecycle_state"]
 
     # Persist to disk
     storage_dir = _get_storage_dir()
@@ -283,6 +346,7 @@ def list_tools() -> list[dict[str, Any]]:
                 "name": name,
                 "description": data.get("description", ""),
                 "sha256": data.get("sha256", ""),
+                "lifecycle_state": data.get("lifecycle_state", ForgeWorkflowState.PENDING_HITL),
             }
         except Exception:
             continue
@@ -293,6 +357,156 @@ def list_tools() -> list[dict[str, Any]]:
             "name": name,
             "description": data.get("description", ""),
             "sha256": data.get("sha256", ""),
+            "lifecycle_state": data.get("lifecycle_state", ForgeWorkflowState.PENDING_HITL),
         }
 
     return list(tools.values())
+
+
+# --------------------------------------------------------------------------- #
+# Azure Hat — HITL Approval Gates for Forged Tools
+# --------------------------------------------------------------------------- #
+
+
+def pending_hitl_tools() -> list[dict[str, Any]]:
+    """Return all forged tools currently awaiting human-in-the-loop approval.
+
+    Combines in-memory state and persisted workflow state so nothing is missed
+    across process restarts.
+
+    Returns:
+        List of tool summary dicts with ``name``, ``description``, and
+        ``step_id`` fields for each tool in ``pending_hitl`` state.
+    """
+    pending: list[dict[str, Any]] = []
+
+    # Check in-memory registered tools
+    for name, data in _registered_tools.items():
+        state = _forge_workflow_states.get(name) or data.get("lifecycle_state", "")
+        if state == ForgeWorkflowState.PENDING_HITL:
+            pending.append({
+                "name": name,
+                "description": data.get("description", ""),
+                "step_id": data.get("step_id", ""),
+                "sha256": data.get("sha256", ""),
+                "lifecycle_state": ForgeWorkflowState.PENDING_HITL,
+            })
+
+    # Also scan disk for tools whose in-memory state was lost (e.g., restart)
+    storage_dir = _get_storage_dir()
+    for path in storage_dir.glob("*.json"):
+        try:
+            data = json.loads(path.read_text())
+            name = data.get("name", "")
+            if not name or name in {t["name"] for t in pending}:
+                continue
+            if data.get("lifecycle_state") == ForgeWorkflowState.PENDING_HITL:
+                pending.append({
+                    "name": name,
+                    "description": data.get("description", ""),
+                    "step_id": data.get("step_id", ""),
+                    "sha256": data.get("sha256", ""),
+                    "lifecycle_state": ForgeWorkflowState.PENDING_HITL,
+                })
+        except Exception:
+            continue
+
+    return pending
+
+
+def approve_forged_tool(tool_name: str, approver: str = "human") -> dict[str, Any]:
+    """Approve a forged tool that is awaiting HITL sign-off.
+
+    Transitions the tool from ``pending_hitl`` → ``approved`` and
+    persists the updated metadata to disk.
+
+    Args:
+        tool_name: The name of the tool to approve.
+        approver: Identifier of the human operator granting approval
+                  (logged to the ALIGN ledger for audit purposes).
+
+    Returns:
+        The updated tool metadata dict, or empty dict if the tool was not
+        found or was not in ``pending_hitl`` state.
+    """
+    # Check memory first, then disk
+    tool_meta = _registered_tools.get(tool_name)
+    if tool_meta is None:
+        storage_dir = _get_storage_dir()
+        path = storage_dir / f"{tool_name}.json"
+        if path.exists():
+            try:
+                tool_meta = json.loads(path.read_text())
+                _registered_tools[tool_name] = tool_meta
+            except Exception:
+                return {}
+
+    if tool_meta is None:
+        return {}
+
+    current_state = _forge_workflow_states.get(tool_name) or tool_meta.get("lifecycle_state", "")
+    if current_state != ForgeWorkflowState.PENDING_HITL:
+        return {}
+
+    tool_meta["lifecycle_state"] = ForgeWorkflowState.APPROVED
+    tool_meta["approved_by"] = approver
+    tool_meta["approved_at"] = time.time()
+    _forge_workflow_states[tool_name] = ForgeWorkflowState.APPROVED
+    _registered_tools[tool_name] = tool_meta
+
+    # Persist updated state
+    storage_dir = _get_storage_dir()
+    (storage_dir / f"{tool_name}.json").write_text(json.dumps(tool_meta))
+
+    _logger.log(
+        "TOOL_FORGE_APPROVED",
+        {"name": tool_name, "approver": approver, "timestamp": time.time()},
+    )
+
+    return tool_meta
+
+
+def reject_forged_tool(tool_name: str, reason: str = "", approver: str = "human") -> bool:
+    """Reject a forged tool, preventing it from ever being activated.
+
+    Transitions the tool from ``pending_hitl`` → ``rejected``.
+
+    Args:
+        tool_name: The name of the tool to reject.
+        reason: Optional human-readable rejection reason (logged to ALIGN).
+        approver: Identifier of the human operator rejecting the tool.
+
+    Returns:
+        True if the tool was found and rejected, False otherwise.
+    """
+    tool_meta = _registered_tools.get(tool_name)
+    if tool_meta is None:
+        storage_dir = _get_storage_dir()
+        path = storage_dir / f"{tool_name}.json"
+        if path.exists():
+            try:
+                tool_meta = json.loads(path.read_text())
+                _registered_tools[tool_name] = tool_meta
+            except Exception:
+                return False
+
+    if tool_meta is None:
+        return False
+
+    tool_meta["lifecycle_state"] = ForgeWorkflowState.REJECTED
+    tool_meta["rejected_by"] = approver
+    tool_meta["rejected_at"] = time.time()
+    tool_meta["rejection_reason"] = reason
+    _forge_workflow_states[tool_name] = ForgeWorkflowState.REJECTED
+    _registered_tools[tool_name] = tool_meta
+
+    # Persist updated state
+    storage_dir = _get_storage_dir()
+    (storage_dir / f"{tool_name}.json").write_text(json.dumps(tool_meta))
+
+    _logger.log(
+        "TOOL_FORGE_REJECTED_BY_HUMAN",
+        {"name": tool_name, "approver": approver, "reason": reason, "timestamp": time.time()},
+    )
+
+    return True

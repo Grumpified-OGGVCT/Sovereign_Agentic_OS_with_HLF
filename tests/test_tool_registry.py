@@ -208,3 +208,226 @@ class TestExecution:
         assert log[0]["tool_id"] == "test.echo"
         assert log[0]["agent_role"] == "sentinel"
         assert log[0]["success"] is True
+
+
+# --------------------------------------------------------------------------- #
+# Azure Hat — Lifecycle Tests
+# --------------------------------------------------------------------------- #
+
+
+class TestToolLifecycle:
+    """Azure Hat: ToolLifecycleState transitions and enforcement."""
+
+    def test_new_tool_defaults_to_active(self):
+        from agents.core.tool_registry import ToolLifecycleState
+        tool = _make_tool("life.default")
+        assert tool.lifecycle_state == ToolLifecycleState.ACTIVE
+
+    def test_set_lifecycle_to_deprecated(self):
+        from agents.core.tool_registry import ToolLifecycleState
+        reg = ToolRegistry()
+        reg.register(_make_tool("life.dep"))
+        success = reg.set_lifecycle("life.dep", ToolLifecycleState.DEPRECATED)
+        assert success is True
+        assert reg.get("life.dep").lifecycle_state == ToolLifecycleState.DEPRECATED
+
+    def test_set_lifecycle_unknown_tool_returns_false(self):
+        from agents.core.tool_registry import ToolLifecycleState
+        reg = ToolRegistry()
+        assert reg.set_lifecycle("no.such.tool", ToolLifecycleState.REVOKED) is False
+
+    def test_revoked_tool_blocked(self):
+        from agents.core.tool_registry import ToolLifecycleState
+        reg = ToolRegistry()
+        reg.register(_make_tool("life.revoked"))
+        reg.set_lifecycle("life.revoked", ToolLifecycleState.REVOKED)
+        result = reg.execute("life.revoked", "sentinel")
+        assert result.success is False
+        assert "revoked" in result.error
+
+    def test_pending_approval_tool_blocked(self):
+        from agents.core.tool_registry import ToolLifecycleState
+        reg = ToolRegistry()
+        reg.register(_make_tool("life.pending"))
+        reg.set_lifecycle("life.pending", ToolLifecycleState.PENDING_APPROVAL)
+        result = reg.execute("life.pending", "sentinel")
+        assert result.success is False
+        assert "pending human approval" in result.error
+
+    def test_active_tool_after_lifecycle_promotion(self):
+        from agents.core.tool_registry import ToolLifecycleState
+        reg = ToolRegistry()
+        tool = ToolDefinition(
+            tool_id="life.promoted",
+            category=ToolCategory.FILE,
+            description="Test",
+            execute_fn=_echo_tool,
+            lifecycle_state=ToolLifecycleState.PENDING_APPROVAL,
+        )
+        reg.register(tool)
+        reg.set_lifecycle("life.promoted", ToolLifecycleState.ACTIVE)
+        result = reg.execute("life.promoted", "sentinel")
+        assert result.success is True
+
+
+# --------------------------------------------------------------------------- #
+# Azure Hat — HITL Gate Tests
+# --------------------------------------------------------------------------- #
+
+
+class TestHITLGates:
+    """Azure Hat: Human-in-the-Loop approval token enforcement."""
+
+    def _make_hitl_tool(self, tool_id: str) -> ToolDefinition:
+        return ToolDefinition(
+            tool_id=tool_id,
+            category=ToolCategory.TERMINAL,
+            description="Requires HITL approval",
+            execute_fn=_echo_tool,
+            required_permission=ToolPermission.EXECUTE,
+            requires_hitl=True,
+        )
+
+    def test_hitl_tool_blocked_without_token(self):
+        import pytest
+        from agents.core.tool_registry import HITLRequiredError
+        reg = ToolRegistry()
+        reg.register(self._make_hitl_tool("hitl.guarded"))
+        with pytest.raises(HITLRequiredError):
+            reg.execute("hitl.guarded", "sentinel")
+
+    def test_hitl_tool_blocked_with_wrong_token(self):
+        import pytest
+        from agents.core.tool_registry import HITLRequiredError
+        reg = ToolRegistry()
+        reg.register(self._make_hitl_tool("hitl.guarded"))
+        reg.grant_hitl_approval("hitl.guarded", "correct-token")
+        with pytest.raises(HITLRequiredError):
+            reg.execute("hitl.guarded", "sentinel", hitl_token="wrong-token")
+
+    def test_hitl_tool_passes_with_valid_token(self):
+        reg = ToolRegistry()
+        reg.register(self._make_hitl_tool("hitl.approved"))
+        reg.grant_hitl_approval("hitl.approved", "tok-abc")
+        result = reg.execute("hitl.approved", "sentinel", hitl_token="tok-abc", msg="hi")
+        assert result.success is True
+
+    def test_hitl_token_is_single_use(self):
+        import pytest
+        from agents.core.tool_registry import HITLRequiredError
+        reg = ToolRegistry()
+        reg.register(self._make_hitl_tool("hitl.single"))
+        reg.grant_hitl_approval("hitl.single", "use-once")
+        # First call succeeds
+        result = reg.execute("hitl.single", "sentinel", hitl_token="use-once")
+        assert result.success is True
+        # Second call fails — token was consumed
+        with pytest.raises(HITLRequiredError):
+            reg.execute("hitl.single", "sentinel", hitl_token="use-once")
+
+    def test_revoke_hitl_approval(self):
+        import pytest
+        from agents.core.tool_registry import HITLRequiredError
+        reg = ToolRegistry()
+        reg.register(self._make_hitl_tool("hitl.revoke"))
+        reg.grant_hitl_approval("hitl.revoke", "tok-xyz")
+        assert reg.revoke_hitl_approval("hitl.revoke", "tok-xyz") is True
+        # Token revoked — execution should fail
+        with pytest.raises(HITLRequiredError):
+            reg.execute("hitl.revoke", "sentinel", hitl_token="tok-xyz")
+
+    def test_revoke_nonexistent_token_returns_false(self):
+        reg = ToolRegistry()
+        reg.register(self._make_hitl_tool("hitl.noop"))
+        assert reg.revoke_hitl_approval("hitl.noop", "ghost-token") is False
+
+    def test_non_hitl_tool_executes_without_token(self):
+        reg = ToolRegistry()
+        reg.register(_make_tool("hitl.normal", permission=ToolPermission.READ))
+        result = reg.execute("hitl.normal", "sentinel")
+        assert result.success is True
+
+    def test_hitl_approval_empty_token_raises_value_error(self):
+        import pytest
+        reg = ToolRegistry()
+        reg.register(self._make_hitl_tool("hitl.bad"))
+        with pytest.raises(ValueError):
+            reg.grant_hitl_approval("hitl.bad", "")
+
+    def test_has_hitl_approval_returns_false_when_absent(self):
+        reg = ToolRegistry()
+        assert reg.has_hitl_approval("any.tool", None) is False
+        assert reg.has_hitl_approval("any.tool", "nonexistent") is False
+
+
+# --------------------------------------------------------------------------- #
+# Azure Hat — Workflow Ledger Tests
+# --------------------------------------------------------------------------- #
+
+
+class TestWorkflowLedger:
+    """Azure Hat: step-ID tracking and sequential workflow ledger."""
+
+    def test_ledger_populated_on_execute(self):
+        reg = ToolRegistry()
+        reg.register(_make_tool("ledger.tool", permission=ToolPermission.READ))
+        reg.execute("ledger.tool", "sentinel", msg="one")
+        ledger = reg.workflow_ledger
+        assert len(ledger) == 1
+        assert ledger[0].tool_id == "ledger.tool"
+        assert ledger[0].agent_role == "sentinel"
+        assert ledger[0].success is True
+
+    def test_ledger_step_ids_are_unique(self):
+        reg = ToolRegistry()
+        reg.register(_make_tool("ledger.multi", permission=ToolPermission.READ))
+        reg.execute("ledger.multi", "sentinel", msg="a")
+        reg.execute("ledger.multi", "sentinel", msg="b")
+        reg.execute("ledger.multi", "sentinel", msg="c")
+        ids = [e.step_id for e in reg.workflow_ledger]
+        assert len(ids) == len(set(ids))  # all unique
+
+    def test_ledger_is_sequential(self):
+        reg = ToolRegistry()
+        reg.register(_make_tool("ledger.seq", permission=ToolPermission.READ))
+        for i in range(5):
+            reg.execute("ledger.seq", "sentinel", idx=i)
+        # Step IDs embed an increasing counter in the second segment ("step-{N:06d}-{uuid}")
+        # Verify the documented format and that counters are strictly increasing
+        import re
+        pattern = re.compile(r"^step-(\d+)-[0-9a-f]+$")
+        counters = []
+        for e in reg.workflow_ledger:
+            m = pattern.match(e.step_id)
+            assert m is not None, f"step_id '{e.step_id}' does not match expected format"
+            counters.append(int(m.group(1)))
+        assert counters == sorted(counters)
+
+    def test_result_carries_step_id(self):
+        reg = ToolRegistry()
+        reg.register(_make_tool("ledger.result", permission=ToolPermission.READ))
+        result = reg.execute("ledger.result", "sentinel")
+        assert result.step_id != ""
+
+    def test_ledger_records_hitl_approved_flag(self):
+        reg = ToolRegistry()
+        hitl_tool = ToolDefinition(
+            tool_id="ledger.hitl",
+            category=ToolCategory.TERMINAL,
+            description="HITL",
+            execute_fn=_echo_tool,
+            required_permission=ToolPermission.EXECUTE,
+            requires_hitl=True,
+        )
+        reg.register(hitl_tool)
+        reg.grant_hitl_approval("ledger.hitl", "tok-ledger")
+        reg.execute("ledger.hitl", "sentinel", hitl_token="tok-ledger")
+        assert reg.workflow_ledger[0].hitl_approved is True
+
+    def test_ledger_is_read_only_copy(self):
+        reg = ToolRegistry()
+        reg.register(_make_tool("ledger.copy", permission=ToolPermission.READ))
+        reg.execute("ledger.copy", "sentinel")
+        ledger_copy = reg.workflow_ledger
+        ledger_copy.clear()  # modify the copy
+        assert len(reg.workflow_ledger) == 1  # original unchanged
