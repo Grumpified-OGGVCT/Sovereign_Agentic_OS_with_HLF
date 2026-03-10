@@ -6,10 +6,13 @@ Connects to the live Gateway Bus (/health, /api/v1/intent) and Redis for
 real-time metrics. Falls back gracefully when services are unavailable.
 """
 
+import csv
+import io
 import json
 import os
 import time
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 import httpx
@@ -171,6 +174,103 @@ def check_local_node_status() -> tuple[str, str]:
         return "🔴 Offline", "Local orchestrator script is not running."
     except Exception as e:
         return "🟠 Error", f"Status check failed: {e}"
+
+
+# ============================================================================
+# GUI UTILITY FUNCTIONS — Intent History, HLF Compilation Preview, Exports
+# ============================================================================
+
+_MAX_INTENT_HISTORY = 50
+
+
+# Sentinel value for connection-error status (not a valid HTTP code)
+_STATUS_CONNECT_ERROR = -1
+
+
+def record_intent(
+    text: str,
+    mode: str,
+    status_code: int,
+    trace_id: str | None = None,
+    gas_used: int | None = None,
+) -> None:
+    """Append an intent dispatch record to session-state intent history."""
+    if "intent_history" not in st.session_state:
+        st.session_state["intent_history"] = []
+    entry = {
+        "ts": datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "mode": mode,
+        "text": text[:120] + ("…" if len(text) > 120 else ""),
+        "status": status_code,
+        "trace_id": trace_id or "—",
+        "gas": gas_used if gas_used is not None else "—",
+    }
+    history: list[dict] = st.session_state["intent_history"]
+    history.insert(0, entry)
+    # Keep most recent N entries
+    st.session_state["intent_history"] = history[:_MAX_INTENT_HISTORY]
+
+
+def compile_hlf_preview(source: str) -> tuple[bool, str, dict | None]:
+    """Attempt to compile HLF source via hlfc and return (ok, message, ast_or_None)."""
+    try:
+        from hlf.hlfc import compile as hlf_compile  # type: ignore[import]
+
+        ast = hlf_compile(source)
+        node_count = len(ast.get("program", []))
+        return True, f"✅ Compiled — {node_count} AST node(s)", ast
+    except ImportError:
+        return False, "❌ HLF compiler unavailable. Run: uv sync", None
+    except Exception as exc:
+        msg = str(exc)
+        # Try to extract a concise error for display
+        if ":" in msg:
+            # lark parse errors: "UnexpectedToken at line 2 col 4: ..."
+            short = msg.split("\n")[0][:200]
+        else:
+            short = msg[:200]
+        return False, f"❌ {short}", None
+
+
+def export_intent_history_csv(history: list[dict]) -> str:
+    """Serialise intent history list to CSV string."""
+    if not history:
+        return ""
+    fieldnames = ["ts", "mode", "status", "trace_id", "gas", "text"]
+    buf = io.StringIO()
+    writer = csv.DictWriter(buf, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(history)
+    return buf.getvalue()
+
+
+def export_routing_trace_json(trace: dict) -> str:
+    """Serialise the last routing trace to a pretty JSON string."""
+    return json.dumps(trace, indent=2)
+
+
+def status_badge_html(code: int) -> str:
+    """Return a coloured HTML badge for an HTTP status code."""
+    if code == 202:
+        color, label = "#2ea043", "202 OK"
+    elif code == 422:
+        color, label = "#8b5cf6", "422 Syntax"
+    elif code == 403:
+        color, label = "#f85149", "403 ALIGN"
+    elif code == 429:
+        color, label = "#d29922", "429 Limit"
+    elif code == 409:
+        color, label = "#58a6ff", "409 Replay"
+    elif code == _STATUS_CONNECT_ERROR:
+        color, label = "#6e7681", "Unreachable"
+    else:
+        color, label = "#6e7681", str(code)
+    return (
+        f'<span style="background:{color}22; color:{color}; '
+        f'border:1px solid {color}; border-radius:4px; '
+        f'padding:1px 6px; font-size:0.75rem; font-family:monospace;">'
+        f"{label}</span>"
+    )
 
 
 # ============================================================================
@@ -583,11 +683,26 @@ with st.sidebar:
     )
     align_rules = get_align_rules()
     if align_rules:
+        # --- Search/filter ---
+        align_search = st.text_input(
+            "🔍 Filter rules",
+            placeholder="Search by ID, name, or action…",
+            key="align_rule_search",
+            label_visibility="collapsed",
+        )
+        _search_term = align_search.strip().lower()
+        _shown = 0
         for rule in align_rules:
             if isinstance(rule, dict):
                 rid = rule.get("id", "?")
                 name = rule.get("name", "Unnamed")
                 action = rule.get("action", "UNKNOWN")
+                # Apply filter
+                if _search_term and not any(
+                    _search_term in s.lower() for s in [rid, name, action]
+                ):
+                    continue
+                _shown += 1
                 # Color-code the action badge
                 if "QUARANTINE" in action:
                     action_cls = "action-drop"
@@ -604,7 +719,13 @@ with st.sidebar:
                     unsafe_allow_html=True,
                 )
             else:
-                st.caption(f"• {rule}")
+                if not _search_term or _search_term in str(rule).lower():
+                    _shown += 1
+                    st.caption(f"• {rule}")
+        if _shown == 0:
+            st.caption("No rules match your filter.")
+        elif _search_term:
+            st.caption(f"Showing {_shown} of {len(align_rules)} rules.")
     else:
         st.caption("No ALIGN rules loaded.")
 
@@ -797,13 +918,14 @@ with center_canvas:
         "agents, dispatch HLF commands, and monitor swarm execution.",
     )
 
-    chat_tab, dispatch_tab, swarm_tab, appstore_tab, setup_tab = st.tabs(
+    chat_tab, dispatch_tab, swarm_tab, appstore_tab, setup_tab, hlf_tab = st.tabs(
         [
             "💬 Agent Chat",
             "🚀 Intent Dispatch",
             "🚦 Swarm State",
             "🏪 App Store",
             "⚙️ Setup & Auth",
+            "🔨 HLF Compiler",
         ]
     )
 
@@ -1124,22 +1246,25 @@ with center_canvas:
                         json=payload,
                         timeout=10.0,
                     )
-                    if response.status_code == 202:
+                    _resp_code = response.status_code
+                    _trace_id: str | None = None
+                    if _resp_code == 202:
                         data = response.json()
-                        st.success(f"✅ Intent accepted (HTTP 202). Trace ID: `{data.get('trace_id', 'N/A')}`")
+                        _trace_id = data.get("trace_id")
+                        st.success(f"✅ Intent accepted (HTTP 202). Trace ID: `{_trace_id or 'N/A'}`")
                         with st.expander("View Gateway Response"):
                             st.json(data)
-                    elif response.status_code == 422:
+                    elif _resp_code == 422:
                         st.error(
                             "❌ **Syntax Error (HTTP 422)**: The HLF program has invalid syntax. "
                             f"Details: {response.json().get('detail', 'Unknown error')}"
                         )
-                    elif response.status_code == 403:
+                    elif _resp_code == 403:
                         st.error(
                             "🚫 **ALIGN Blocked (HTTP 403)**: The intent matches a safety rule "
                             "in the ALIGN ledger. This action is prohibited by governance policy."
                         )
-                    elif response.status_code == 429:
+                    elif _resp_code == 429:
                         detail = response.json().get("detail", "")
                         if "gas" in detail.lower():
                             st.warning(
@@ -1152,22 +1277,55 @@ with center_canvas:
                                 "🚦 **Rate Limited (HTTP 429)**: Too many requests per minute. "
                                 "The system enforces a 50 req/min limit to prevent abuse."
                             )
-                    elif response.status_code == 409:
+                    elif _resp_code == 409:
                         st.warning(
                             "🔁 **Replay Detected (HTTP 409)**: This intent has already been "
                             "processed. Each intent must include a unique nonce."
                         )
                     else:
-                        st.error(f"Unexpected response: HTTP {response.status_code}")
+                        st.error(f"Unexpected response: HTTP {_resp_code}")
                         st.json(response.json())
+                    # Record in intent history regardless of outcome
+                    record_intent(intent_input.strip(), mode_label, _resp_code, _trace_id)
                 except httpx.ConnectError:
                     st.error(
                         "🔴 **Gateway Unreachable**: Cannot connect to the Gateway Bus "
                         f"at {GATEWAY_URL}. Make sure the gateway is running "
                         "(uvicorn agents.gateway.bus:app --port 40404)."
                     )
+                    record_intent(intent_input.strip(), mode_label, _STATUS_CONNECT_ERROR)
                 except Exception as e:
                     st.error(f"Dispatch error: {e}")
+                    record_intent(intent_input.strip(), mode_label, _STATUS_CONNECT_ERROR)
+
+        # --- Intent History ---
+        _history: list[dict] = st.session_state.get("intent_history", [])
+        if _history:
+            st.markdown("---")
+            _hist_hdr_col, _hist_export_col = st.columns([3, 1])
+            with _hist_hdr_col:
+                st.markdown(f"**📋 Intent History** ({len(_history)} recent)")
+            with _hist_export_col:
+                _csv_data = export_intent_history_csv(_history)
+                if _csv_data:
+                    st.download_button(
+                        "⬇️ Export CSV",
+                        data=_csv_data,
+                        file_name="intent_history.csv",
+                        mime="text/csv",
+                        help="Download intent history as CSV.",
+                        use_container_width=True,
+                    )
+            for _rec in _history[:10]:
+                _badge = status_badge_html(_rec["status"])
+                st.markdown(
+                    f'{_badge} &nbsp; `{_rec["ts"]}` &nbsp; '
+                    f'<span style="color:#8b949e; font-size:0.78rem;">{_rec["mode"]}</span> — '
+                    f'<span style="font-size:0.82rem;">{_rec["text"]}</span>',
+                    unsafe_allow_html=True,
+                )
+            if len(_history) > 10:
+                st.caption(f"…and {len(_history) - 10} more. Export CSV to view all.")
 
     # ================================================================
     # TAB 3: SWARM STATE (existing code)
@@ -1548,10 +1706,193 @@ with center_canvas:
         except Exception:
             st.caption("Routing tips unavailable.")
 
+    # ================================================================
+    # TAB 6: HLF LIVE COMPILER
+    # ================================================================
+    with hlf_tab:
+        st.markdown(
+            "**HLF Live Compiler**  \n"
+            "Write HLF programs below and compile them in real-time. "
+            "See the JSON AST output, gas estimate, and any syntax errors "
+            "before dispatching to the Gateway Bus."
+        )
 
-# ============================================================================
-# 3. RIGHT PANE — Glass-Box Truth Layer
-# ============================================================================
+        # --- Editor area ---
+        _HLF_PLACEHOLDER = """\
+[HLF-v2]
+[INTENT] analyze /security/seccomp.json
+[CONSTRAINT] mode="read-only"
+[EXPECT] vulnerability_report
+[RESULT] code=0 message="ok"
+Ω"""
+
+        hlf_source = st.text_area(
+            "HLF Source",
+            value=st.session_state.get("hlf_compiler_source", _HLF_PLACEHOLDER),
+            height=200,
+            key="hlf_compiler_editor",
+            help="Write a valid HLF program here. Must start with `[HLF-v2]` or `[HLF-v3]` "
+            "and end with the Ω terminator. Click **Compile** to validate.",
+            label_visibility="collapsed",
+        )
+        # Persist across reruns
+        st.session_state["hlf_compiler_source"] = hlf_source
+
+        _comp_btn_col, _fmt_btn_col, _clear_col = st.columns([1, 1, 1])
+        with _comp_btn_col:
+            compile_btn = st.button(
+                "⚙️ Compile",
+                type="primary",
+                use_container_width=True,
+                help="Parse the HLF source with the Lark LALR(1) compiler. "
+                "Shows AST, gas estimate, and lint diagnostics.",
+            )
+        with _fmt_btn_col:
+            fmt_btn = st.button(
+                "✨ Format",
+                use_container_width=True,
+                help="Apply canonical formatting: uppercase tags, "
+                "single space after ], trailing Ω.",
+            )
+        with _clear_col:
+            if st.button("🗑️ Reset", use_container_width=True):
+                st.session_state["hlf_compiler_source"] = _HLF_PLACEHOLDER
+                st.rerun()
+
+        # --- Format action ---
+        if fmt_btn and hlf_source.strip():
+            try:
+                from hlf.hlffmt import format_hlf  # type: ignore[import]
+
+                formatted = format_hlf(hlf_source)
+                st.session_state["hlf_compiler_source"] = formatted
+                st.success("✨ Formatted! Editor updated above.")
+                st.rerun()
+            except ImportError:
+                # hlffmt module not installed — apply basic formatting with a warning
+                st.info("ℹ️ Using basic formatter (`hlffmt` module not available). Run `uv sync` for canonical formatting.")
+                lines = hlf_source.splitlines()
+                out = []
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped.startswith("[") and "]" in stripped:
+                        # Uppercase tag — guard against malformed bracket
+                        try:
+                            tag_end = stripped.index("]") + 1
+                            tag = stripped[:tag_end].upper()
+                            rest = stripped[tag_end:]
+                            out.append(f"{tag}{rest}")
+                        except ValueError:
+                            out.append(stripped)
+                    else:
+                        out.append(stripped)
+                # Ensure trailing Ω
+                if out and out[-1] != "Ω":
+                    out.append("Ω")
+                st.session_state["hlf_compiler_source"] = "\n".join(out)
+                st.success("✨ Applied basic formatting.")
+                st.rerun()
+            except Exception as _fmt_err:
+                st.warning(f"Format failed: {_fmt_err}")
+
+        # --- Compile action ---
+        if compile_btn and hlf_source.strip():
+            _ok, _msg, _ast = compile_hlf_preview(hlf_source)
+
+            if _ok:
+                st.success(_msg)
+            else:
+                st.error(_msg)
+                st.info(
+                    "💡 **Quick fix guide**\n\n"
+                    "- Every program must start with `[HLF-v2]` on line 1\n"
+                    "- First statement must be `[INTENT]`\n"
+                    "- Every program must end with `Ω` on the last line\n"
+                    "- Tags use `[UPPERCASE]` with arguments on the same line",
+                    icon="ℹ️",
+                )
+
+            # Gas estimate (fast, no compiler needed)
+            try:
+                from hlf import quick_gas_estimate  # type: ignore[import]
+
+                _gas_est = quick_gas_estimate(hlf_source)
+                st.caption(f"⛽ Estimated gas: **{_gas_est}** tokens")
+            except ImportError:
+                st.caption("⛽ Gas estimation unavailable (run `uv sync` to enable).")
+            except Exception:
+                st.caption("⛽ Gas estimation unavailable.")
+
+            # Lint diagnostics
+            try:
+                from hlf.hlflint import lint  # type: ignore[import]
+
+                _diags = lint(hlf_source)
+                if _diags:
+                    with st.expander(f"⚠️ Lint: {len(_diags)} diagnostic(s)", expanded=True):
+                        for _d in _diags:
+                            severity = _d.get("severity", "WARN")
+                            code = _d.get("code", "?")
+                            message = _d.get("message", str(_d))
+                            icon = "🔴" if severity in ("ERROR", "CRITICAL") else "🟡"
+                            st.markdown(f"{icon} `{code}` — {message}")
+                else:
+                    st.caption("✅ No lint warnings.")
+            except Exception:
+                pass
+
+            # AST viewer
+            if _ast:
+                with st.expander("🌳 AST — JSON output", expanded=False):
+                    st.json(_ast)
+                    # Copy-to-clipboard (download as fallback)
+                    _ast_json = json.dumps(_ast, indent=2)
+                    st.download_button(
+                        "⬇️ Download AST",
+                        data=_ast_json,
+                        file_name="hlf_ast.json",
+                        mime="application/json",
+                        help="Download the compiled JSON AST for use in other tools.",
+                    )
+
+        # --- Example programs ---
+        with st.expander("📚 Example Programs", expanded=False):
+            _examples = {
+                "Hello World": """\
+[HLF-v2]
+[INTENT] greet "world"
+[EXPECT] "Hello, world!"
+[RESULT] code=0 message="ok"
+Ω""",
+                "Read File (Forge+)": """\
+[HLF-v2]
+[INTENT] read /config/settings.json
+[CONSTRAINT] tier="forge"
+[ACTION] READ /config/settings.json
+[EXPECT] settings_dict
+[RESULT] code=0 message="ok"
+Ω""",
+                "Web Search (Sovereign)": """\
+[HLF-v2]
+[INTENT] search "latest AI safety research"
+[CONSTRAINT] tier="sovereign"
+[ACTION] WEB_SEARCH "latest AI safety research"
+[EXPECT] search_results
+[RESULT] code=0 message="ok"
+Ω""",
+                "Set Variable": """\
+[HLF-v2]
+[INTENT] compute hash
+[SET] target_file = "/security/seccomp.json"
+[ACTION] HASH ${target_file}
+[EXPECT] sha256_hex
+[RESULT] code=0 message="ok"
+Ω""",
+            }
+            for _ex_name, _ex_src in _examples.items():
+                if st.button(f"Load: {_ex_name}", key=f"hlf_ex_{_ex_name}"):
+                    st.session_state["hlf_compiler_source"] = _ex_src
+                    st.rerun()
 with right_pane:
     st.subheader(
         "🔍 Glass-Box Truth",
@@ -1788,6 +2129,16 @@ with right_pane:
                 _lat_color = "🟢" if _latency < 2000 else "🟡" if _latency < 5000 else "🔴"
                 st.markdown(f"{_lat_color} **{_latency}ms**")
             st.caption(f"Tier: {_last_route.get('tier', 'N/A')}")
+        # Export routing trace
+        _trace_json = export_routing_trace_json(_last_route)
+        st.download_button(
+            "⬇️ Export Trace",
+            data=_trace_json,
+            file_name="routing_trace.json",
+            mime="application/json",
+            help="Download the full routing trace as JSON.",
+            use_container_width=True,
+        )
     else:
         st.caption("No routing trace yet. Submit a chat message to see which model handles the request.")
 
@@ -1928,6 +2279,16 @@ if _gas_history:
                 for _ctx, _amt in _by_ctx.head(5).items():
                     _pct_ctx = (_amt / max(_gas_consumed, 1)) * 100
                     st.caption(f"• `{_ctx}`: {_amt} gas ({_pct_ctx:.0f}%)")
+
+        # Export gas history
+        _gas_csv = _hist_df.to_csv(index=False)
+        st.download_button(
+            "⬇️ Export Gas History CSV",
+            data=_gas_csv,
+            file_name="gas_history.csv",
+            mime="text/csv",
+            help="Download gas consumption history as CSV.",
+        )
 else:
     st.caption("No gas consumed yet. Submit a chat intent to see real-time metering.")
 
