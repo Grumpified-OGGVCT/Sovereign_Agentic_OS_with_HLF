@@ -689,3 +689,177 @@ def get_recent_findings(
         ]
     except Exception:
         return []
+
+
+# ---------------------------------------------------------------------------
+# Catalyst additions — additive enhancements only
+# ---------------------------------------------------------------------------
+
+#: Maps severity label → integer sort key (lower = more urgent).
+SEVERITY_ORDER: dict[str, int] = {
+    "CRITICAL": 0,
+    "HIGH": 1,
+    "MEDIUM": 2,
+    "LOW": 3,
+    "INFO": 4,
+}
+
+#: Severity rank assigned to labels not present in SEVERITY_ORDER.
+#: A high value ensures unknown severities sort after all known ones.
+UNKNOWN_SEVERITY_RANK: int = 99
+
+#: Minimum keyword length for cross-hat theme detection.
+#: Short words (≤ this many chars) are likely stop-words and skipped.
+_MIN_KEYWORD_LEN: int = 4
+
+#: Maximum number of related findings listed in a cross-hat insight summary.
+_MAX_INSIGHT_FINDINGS: int = 3
+
+
+@dataclass
+class HatRunMetrics:
+    """Performance metrics captured during a timed hat run."""
+
+    hat: str
+    elapsed_seconds: float = 0.0
+    finding_count: int = 0
+    has_error: bool = False
+
+
+def deduplicate_findings(findings: list[HatFinding]) -> list[HatFinding]:
+    """Remove duplicate findings across hats.
+
+    Two findings are considered duplicates when they share the same *hat* and
+    case-insensitive *title*.  Only the first occurrence is kept so that the
+    most recently produced version (typically the most specific) wins when
+    callers provide findings in recency order.
+    """
+    seen: set[tuple[str, str]] = set()
+    unique: list[HatFinding] = []
+    for finding in findings:
+        key = (finding.hat, finding.title.lower())
+        if key not in seen:
+            seen.add(key)
+            unique.append(finding)
+    return unique
+
+
+def prioritize_findings(findings: list[HatFinding]) -> list[HatFinding]:
+    """Return a new list of findings sorted by severity (most urgent first).
+
+    Severity order: CRITICAL → HIGH → MEDIUM → LOW → INFO.
+    Within the same severity level the original order is preserved (stable
+    sort).
+    """
+    return sorted(findings, key=lambda f: SEVERITY_ORDER.get(f.severity.upper(), UNKNOWN_SEVERITY_RANK))
+
+
+def synthesize_cross_hat_insights(reports: list[HatReport]) -> list[HatFinding]:
+    """Identify recurring themes that appear across multiple hat reports.
+
+    A theme is detected when the same title keyword appears in findings from
+    at least two *different* hats.  A synthetic finding tagged as hat
+    ``"cross_hat"`` is emitted for each such theme, summarising which hats
+    raised the concern and how many times it was mentioned.
+
+    This is purely deterministic — no LLM call is made.
+    """
+    from collections import defaultdict
+
+    # Map lowercase title word → list of (hat, finding)
+    word_index: dict[str, list[tuple[str, HatFinding]]] = defaultdict(list)
+    for report in reports:
+        for finding in report.findings:
+            words = set(finding.title.lower().split())
+            for word in words:
+                if len(word) > _MIN_KEYWORD_LEN:  # skip short stop-words
+                    word_index[word].append((report.hat, finding))
+
+    insights: list[HatFinding] = []
+    reported_words: set[str] = set()
+
+    for word, hat_findings in word_index.items():
+        hats_involved = {hf[0] for hf in hat_findings}
+        if len(hats_involved) >= 2 and word not in reported_words:
+            reported_words.add(word)
+            titles = ", ".join(
+                f"{hf[0]}/{hf[1].title}" for hf in hat_findings[:_MAX_INSIGHT_FINDINGS]
+            )
+            insights.append(
+                HatFinding(
+                    hat="cross_hat",
+                    severity="HIGH",
+                    title=f"Recurring theme: '{word}' ({len(hats_involved)} hats)",
+                    description=(
+                        f"The keyword '{word}' appeared in findings from "
+                        f"{sorted(hats_involved)} hats. "
+                        f"Related: {titles}."
+                    ),
+                    recommendation=(
+                        "Review the listed findings together — they may share a common "
+                        "root cause that a single targeted fix could resolve."
+                    ),
+                )
+            )
+
+    return insights
+
+
+def run_hat_timed(
+    hat_name: str,
+    conn: sqlite3.Connection | None = None,
+    model: str | None = None,
+) -> tuple[HatReport, HatRunMetrics]:
+    """Run a single hat analysis and return both its report and timing metrics.
+
+    A thin wrapper around :func:`run_hat` that records wall-clock elapsed time
+    and bundles the result as a :class:`HatRunMetrics` companion.  Callers
+    that need performance telemetry should prefer this over :func:`run_hat`.
+    """
+    start = time.time()
+    report = run_hat(hat_name, conn=conn, model=model)
+    elapsed = time.time() - start
+    metrics = HatRunMetrics(
+        hat=hat_name,
+        elapsed_seconds=round(elapsed, 3),
+        finding_count=len(report.findings),
+        has_error=report.error is not None,
+    )
+    return report, metrics
+
+
+def mark_finding_resolved(
+    conn: sqlite3.Connection,
+    finding_id: int,
+    *,
+    auto_commit: bool = True,
+) -> bool:
+    """Mark a hat finding as resolved in the database.
+
+    Sets ``resolved = 1`` for the row with the given *finding_id*.
+    Returns ``True`` if a row was updated, ``False`` if no row matched.
+
+    Parameters
+    ----------
+    conn:
+        Active SQLite connection.
+    finding_id:
+        Primary key of the ``hat_findings`` row to resolve.
+    auto_commit:
+        When ``True`` (default), a ``COMMIT`` is issued immediately.
+        Pass ``False`` to defer committing when this call is part of a
+        larger transaction that the caller manages.
+    """
+    try:
+        conn.execute(
+            "UPDATE hat_findings SET resolved = 1 WHERE id = ?",
+            (finding_id,),
+        )
+        if auto_commit:
+            conn.commit()
+        updated = conn.execute(
+            "SELECT changes()"
+        ).fetchone()[0]
+        return updated > 0
+    except Exception:
+        return False
