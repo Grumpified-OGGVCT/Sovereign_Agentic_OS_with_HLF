@@ -9,3 +9,6 @@ rules:
   - { id: "R-007", name: "Process Injection Block", regex_block: '(os\.system|subprocess\.call|eval\(|exec\(|__import__)', action: "DROP_AND_QUARANTINE" }
   - { id: "R-008", name: "Block raw OpenClaw keys", regex_block: 'openclaw(?::|")', action: "DROP" }
   - { id: "R-009", name: "Ast Aliasing Bypass Block", regex_block: '(import\s+\w+\s+as\s+\w+)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-010", name: "SSRF Metadata Block", regex_block: '(169\.254\.169\.254|metadata\.internal|http://localhost|http://127\.|http://0\.0\.0\.0)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-011", name: "Path Traversal Block", regex_block: '(\.\./\.\./|\.\.\\\.\.\\|%2e%2e%2f|%252e%252e)', action: "DROP_AND_QUARANTINE" }
+  - { id: "R-012", name: "Dependency Smuggling Block", regex_block: '(pickle\.loads|telnetlib|ftplib)', action: "DROP_AND_QUARANTINE" }
