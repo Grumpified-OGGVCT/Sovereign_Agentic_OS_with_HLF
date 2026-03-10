@@ -19,10 +19,16 @@ from pydantic_settings import BaseSettings
 # ALS audit logging
 try:
     from agents.core.logger import ALSLogger
+    from agents.core.model_utils import is_cloud_model as _is_cloud
 
     _routing_logger = ALSLogger(agent_role="moma-router", goal_id="routing")
 except ImportError:
     _routing_logger = None
+
+    # Lightweight fallback when agents.core is not on the path (e.g. isolated
+    # gateway tests).  MUST stay in sync with model_utils.is_cloud_model().
+    def _is_cloud(model: str) -> bool:  # type: ignore[misc]
+        return model.endswith(":cloud") or model.endswith("-cloud")
 
 
 class Settings(BaseSettings):
@@ -126,10 +132,6 @@ def replenish_gas(tier: str, r: Any) -> None:
     cap = _TIER_GAS_CAPS.get(tier, _TIER_GAS_CAPS["hearth"])
     r.set(f"gas:{tier}", cap)
 
-
-def _is_cloud(model: str) -> bool:
-    # Ollama cloud models use either '{root}:cloud' (bare tag) or '{root}:{size}-cloud' (size-qualified tag)
-    return model.endswith(":cloud") or model.endswith("-cloud")
 
 
 async def is_gateway_healthy(r: Any) -> bool:

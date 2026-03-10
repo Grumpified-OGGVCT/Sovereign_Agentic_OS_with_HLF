@@ -34,17 +34,11 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 
-logger = logging.getLogger(__name__)
+from agents.core.ollama_config import _OLLAMA_PRIMARY as _OLLAMA_HOST
+from agents.core.ollama_config import _OLLAMA_SECONDARY as _OLLAMA_HOST_SECONDARY
+from agents.core.ollama_config import _OLLAMA_SECONDARY_KEY, _OLLAMA_STRATEGY
 
-_OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-_OLLAMA_HOST_SECONDARY = os.environ.get("OLLAMA_HOST_SECONDARY", "")
-_OLLAMA_SECONDARY_KEY = os.environ.get("OLLAMA_API_KEY_SECONDARY", "")
-_OLLAMA_STRATEGY = os.environ.get("OLLAMA_LOAD_STRATEGY", "failover")
-# Normalize host — add scheme if missing
-if _OLLAMA_HOST and not _OLLAMA_HOST.startswith("http"):
-    _OLLAMA_HOST = f"http://{_OLLAMA_HOST}"
-if "0.0.0.0" in _OLLAMA_HOST:
-    _OLLAMA_HOST = _OLLAMA_HOST.replace("0.0.0.0", "localhost")
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
