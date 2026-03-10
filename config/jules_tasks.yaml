@@ -17,7 +17,7 @@
 #       - no_merge_conflicts: true
 #       - no_breaking_changes: true
 #       - cove_validation: "compact"   # full for >200 line changes
-#       - eleven_hats_review: true
+#       - fourteen_hat_review: true
 #     on_conflict: "notify_user"       # pause and alert the user
 #     on_breaking_change: "notify_user" # never auto-merge breaking changes
 #     on_clean: "auto_apply"           # merge + push without user input
@@ -33,7 +33,7 @@ merge_policy:
     - file_deletion_attempt
     - feature_simplification_attempt
   auto_publish: true          # push to origin/main after auto-merge
-  require_eleven_hats: true      # every PR goes through hats
+  require_fourteen_hat: true      # every PR goes through 14-hat + 19 personas
   require_cove: "compact"     # "compact" for <200 lines, "full" for >200
 
 # ═══════════════════════════════════════════════════════════════════
@@ -64,7 +64,7 @@ daily_pipeline:
       - additive_only
       - expand_test_corpus
       - format_correction_feedback_loop
-    eleven_hats_review: true
+    fourteen_hat_review: true
     output: "reports/daily/hlf-grammar-evolution.md"
 
   # ─── Step 2: Dream Cycle Enhancer ─────────────────────────────
@@ -172,7 +172,7 @@ daily_pipeline:
     issue_label: "jules-enhancement"
     invariants:
       - never_overstate_capabilities
-      - must_pass_eleven_hats
+      - must_pass_fourteen_hat
     eleven_hats_review: true
     output: "reports/daily/self-capability-update.md"
 
@@ -207,7 +207,7 @@ daily_pipeline:
     commands:
       - "uv run python -m pytest tests/ -v --tb=short"
     invariants:
-      - test_count_gte_217
+      - test_count_gte_2017
       - coverage_gte_baseline
       - never_simplify_hlf
       - additive_only
@@ -264,7 +264,7 @@ global_invariants:
   merkle_chain: true
   no_transparency_reduction: true
   no_feature_simplification: true
-  eleven_hats_on_all_prs: true
+  fourteen_hat_on_all_prs: true
   no_scope_reduction: true
   no_reductive_changes: true
 
@@ -280,6 +280,6 @@ anti_reduction_checklist:
   - "No model capabilities reduced"
   - "Coverage >= baseline"
   - "Test count >= baseline"
-  - "Eleven Hats review completed"
+  - "Fourteen-Hat review completed"
   - "CoVE validation passed (compact or full)"
   - "README updated to reflect changes"

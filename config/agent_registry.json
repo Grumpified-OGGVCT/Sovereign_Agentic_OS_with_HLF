@@ -333,7 +333,7 @@
         "Prompt engineering for token efficiency",
         "HLF Compressor statement optimization",
         "Semantic cache tuning",
-        "Context window budget allocation across 11 hats"
+        "Context window budget allocation across 14 hats"
       ],
       "preferred_sources": [
         "https://github.com/openai/tiktoken",

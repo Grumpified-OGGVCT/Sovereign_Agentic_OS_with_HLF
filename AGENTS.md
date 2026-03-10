@@ -18,13 +18,13 @@ This is a **Sovereign Agentic OS** — a multi-layer AI operating system built a
 | 6 | Governance | `agents/gateway/sentinel_gate.py`, `governance/ALIGN_LEDGER.yaml` |
 | 7 | Observability | `agents/core/logger.py` (ALS with Merkle chains) |
 
-## 🎩 12-Hat Aegis-Nexus CoVE v2.0 (MANDATORY)
+## 🎩 14-Hat Aegis-Nexus CoVE v3.0 (MANDATORY)
 
-> **CRITICAL**: When decomposing tasks, agents MUST use these 12-Hat personas instead of
+> **CRITICAL**: When decomposing tasks, agents MUST use these 14-Hat personas (+ 19 named agent personas) instead of
 > generic agent types. Organize all work, commits, and PR descriptions by hat category.
 > **Never skip** ⚫ Black, 🔵 Blue, or 🟪 Purple on any PR — they are mandatory.
 
-All agents MUST structure work using the Sovereign OS's **12-Hat Aegis-Nexus CoVE v2.0** methodology.
+All agents MUST structure work using the Sovereign OS's **14-Hat Aegis-Nexus CoVE v3.0** methodology.
 Each hat is a specialized adversarial lens integrating full-stack QA validation. You validate across
 **14 dimensions**: Functional Correctness, Security Posture (Zero Trust), Data Integrity, AI Safety &
 Alignment, Accessibility, Performance Under Duress, Resilience/Anti-Fragility, Regulatory Compliance,
@@ -587,7 +587,7 @@ Jules MUST continuously assess and enhance system-wide transparency. This is not
    - `detailed` — raw HLF output, full routing traces, max token budget
 3. **Inter-agent communication** — All agent-to-agent messages MUST be logged and displayable
 4. **Real-time HLF translation** — Show the user what HLF the system generates, with natural-language equivalents
-5. **Run through Eleven Hats** — Every transparency enhancement MUST pass the Eleven Hats review protocol
+5. **Run through Fourteen-Hat review** — Every transparency enhancement MUST pass the Fourteen-Hat review protocol
 6. **Never reduce visibility** — You may ONLY add transparency features. Never remove, simplify, or hide existing ones.
 
 ## Self-Capability Tracking
@@ -603,7 +603,7 @@ Jules MUST maintain awareness of its own capabilities and limitations.
 2. **Enhancement proposals** — When Jules identifies a way to expand its usefulness:
    - Create a GitHub issue with label `jules-enhancement`
    - Include: what it would enable, what it requires, estimated effort, risk assessment
-   - Pass the proposal through Eleven Hats before submitting
+   - Pass the proposal through Fourteen-Hat review before submitting
 3. **Capability growth log** — Track capability expansions over time in `reports/jules_capability_log.md`
 4. **Never overstate capabilities** — If Jules cannot verify it can do something, it MUST say so
 
@@ -695,6 +695,6 @@ All agents handling HLF components MUST be maximized for usefulness and power.
 - [ ] No model capabilities reduced
 - [ ] Coverage >= baseline
 - [ ] Test count >= baseline
-- [ ] Eleven Hats review completed
+- [ ] Fourteen-Hat review completed
 - [ ] **CoVE audit passed (compact or full)** — run `scripts/verify_chain.py --cove` and attach output
 

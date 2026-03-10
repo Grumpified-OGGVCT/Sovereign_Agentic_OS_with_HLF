@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Hat PR Review — 11-Hat Aegis-Nexus PR Review Engine.
+Hat PR Review — Fourteen-Hat Aegis-Nexus PR Review Engine.
 
-Reusable script that runs the full 11-hat analysis against any GitHub PR
+Reusable script that runs the full fourteen-hat analysis against any GitHub PR
 using the real hat_engine.py infrastructure and Ollama LLM backends.
 
 Usage:
@@ -341,7 +341,7 @@ def format_review_markdown(
 ) -> str:
     """Format all hat reports into a structured GitHub review comment."""
     lines = [
-        "## 🎩 11-Hat Aegis-Nexus Automated PR Review",
+        "## 🎩 Fourteen-Hat Aegis-Nexus Automated PR Review",
         "",
         f"**PR #{pr_info.get('number')}**: {pr_info.get('title', 'N/A')}",
         f"**Author**: @{pr_info.get('user', {}).get('login', 'unknown')}",
@@ -498,7 +498,7 @@ def post_pr_review(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="11-Hat Aegis-Nexus PR Review — analyze any PR with the full hat engine",
+        description="Fourteen-Hat Aegis-Nexus PR Review — analyze any PR with the full hat engine",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"
@@ -519,7 +519,7 @@ def main():
         nargs="+",
         default=None,
         choices=list(HAT_DEFINITIONS.keys()),
-        help="Run only specific hats (default: all 11)",
+        help="Run only specific hats (default: all)",
     )
     parser.add_argument(
         "--model",
@@ -629,7 +629,8 @@ def main():
 
     # 4) Run hats
     logger.info("=" * 60)
-    logger.info("STARTING 11-HAT PR REVIEW")
+    hat_count = len(HAT_DEFINITIONS)
+    logger.info(f"STARTING {hat_count}-HAT PR REVIEW")
     logger.info("=" * 60)
     start_time = time.time()
 

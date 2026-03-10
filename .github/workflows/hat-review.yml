@@ -28,7 +28,7 @@ jobs:
           pip install uv
           uv sync --all-extras --frozen
 
-      - name: Run 11-Hat PR Review (GitHub Models)
+      - name: Run Fourteen-Hat PR Review (GitHub Models)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HAT_REVIEW_BUDGET_USD: "0.50"

@@ -67,6 +67,17 @@ class DreamCycleReport:
     compression_ratio: float = 0.0
     regression_pass: bool = True
     timestamp: float = field(default_factory=time.time)
+    # DB-persistence fields
+    cycle_type: str = "scheduled"
+    hlf_practiced: int = 0
+    hlf_passed: int = 0
+    hat_findings_count: int = 0
+    error: str | None = None
+    start_time: float = field(default_factory=time.time)
+    duration_seconds: float = 0.0
+    context_compressed_chars: int = 0
+    context_result_chars: int = 0
+    summary: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -75,6 +86,12 @@ class DreamCycleReport:
             "rules_synthesized": self.rules_synthesized,
             "compression_ratio": round(self.compression_ratio, 2),
             "regression_pass": self.regression_pass,
+            "cycle_type": self.cycle_type,
+            "hlf_practiced": self.hlf_practiced,
+            "hlf_passed": self.hlf_passed,
+            "hat_findings_count": self.hat_findings_count,
+            "duration_seconds": self.duration_seconds,
+            "summary": self.summary,
         }
 
 
@@ -271,3 +288,171 @@ class DreamStateEngine:
             "total_token_savings": total_savings,
             "baseline_success_rate": self._baseline_success_rate,
         }
+
+
+# ---------------------------------------------------------------------------
+# Module-level utility: cold archive old rolling_context rows
+# ---------------------------------------------------------------------------
+
+_ARCHIVE_AGE_DAYS = 7
+
+
+def archive_old_traces(
+    conn: "sqlite3.Connection",
+    age_days: int = _ARCHIVE_AGE_DAYS,
+) -> None:
+    """Archive rolling_context rows older than *age_days* to cold storage.
+
+    Produces a Parquet file if ``pyarrow`` is available, otherwise JSON.
+    Archived rows are deleted from the database after successful write.
+    """
+    import json as _json
+    import os as _os
+    import sqlite3 as _sqlite3
+    from pathlib import Path as _Path
+
+    cutoff = time.time() - age_days * 86400
+
+    rows = conn.execute(
+        "SELECT session_id, timestamp, fifo_blob, token_count "
+        "FROM rolling_context WHERE timestamp < ?",
+        (cutoff,),
+    ).fetchall()
+
+    if not rows:
+        return  # nothing to archive
+
+    base_dir = _Path(_os.environ.get("BASE_DIR", "."))
+    archive_dir = base_dir / "data" / "cold_archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+
+    stamp = time.strftime("%Y%m%d_%H%M%S")
+
+    # Try Parquet first (fast, columnar, compact)
+    try:
+        import pyarrow as pa          # type: ignore[import-untyped]
+        import pyarrow.parquet as pq  # type: ignore[import-untyped]
+
+        table = pa.table({
+            "session_id":  [r[0] for r in rows],
+            "timestamp":   [r[1] for r in rows],
+            "fifo_blob":   [r[2] for r in rows],
+            "token_count": [r[3] for r in rows],
+        })
+        out_path = archive_dir / f"traces_{stamp}.parquet"
+        pq.write_table(table, str(out_path))
+    except ImportError:
+        # Fallback to JSON
+        records = [
+            {
+                "session_id": r[0],
+                "timestamp": r[1],
+                "fifo_blob": r[2],
+                "token_count": r[3],
+            }
+            for r in rows
+        ]
+        out_path = archive_dir / f"traces_{stamp}.json"
+        out_path.write_text(_json.dumps(records, indent=2), encoding="utf-8")
+
+    # Delete archived rows
+    conn.execute("DELETE FROM rolling_context WHERE timestamp < ?", (cutoff,))
+    conn.commit()
+
+
+# ---------------------------------------------------------------------------
+# DB table bootstrapping and dream-result persistence
+# ---------------------------------------------------------------------------
+
+
+def _ensure_dream_tables(conn: "sqlite3.Connection") -> None:
+    """Create dream-related tables if they do not exist."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS rolling_context (
+            session_id TEXT NOT NULL,
+            timestamp REAL NOT NULL,
+            fifo_blob TEXT NOT NULL,
+            token_count INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS fact_store (
+            entity_id TEXT NOT NULL,
+            vector_embedding TEXT,
+            semantic_relationship TEXT,
+            confidence_score REAL NOT NULL DEFAULT 0.0
+        );
+        CREATE TABLE IF NOT EXISTS dream_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp REAL NOT NULL,
+            cycle_type TEXT NOT NULL DEFAULT 'scheduled',
+            hlf_practiced INTEGER DEFAULT 0,
+            hlf_passed INTEGER DEFAULT 0,
+            context_compressed_chars INTEGER DEFAULT 0,
+            context_result_chars INTEGER DEFAULT 0,
+            duration_seconds REAL DEFAULT 0,
+            summary TEXT
+        );
+        CREATE TABLE IF NOT EXISTS hat_findings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dream_cycle_id INTEGER REFERENCES dream_results(id),
+            hat TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            recommendation TEXT,
+            resolved INTEGER DEFAULT 0,
+            timestamp REAL NOT NULL
+        );
+    """)
+
+
+def _persist_report(
+    conn: "sqlite3.Connection",
+    report: DreamCycleReport,
+) -> int:
+    """Persist a DreamCycleReport to the database. Returns the new row id."""
+    conn.execute(
+        "INSERT INTO dream_results "
+        "(timestamp, cycle_type, hlf_practiced, hlf_passed, "
+        "context_compressed_chars, context_result_chars, duration_seconds, summary) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (
+            report.start_time,
+            report.cycle_type,
+            report.hlf_practiced,
+            report.hlf_passed,
+            report.context_compressed_chars,
+            report.context_result_chars,
+            report.duration_seconds,
+            report.summary,
+        ),
+    )
+    conn.commit()
+    row_id: int = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    return row_id
+
+
+def get_last_dream_result(
+    conn: "sqlite3.Connection",
+) -> dict[str, Any] | None:
+    """Return the most recent dream result as a dict, or None."""
+    cursor = conn.execute(
+        "SELECT id, timestamp, cycle_type, hlf_practiced, hlf_passed, "
+        "context_compressed_chars, context_result_chars, duration_seconds, summary "
+        "FROM dream_results ORDER BY id DESC LIMIT 1"
+    )
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    return {
+        "id": row[0],
+        "timestamp": row[1],
+        "cycle_type": row[2],
+        "hlf_practiced": row[3],
+        "hlf_passed": row[4],
+        "context_compressed_chars": row[5],
+        "context_result_chars": row[6],
+        "duration_seconds": row[7],
+        "summary": row[8],
+    }
+
+

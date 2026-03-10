@@ -5,7 +5,7 @@ from agents.core.hat_engine import run_all_hats
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    print("Running Eleven Hats Audit...")
+    print("Running Fourteen-Hat Audit...")
     reports = run_all_hats()
     summary = []
     for r in reports:

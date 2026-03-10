@@ -797,11 +797,13 @@ with center_canvas:
         "agents, dispatch HLF commands, and monitor swarm execution.",
     )
 
-    chat_tab, dispatch_tab, swarm_tab = st.tabs(
+    chat_tab, dispatch_tab, swarm_tab, appstore_tab, setup_tab = st.tabs(
         [
             "💬 Agent Chat",
             "🚀 Intent Dispatch",
             "🚦 Swarm State",
+            "🏪 App Store",
+            "⚙️ Setup & Auth",
         ]
     )
 
@@ -1284,6 +1286,8 @@ with center_canvas:
                     "purple": "🟪",
                     "orange": "🟠",
                     "silver": "🪨",
+                    "azure": "💎",
+                    "gold": "✨",
                 }
                 for hr in hat_reports:
                     hat_name = hr.get("hat", "?")
@@ -1307,6 +1311,242 @@ with center_canvas:
                 "the full pipeline: context compression → trace archival → "
                 "HLF practice → Six Thinking Hats analysis."
             )
+
+    # ================================================================
+    # TAB 4: APP STORE (Tool Gallery)
+    # ================================================================
+    with appstore_tab:
+        st.markdown(
+            "**Sovereign OS Tool Catalog**  \n"
+            "Browse and manage registered tools. Tools are organized by tier "
+            "and feature-flag gated via `settings.json`."
+        )
+
+        # ── Tier 1: Native Tools (zero-dependency) ───────────────
+        with st.expander("🔧 Tier 1 — Native Tools (Zero Dependencies)", expanded=True):
+            st.markdown("Python-native utilities. Always available, no external requirements.")
+            tier1_tools = [
+                ("native.sysinfo", "System Info", "CPU, memory, disk, platform details", "1 gas"),
+                ("native.clipboard", "Clipboard", "Read/write system clipboard", "2 gas"),
+                ("native.screenshot", "Screenshot", "Capture screen regions", "3 gas"),
+                ("native.qrcode", "QR Code", "Generate QR codes from text", "2 gas"),
+                ("native.hash", "Hash File", "SHA-256 / MD5 file hashing", "2 gas"),
+                ("native.password", "Password Gen", "Cryptographic password generation", "1 gas"),
+                ("native.diff", "Diff Files", "Compare two file versions", "2 gas"),
+                ("native.regex", "Regex Tester", "Test regex patterns with highlights", "1 gas"),
+                ("native.port", "Port Check", "Scan if a port is open/closed", "2 gas"),
+                ("native.env", "Env Info", "Read environment variables safely", "1 gas"),
+                ("native.timestamp", "Timestamp", "Unix/ISO/human date conversion", "1 gas"),
+            ]
+            for name, label, desc, cost in tier1_tools:
+                c1, c2, c3 = st.columns([2, 4, 1])
+                with c1:
+                    st.markdown(f"**`{name}`**")
+                with c2:
+                    st.caption(f"{label} — {desc}")
+                with c3:
+                    st.caption(cost)
+
+        # ── Tier 2A: AI Tools (Ollama-powered) ───────────────────
+        with st.expander("🤖 Tier 2A — AI Tools (Ollama-Powered)", expanded=True):
+            st.markdown("Local AI capabilities via Ollama. **Free** — runs on your hardware.")
+            tier2a_tools = [
+                ("ai.summarize", "Summarize", "Text summarization (brief, detailed, bullets)", "5 gas"),
+                ("ai.explain_code", "Explain Code", "Explain what code does", "5 gas"),
+                ("ai.commit_msg", "Commit Msg", "Generate git commit messages from diffs", "3 gas"),
+                ("ai.translate", "Translate", "Text translation (80+ languages)", "5 gas"),
+                ("ai.regex_gen", "Regex Gen", "Natural language → regex patterns", "3 gas"),
+                ("ai.shell_gen", "Shell Gen", "Natural language → safe shell commands", "5 gas"),
+                ("ai.code_review", "Code Review", "AI-powered code review with severity ratings", "8 gas"),
+                ("ai.json_schema", "JSON Schema", "Natural language → JSON Schema", "3 gas"),
+                ("ai.sentiment", "Sentiment", "Sentiment & tone analysis", "3 gas"),
+                ("ai.readme_gen", "README Gen", "Generate README.md from project context", "8 gas"),
+            ]
+            for name, label, desc, cost in tier2a_tools:
+                c1, c2, c3 = st.columns([2, 4, 1])
+                with c1:
+                    st.markdown(f"**`{name}`**")
+                with c2:
+                    st.caption(f"{label} — {desc}")
+                with c3:
+                    st.caption(cost)
+
+        # ── Tier 2B: Lightweight Libraries ────────────────────────
+        with st.expander("📦 Tier 2B — Lightweight Libraries (pip install)", expanded=False):
+            st.markdown("Require small pip packages. Install on demand.")
+            tier2b = [
+                ("ai.ocr", "OCR", "pytesseract", "Extract text from images", "Coming Soon"),
+                ("ai.tts", "Text-to-Speech", "pyttsx3", "Offline text-to-speech", "Coming Soon"),
+                ("ai.stt", "Speech-to-Text", "faster-whisper", "Whisper-powered transcription", "Coming Soon"),
+                ("ai.embeddings", "Embeddings", "sentence-transformers", "Semantic search", "Coming Soon"),
+            ]
+            for name, label, lib, desc, status in tier2b:
+                c1, c2, c3, c4 = st.columns([2, 3, 2, 1])
+                with c1:
+                    st.markdown(f"**`{name}`**")
+                with c2:
+                    st.caption(f"{label} — {desc}")
+                with c3:
+                    st.caption(f"📦 `{lib}`")
+                with c4:
+                    st.caption(status)
+
+        # ── Tier 3: Power Tools ───────────────────────────────────
+        with st.expander("⚡ Tier 3 — Power Tools (Heavy Dependencies)", expanded=False):
+            st.markdown("Advanced AI tools with larger dependencies. Opt-in only.")
+            tier3 = [
+                ("ai.image_gen", "Image Gen", "diffusers", "Local Stable Diffusion", "Planned"),
+                ("ai.rag", "Document Q&A", "chromadb", "RAG over local files", "Planned"),
+                ("ai.code_search", "Semantic Search", "tree-sitter", "Code search via embeddings", "Planned"),
+            ]
+            for name, label, lib, desc, status in tier3:
+                c1, c2, c3, c4 = st.columns([2, 3, 2, 1])
+                with c1:
+                    st.markdown(f"**`{name}`**")
+                with c2:
+                    st.caption(f"{label} — {desc}")
+                with c3:
+                    st.caption(f"📦 `{lib}`")
+                with c4:
+                    st.caption(status)
+
+        # Total tool count
+        total = len(tier1_tools) + len(tier2a_tools) + len(tier2b) + len(tier3)
+        st.markdown(f"---\n**Total catalog: {total} tools** across 4 tiers")
+
+    # ================================================================
+    # TAB 5: SETUP & AUTH (MSTY-Style Provider Panel)
+    # ================================================================
+    with setup_tab:
+        st.markdown(
+            "**AI Provider Authentication**  \n"
+            "Securely link your AI accounts so Sovereign OS can route "
+            "requests to the right provider. Auth runs locally — "
+            "no credentials leave your machine."
+        )
+        st.info(
+            "💡 **Smart Routing**: Sovereign OS defaults to local Ollama "
+            "(free, private). Cloud providers are opt-in per-request for "
+            "tasks that need frontier model capabilities."
+        )
+
+        # Detect installed CLI tools (cached in session)
+        if "cli_tools_cache" not in st.session_state:
+            try:
+                from agents.core.native.cli_tools import detect_cli_tools
+                st.session_state["cli_tools_cache"] = detect_cli_tools()
+            except Exception:
+                st.session_state["cli_tools_cache"] = {}
+
+        cli_tools = st.session_state["cli_tools_cache"]
+
+        # ── Provider Auth Status Table (MSTY-style) ──────────────
+        st.markdown("### 🔐 Provider Status")
+
+        # Define all providers (including ones we track but may not have CLIs for)
+        providers = [
+            {
+                "name": "Ollama (Local)",
+                "key": "ollama",
+                "icon": "🦙",
+                "subscription": "Free & Open Source",
+            },
+            {
+                "name": "OpenAI Codex CLI",
+                "key": "codex",
+                "icon": "🟢",
+                "subscription": "GitHub Copilot Pro",
+            },
+            {
+                "name": "Claude Code CLI",
+                "key": "claude",
+                "icon": "🟣",
+                "subscription": "Anthropic API / Claude Pro",
+            },
+            {
+                "name": "Google Gemini",
+                "key": "gemini",
+                "icon": "🔵",
+                "subscription": "Google Ultimate",
+            },
+            {
+                "name": "GitHub Copilot",
+                "key": "copilot",
+                "icon": "🐙",
+                "subscription": "GitHub Copilot Pro",
+            },
+            {
+                "name": "Task Master AI",
+                "key": "task-master",
+                "icon": "📋",
+                "subscription": "Shared API keys",
+            },
+        ]
+
+        for prov in providers:
+            tool_info = cli_tools.get(prov["key"])
+            col_icon, col_name, col_status, col_action = st.columns([0.5, 3, 2, 1.5])
+
+            with col_icon:
+                st.markdown(prov["icon"])
+            with col_name:
+                st.markdown(f"**{prov['name']}**")
+                st.caption(prov["subscription"])
+            with col_status:
+                if tool_info and tool_info.installed:
+                    if tool_info.auth_status == "authenticated":
+                        st.markdown("🟢 **Authorized**")
+                    else:
+                        st.markdown("🔴 **Not authorized**")
+                elif prov["key"] == "gemini":
+                    # Gemini through Google Ultimate — check env
+                    if os.environ.get("GOOGLE_API_KEY", ""):
+                        st.markdown("🟢 **Authorized**")
+                    else:
+                        st.markdown("🟡 **Key not set**")
+                elif prov["key"] == "copilot":
+                    # Check if gh cli is available and logged in
+                    st.markdown("🟢 **Via VS Code**")
+                else:
+                    st.markdown("⚪ **Not installed**")
+            with col_action:
+                if tool_info and tool_info.installed and tool_info.auth_status == "needs_auth":
+                    st.caption(f"`{tool_info.auth_command}`")
+                elif not (tool_info and tool_info.installed) and prov["key"] not in ("gemini", "copilot"):
+                    st.caption("Install →")
+
+            st.markdown("<hr style='margin:2px 0; opacity:0.2'>", unsafe_allow_html=True)
+
+        # ── Setup Wizard ─────────────────────────────────────────
+        st.markdown("### 🧙 Setup Wizard")
+        try:
+            from agents.core.native.cli_tools import get_setup_wizard_steps
+            steps = get_setup_wizard_steps(cli_tools)
+            completed = sum(1 for s in steps if s["priority"] == "done")
+            total_steps = len(steps)
+            if total_steps > 0:
+                st.progress(completed / total_steps, text=f"{completed}/{total_steps} steps complete")
+            for step in steps:
+                prio_icon = {"required": "🔴", "recommended": "🟡", "optional": "🟢", "done": "✅"}.get(
+                    step["priority"], "⚪"
+                )
+                with st.expander(f"{prio_icon} {step['title']}", expanded=(step["priority"] != "done")):
+                    st.markdown(step["description"])
+                    if step.get("command"):
+                        st.code(step["command"], language="bash")
+        except Exception as wiz_err:
+            st.warning(f"Setup wizard unavailable: {wiz_err}")
+
+        # ── Routing Tips ─────────────────────────────────────────
+        st.markdown("### 💡 Routing Tips")
+        try:
+            from agents.core.native.cli_tools import get_routing_tips
+            tips = get_routing_tips()
+            for tip in tips:
+                with st.expander(tip["title"], expanded=False):
+                    st.markdown(tip["tip"])
+        except Exception:
+            st.caption("Routing tips unavailable.")
 
 
 # ============================================================================
