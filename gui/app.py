@@ -1834,6 +1834,104 @@ with right_pane:
         st.caption("Send a chat message first to enable model feedback.")
 
 
+
+# ============================================================================
+# GAS DASHBOARD — Real-Time Agent Resource Metering
+# ============================================================================
+
+st.markdown("---")
+st.markdown(
+    '<p style="font-size:1.15rem; font-weight:700; margin-bottom:0.3rem;">'
+    '⛽ Gas Dashboard'
+    '<span class="tech-term" data-tooltip="Tracks per-intent gas consumption '
+    'across HLF execution. Gas metering enforces resource budgets and prevents '
+    'runaway agent operations. Every routing decision consumes gas.">'
+    ' ℹ️</span></p>',
+    unsafe_allow_html=True,
+)
+
+# Try to load gas data from session state or create demo data
+_gas_data = st.session_state.get("gas_meter_snapshot")
+if _gas_data is None:
+    # Provide a live demo view when no real execution has occurred yet
+    _gas_data = {
+        "limit": 100,
+        "consumed": 0,
+        "remaining": 100,
+        "history": [],
+    }
+
+_gas_limit = _gas_data.get("limit", 100)
+_gas_consumed = _gas_data.get("consumed", 0)
+_gas_remaining = _gas_data.get("remaining", _gas_limit - _gas_consumed)
+_gas_pct = _gas_consumed / max(_gas_limit, 1)
+
+# Meter visualization
+_gas_cols = st.columns([2, 1, 1, 1])
+with _gas_cols[0]:
+    # Color-coded progress bar
+    if _gas_pct < 0.5:
+        _bar_color = "#2ea043"   # green
+        _status_emoji = "🟢"
+    elif _gas_pct < 0.8:
+        _bar_color = "#d29922"   # yellow
+        _status_emoji = "🟡"
+    else:
+        _bar_color = "#f85149"   # red
+        _status_emoji = "🔴"
+
+    _bar_html = f"""
+    <div style="background:#21262d; border-radius:6px; overflow:hidden;
+                height:22px; border:1px solid #30363d; position:relative;">
+        <div style="background:{_bar_color}; height:100%;
+                    width:{min(_gas_pct * 100, 100):.1f}%;
+                    transition:width 0.5s ease;
+                    border-radius:4px 0 0 4px;"></div>
+        <span style="position:absolute; left:50%; top:50%;
+                     transform:translate(-50%,-50%);
+                     font-size:0.75rem; font-weight:600; color:#c9d1d9;">
+            {_gas_consumed}/{_gas_limit} gas
+        </span>
+    </div>
+    """
+    st.markdown(_bar_html, unsafe_allow_html=True)
+
+with _gas_cols[1]:
+    st.metric("Consumed", f"{_gas_consumed}", delta=None)
+with _gas_cols[2]:
+    st.metric("Remaining", f"{_gas_remaining}")
+with _gas_cols[3]:
+    st.metric("Status", f"{_status_emoji}")
+
+# Gas history table (expandable)
+_gas_history = _gas_data.get("history", [])
+if _gas_history:
+    with st.expander(f"📊 Gas History ({len(_gas_history)} events)", expanded=False):
+        _hist_df = pd.DataFrame(_gas_history)
+        # Rename columns for readability
+        _col_map = {}
+        if "amount" in _hist_df.columns:
+            _col_map["amount"] = "Gas Used"
+        if "total" in _hist_df.columns:
+            _col_map["total"] = "Cumulative"
+        if "context" in _hist_df.columns:
+            _col_map["context"] = "Operation"
+        if _col_map:
+            _hist_df = _hist_df.rename(columns=_col_map)
+        st.dataframe(_hist_df, use_container_width=True, hide_index=True)
+
+        # Per-context breakdown
+        if "Operation" in _hist_df.columns and "Gas Used" in _hist_df.columns:
+            _by_ctx = _hist_df.groupby("Operation")["Gas Used"].sum().sort_values(ascending=False)
+            if len(_by_ctx) > 1:
+                st.markdown("**Top Consumers:**")
+                for _ctx, _amt in _by_ctx.head(5).items():
+                    _pct_ctx = (_amt / max(_gas_consumed, 1)) * 100
+                    st.caption(f"• `{_ctx}`: {_amt} gas ({_pct_ctx:.0f}%)")
+else:
+    st.caption("No gas consumed yet. Submit a chat intent to see real-time metering.")
+
+
 # ============================================================================
 # FOOTER
 # ============================================================================
