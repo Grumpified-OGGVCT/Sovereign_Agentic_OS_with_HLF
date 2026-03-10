@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 
 import requests
 
 logger = logging.getLogger(__name__)
 
 _OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://ollama-matrix:11434")
-_SUMMARIZATION_MODEL = "qwen:7b"
+_SUMMARIZATION_MODEL = os.environ.get("SUMMARIZATION_MODEL", "qwen:7b")
 
 
 class FractalSummarizer:
@@ -79,3 +80,43 @@ class FractalSummarizer:
             return cls.summarize_context(combined, target_tokens)
 
         return combined
+
+    @classmethod
+    def summarize_with_stats(cls, raw_context: str, target_tokens: int = 1500) -> dict[str, object]:
+        """
+        Summarize context and return the result alongside compression metrics.
+
+        This method is the observability-aware variant of :meth:`summarize_context`.
+        It records wall-clock duration and compression ratio so callers can log
+        the stats to the ALS Merkle chain or surface them in the GUI dashboard.
+
+        Returns:
+            dict with keys:
+                - ``summary`` (str): compressed context text
+                - ``original_chars`` (int): length of *raw_context* in characters
+                - ``summary_chars`` (int): length of *summary* in characters
+                - ``compression_ratio`` (float): original / summary (>1 means smaller)
+                - ``duration_ms`` (float): wall-clock time spent in milliseconds
+                - ``model`` (str): the SUMMARIZATION_MODEL used
+        """
+        t0 = time.monotonic()
+        summary = cls.summarize_context(raw_context, target_tokens=target_tokens)
+        elapsed_ms = (time.monotonic() - t0) * 1000.0
+
+        original_chars = len(raw_context)
+        summary_chars = len(summary)
+
+        if summary_chars == 0:
+            logger.warning("summarize_with_stats: summary is empty — possible model failure; compression_ratio set to 0")
+            ratio = 0.0
+        else:
+            ratio = original_chars / summary_chars
+
+        return {
+            "summary": summary,
+            "original_chars": original_chars,
+            "summary_chars": summary_chars,
+            "compression_ratio": round(ratio, 4),
+            "duration_ms": round(elapsed_ms, 2),
+            "model": _SUMMARIZATION_MODEL,
+        }
