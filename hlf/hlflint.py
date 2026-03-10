@@ -17,6 +17,10 @@ from hlf.hlfc import compile as hlfc_compile
 # Maximum allowed FUNCTION call nesting depth before raising a lint warning.
 _MAX_RECURSION_DEPTH = int(os.environ.get("HLF_MAX_RECURSION_DEPTH", "5"))
 
+# Compiled once at module level for performance.
+_SET_DECL_RE = re.compile(r"^\s*\[SET\]\s+(\w+)\s*=", re.MULTILINE)
+_VAR_REF_RE = re.compile(r"\$\{(\w+)\}")
+
 
 def _count_tokens(text: str) -> int:
     try:
@@ -61,14 +65,13 @@ def lint(source: str, max_gas: int | None = None) -> list[str]:
         diagnostics.append(f"TOKEN_OVERFLOW: intent has {token_count} tokens (max 30)")
 
     # ── Duplicate SET names (source-level check, before compile) ──────────
-    _set_decl_re = re.compile(r"^\s*\[SET\]\s+(\w+)\s*=", re.MULTILINE)
-    seen_set_names: list[str] = []
-    for m in _set_decl_re.finditer(source):
+    seen_set_names: set[str] = set()
+    for m in _SET_DECL_RE.finditer(source):
         name = m.group(1)
         if name in seen_set_names:
             diagnostics.append(f"DUPLICATE_SET: variable '{name}' is declared more than once")
         else:
-            seen_set_names.append(name)
+            seen_set_names.add(name)
 
     try:
         ast = hlfc_compile(source)
@@ -90,7 +93,7 @@ def lint(source: str, max_gas: int | None = None) -> list[str]:
             set_names.add(node.get("name", ""))
 
     used_refs: set[str] = set()
-    for match in re.finditer(r"\$\{(\w+)\}", source):
+    for match in _VAR_REF_RE.finditer(source):
         used_refs.add(match.group(1))
 
     for name in set_names:

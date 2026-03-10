@@ -471,11 +471,13 @@ class TestBuiltinTypeOf:
     def test_type_of_dict(self) -> None:
         assert _builtin_type_of({"key": "val"}) == "map"
 
-    def test_type_of_string_true_returns_bool(self) -> None:
-        assert _builtin_type_of("true") == "bool"
+    def test_type_of_string_true_returns_string(self) -> None:
+        """Quoted string "true" is a string value, NOT a bool."""
+        assert _builtin_type_of("true") == "string"
 
-    def test_type_of_string_false_returns_bool(self) -> None:
-        assert _builtin_type_of("false") == "bool"
+    def test_type_of_string_false_returns_string(self) -> None:
+        """Quoted string "false" is a string value, NOT a bool."""
+        assert _builtin_type_of("false") == "string"
 
     def test_type_of_empty_string(self) -> None:
         assert _builtin_type_of("") == "string"
@@ -512,13 +514,13 @@ class TestNewBuiltinsInRuntime:
         assert result["code"] == 0
         assert result["scope"]["FORMAT_RESULT"] == "greeting"
 
-    def test_format_substitution_with_set_variable(self) -> None:
-        """FORMAT is called with args that include a k=v pair for substitution."""
+    def test_format_substitution_verified(self) -> None:
+        """FORMAT correctly substitutes {key} placeholders for k=v args."""
         from hlf.hlfrun import _builtin_format
 
-        # Direct unit call to FORMAT function confirms k=v substitution works
-        result = _builtin_format("Hello, {name}!", "name=Runtime")
-        assert result == "Hello, Runtime!"
+        # Verify the substitution mechanism directly, which backs the HLF [FUNCTION] tag
+        result = _builtin_format("Welcome, {user}! Your role is {role}.", "user=Alice", "role=admin")
+        assert result == "Welcome, Alice! Your role is admin."
 
     def test_type_of_builtin_in_runtime(self) -> None:
         from hlf.hlfrun import run

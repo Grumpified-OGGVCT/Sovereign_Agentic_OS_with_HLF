@@ -170,11 +170,20 @@ def _builtin_type_of(*args: Any) -> str:
     ``"string"``, ``"number"``, ``"bool"``, ``"list"``, ``"map"``,
     or ``"null"``.
 
+    Type rules follow Python semantics:
+    - Python ``bool`` (``True``/``False``) → ``"bool"``
+    - Python ``int``/``float`` → ``"number"``
+    - Python ``str`` → ``"string"`` (regardless of content)
+    - Python ``list`` → ``"list"``
+    - Python ``dict`` → ``"map"``
+    - ``None`` / no-arg → ``"null"``
+
     Examples::
 
         [FUNCTION] TYPE_OF "hello"   → "string"
         [FUNCTION] TYPE_OF 42        → "number"
-        [FUNCTION] TYPE_OF true      → "bool"
+        [FUNCTION] TYPE_OF true      → "bool"   (unquoted HLF boolean)
+        [FUNCTION] TYPE_OF "true"    → "string" (quoted string, NOT bool)
         [FUNCTION] TYPE_OF []        → "list"
     """
     if not args:
@@ -182,14 +191,12 @@ def _builtin_type_of(*args: Any) -> str:
     value = args[0]
     if value is None:
         return "null"
+    # Check bool before int because bool is a subclass of int in Python
     if isinstance(value, bool):
         return "bool"
     if isinstance(value, (int, float)):
         return "number"
     if isinstance(value, str):
-        # Distinguish string representations of booleans
-        if value.lower() in ("true", "false"):
-            return "bool"
         return "string"
     if isinstance(value, list):
         return "list"
