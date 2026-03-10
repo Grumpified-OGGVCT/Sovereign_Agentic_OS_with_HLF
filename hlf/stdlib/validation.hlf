@@ -1,0 +1,33 @@
+[HLF-v3]
+[MODULE] validation
+[INTENT] provide "input validation and schema checking utility functions"
+
+[FUNCTION] is_email "value"
+[FUNCTION] is_url "value"
+[FUNCTION] is_numeric "value"
+[FUNCTION] is_integer "value"
+[FUNCTION] is_boolean "value"
+[FUNCTION] is_empty "value"
+[FUNCTION] is_non_empty "value"
+[FUNCTION] min_length "value" "min"
+[FUNCTION] max_length "value" "max"
+[FUNCTION] length_between "value" "min" "max"
+[FUNCTION] matches_pattern "value" "regex"
+[FUNCTION] is_in "value" "allowed_list"
+[FUNCTION] not_in "value" "blocked_list"
+[FUNCTION] is_ipv4 "value"
+[FUNCTION] is_ipv6 "value"
+[FUNCTION] is_uuid "value"
+[FUNCTION] is_json "value"
+[FUNCTION] is_path_safe "value"
+[FUNCTION] sanitize_string "value"
+
+[SET] VALID=true
+[SET] INVALID=false
+[SET] EMAIL_MAX_LENGTH=254
+[SET] URL_MAX_LENGTH=2083
+[SET] UUID_PATTERN="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+[SET] IPV4_PATTERN="^((25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.){3}(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$"
+
+[RESULT] code=0 message="validation stdlib loaded"
+Ω
