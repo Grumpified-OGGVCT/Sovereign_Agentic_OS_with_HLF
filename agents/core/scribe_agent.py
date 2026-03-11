@@ -114,6 +114,74 @@ def audit_budget(
         return BudgetStatus(tokens_used=0, budget=budget, pct=0.0, gate_blocked=False)
 
 
+def get_rolling_context_stats(
+    conn: sqlite3.Connection | None = None,
+    db_path: Path | None = None,
+) -> dict[str, Any]:
+    """
+    Return per-session token statistics from ``rolling_context``.
+
+    Queries the SQLite ``rolling_context`` table and returns a breakdown
+    of token usage grouped by ``session_id``.  Falls back gracefully
+    when the DB is unavailable or the table lacks a ``session_id`` column.
+
+    Returns a dict with keys:
+      - ``sessions``: list of ``{session_id, token_count}`` dicts (most-used first).
+        When the table has no ``session_id`` column, a single entry with
+        ``session_id="__ungrouped__"`` represents the total.
+      - ``total_tokens``: sum of all ``token_count`` rows
+      - ``session_count``: number of distinct sessions (or 1 for ungrouped)
+    """
+
+    def _run(c: sqlite3.Connection) -> dict[str, Any]:
+        # Attempt the session-grouped query first; fall back to an aggregate if
+        # the column does not exist, avoiding an expensive PRAGMA introspection
+        # on every call.
+        try:
+            rows = c.execute(
+                "SELECT session_id, COALESCE(SUM(token_count), 0) AS tc "
+                "FROM rolling_context GROUP BY session_id ORDER BY tc DESC"
+            ).fetchall()
+            sessions = [{"session_id": r[0], "token_count": int(r[1])} for r in rows]
+        except Exception:
+            # session_id column probably absent — fall back to ungrouped total
+            try:
+                total_row = c.execute(
+                    "SELECT COALESCE(SUM(token_count), 0) FROM rolling_context"
+                ).fetchone()
+                total = int(total_row[0]) if total_row else 0
+                sessions = [{"session_id": "__ungrouped__", "token_count": total}]
+            except Exception as inner_exc:
+                _logger.log(
+                    "SCRIBE_STATS_QUERY_ERROR",
+                    {"error": str(inner_exc)},
+                    anomaly_score=0.3,
+                )
+                return {"sessions": [], "total_tokens": 0, "session_count": 0}
+        total_tokens = sum(s["token_count"] for s in sessions)
+        return {
+            "sessions": sessions,
+            "total_tokens": total_tokens,
+            "session_count": len(sessions),
+        }
+
+    if conn is not None:
+        return _run(conn)
+
+    path = db_path or _DB_PATH
+    if not path.exists():
+        return {"sessions": [], "total_tokens": 0, "session_count": 0}
+
+    try:
+        c = sqlite3.connect(str(path), check_same_thread=False)
+        result = _run(c)
+        c.close()
+        return result
+    except Exception as exc:
+        _logger.log("SCRIBE_STATS_ERROR", {"error": str(exc)}, anomaly_score=0.4)
+        return {"sessions": [], "total_tokens": 0, "session_count": 0}
+
+
 def _publish_budget_alert(r: Any, status: BudgetStatus) -> None:
     """Publish a BUDGET_GATE event to ``arbiter_events``."""
     try:
