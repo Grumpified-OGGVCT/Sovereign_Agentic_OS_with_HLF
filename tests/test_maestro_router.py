@@ -19,12 +19,11 @@ from __future__ import annotations
 import pytest
 
 from agents.core.maestro_router import (
+    MAESTRORouter,
     ModelCapability,
     ProviderProfile,
     RouteResult,
-    MAESTRORouter,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 

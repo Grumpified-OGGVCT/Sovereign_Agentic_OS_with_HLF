@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
-
 from agents.core.egl_monitor import (
     BehaviorRecord,
-    EGLMetric,
     EGLMonitor,
 )
 
