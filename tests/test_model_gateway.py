@@ -16,10 +16,10 @@ Tests cover:
 from __future__ import annotations
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
 
 from agents.core.model_gateway import (
     GatewayConfig,
@@ -27,9 +27,7 @@ from agents.core.model_gateway import (
     ModelInfo,
     ModelRegistry,
     RequestRouter,
-    RoutingDecision,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -51,7 +49,8 @@ def config() -> GatewayConfig:
 def registry() -> ModelRegistry:
     r = ModelRegistry()
     r.register(ModelInfo(id="gemini/gemini-3-pro", provider="google", base_url="https://api.google.com"))
-    r.register(ModelInfo(id="qwen3-vl:235b-cloud", provider="ollama-cloud", base_url="https://ollama.com/", is_local=False))
+    r.register(ModelInfo(id="qwen3-vl:235b-cloud", provider="ollama-cloud",
+                         base_url="https://ollama.com/", is_local=False))
     return r
 
 
@@ -171,7 +170,7 @@ class TestRequestRouter:
 
     def test_route_cloud_uses_key_rotator(self, config: GatewayConfig, registry: ModelRegistry) -> None:
         """Cloud models use the ApiKeyRotator instead of the vault."""
-        from agents.core.model_gateway import ApiKeyRotator, _ollama_key_rotator
+        from agents.core.model_gateway import ApiKeyRotator
         rotator = ApiKeyRotator.__new__(ApiKeyRotator)
         rotator._keys = ["key_AAA", "key_BBB"]
         rotator._index = 0

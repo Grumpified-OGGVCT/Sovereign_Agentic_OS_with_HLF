@@ -9,19 +9,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+from unittest.mock import patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
 
 from hlf.oci_client import (
     OCIChecksumError,
     OCIClient,
-    OCIError,
     OCIModuleRef,
-    OCIPullResult,
     OCIRegistryError,
 )
-
 
 # ─── Module Reference Parsing Tests ─────────────────────────────────────────
 
@@ -91,7 +88,7 @@ class TestOCIClientInit:
 
     def test_creates_cache_dir(self, tmp_path):
         cache = tmp_path / "oci_cache"
-        client = OCIClient(cache_dir=cache)
+        OCIClient(cache_dir=cache)
         assert cache.exists()
 
     def test_default_registry(self, tmp_path):
@@ -208,9 +205,11 @@ class TestPull:
         ref = OCIModuleRef.parse("math")
 
         manifest = {"layers": []}
-        with patch.object(client, "_fetch_manifest", return_value=manifest):
-            with pytest.raises(OCIRegistryError, match="No HLF module layer"):
-                client.pull(ref)
+        with (
+            patch.object(client, "_fetch_manifest", return_value=manifest),
+            pytest.raises(OCIRegistryError, match="No HLF module layer"),
+        ):
+            client.pull(ref)
 
     def test_pull_checksum_validation_failure(self, tmp_path):
         """Wrong expected checksum should raise OCIChecksumError."""
@@ -221,9 +220,8 @@ class TestPull:
         manifest = {"layers": [{"mediaType": "x", "digest": ""}]}
 
         with patch.object(client, "_fetch_manifest", return_value=manifest), \
-             patch.object(client, "_fetch_blob", return_value=content):
-            with pytest.raises(OCIChecksumError):
-                client.pull(ref, expected_sha256="wrong_sha256_value")
+             patch.object(client, "_fetch_blob", return_value=content), pytest.raises(OCIChecksumError):
+            client.pull(ref, expected_sha256="wrong_sha256_value")
 
 
 # ─── Push Tests (Mocked HTTP) ───────────────────────────────────────────────

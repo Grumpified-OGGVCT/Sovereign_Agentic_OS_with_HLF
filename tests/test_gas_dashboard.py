@@ -14,19 +14,18 @@ Tests cover:
 from __future__ import annotations
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-from typing import Any
+from unittest.mock import MagicMock
+
+import pytest
 
 from agents.core.daemons.gas_dashboard import (
-    GasDashboard,
     AgentGasReport,
+    GasDashboard,
     GasDashboardAlert,
     _load_gas_config,
     create_gas_router,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 

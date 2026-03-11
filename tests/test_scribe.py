@@ -8,16 +8,13 @@ entry retrieval, log persistence, and daemon lifecycle.
 from __future__ import annotations
 
 import json
+
 import pytest
-from pathlib import Path
-from unittest.mock import MagicMock
 
 from agents.core.daemons import DaemonEventBus, DaemonStatus
 from agents.core.daemons.scribe import (
-    ProseEntry,
     ScribeDaemon,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -172,7 +169,7 @@ class TestTokenBudget:
         d.start()
 
         # First translation consumes most of the tiny budget
-        entry1 = d.translate({"type": "intent_execution", "name": "big_op"})
+        d.translate({"type": "intent_execution", "name": "big_op"})
 
         # Subsequent translations should be budget-constrained summaries
         for _ in range(20):
@@ -204,7 +201,7 @@ class TestEntriesAndStats:
         assert len(entries) == 5
 
     def test_get_entries_default_count(self, running_daemon):
-        for i in range(3):
+        for _i in range(3):
             running_daemon.translate({"type": "test"})
         entries = running_daemon.get_entries()
         assert len(entries) == 3

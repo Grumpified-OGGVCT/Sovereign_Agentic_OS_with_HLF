@@ -16,15 +16,13 @@ from __future__ import annotations
 import pytest
 
 from hlf.translator import (
-    Tone,
-    NuanceGlyph,
-    DetectedIntent,
-    detect_nuance,
     HLFTranslator,
-    _safe_id,
+    NuanceGlyph,
+    Tone,
     _humanize_verb,
+    _safe_id,
+    detect_nuance,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 

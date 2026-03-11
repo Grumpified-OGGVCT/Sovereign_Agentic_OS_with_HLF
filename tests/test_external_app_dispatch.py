@@ -15,8 +15,6 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from agents.core.host_function_dispatcher import dispatch
 
 # ─── Constants ───────────────────────────────────────────────────────────────
@@ -144,7 +142,7 @@ class TestAnythingLLMBackend:
         mock_resp.raise_for_status = MagicMock()
         mock_httpx.get.return_value = mock_resp
 
-        result = dispatch("ALLM_LIST_WORKSPACES", [], tier="hearth")
+        dispatch("ALLM_LIST_WORKSPACES", [], tier="hearth")
         mock_httpx.get.assert_called_once()
         call_args = mock_httpx.get.call_args
         assert "/api/v1/workspaces" in call_args[0][0]
@@ -189,7 +187,7 @@ class TestAnythingLLMBackend:
         mock_resp.raise_for_status = MagicMock()
         mock_httpx.post.return_value = mock_resp
 
-        result = dispatch("ALLM_VECTOR_SEARCH", ["my-ws", "search term"], tier="forge")
+        dispatch("ALLM_VECTOR_SEARCH", ["my-ws", "search term"], tier="forge")
         call_args = mock_httpx.post.call_args
         assert "/api/v1/workspace/my-ws/vector-search" in call_args[0][0]
 
@@ -230,7 +228,7 @@ class TestMSTYBridgeBackend:
         mock_resp.raise_for_status = MagicMock()
         mock_httpx.get.return_value = mock_resp
 
-        result = dispatch("MSTY_LIST_MODELS", [], tier="hearth")
+        dispatch("MSTY_LIST_MODELS", [], tier="hearth")
         call_args = mock_httpx.get.call_args
         assert "/api/tags" in call_args[0][0]
 
@@ -257,7 +255,7 @@ class TestMSTYBridgeBackend:
         mock_resp.raise_for_status = MagicMock()
         mock_httpx.post.return_value = mock_resp
 
-        result = dispatch("MSTY_PERSONA_RUN", ["Architect", "design a system"], tier="forge")
+        dispatch("MSTY_PERSONA_RUN", ["Architect", "design a system"], tier="forge")
         call_args = mock_httpx.post.call_args
         body = call_args[1]["json"]
         assert "Architect" in body["system"]
@@ -345,8 +343,10 @@ _FAKE_CATALOG = {
          "details": {"format": "", "family": "", "parameter_size": "", "quantization_level": ""}},
         {"name": "deepseek-v3.2:cloud", "remote_model": "deepseek-v3.2:cloud", "remote_host": "https://ollama.com:443",
          "details": {"format": "", "family": "deepseek3.2", "parameter_size": "671B", "quantization_level": "fp8"}},
-        {"name": "mistral-large-3:675b-cloud", "remote_model": "mistral-large-3:675b-cloud", "remote_host": "https://ollama.com:443",
-         "details": {"format": "", "family": "mistral3", "parameter_size": "675000000000", "quantization_level": "fp8"}},
+        {"name": "mistral-large-3:675b-cloud", "remote_model": "mistral-large-3:675b-cloud",
+          "remote_host": "https://ollama.com:443",
+          "details": {"format": "", "family": "mistral3",
+                      "parameter_size": "675000000000", "quantization_level": "fp8"}},
         {"name": "kimi-k2:1t-cloud", "remote_model": "kimi-k2:1t-cloud", "remote_host": "https://ollama.com:443",
          "details": {"format": "", "family": "deepseek2", "parameter_size": "1T", "quantization_level": "FP8"}},
         # Local GGUF models — no remote fields
