@@ -15,7 +15,6 @@ Covers:
 from __future__ import annotations
 
 import textwrap
-from pathlib import Path
 
 import pytest
 import yaml
@@ -28,7 +27,6 @@ from agents.gateway.sentinel_gate import (
     get_loaded_rules,
     reload_ledger,
 )
-
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 

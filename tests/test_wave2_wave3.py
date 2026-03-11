@@ -1,14 +1,19 @@
 """Tests for Wave 2-3 modules: similarity gate, hlb format, outlier trap,
 dead man's switch, dream state, and context pruner."""
-
 from __future__ import annotations
+
 import time
+
 import pytest
 
+from agents.core.context_pruner import ContextPruner
+from agents.core.dead_man_switch import DeadManSwitch
+from agents.core.dream_state import DreamStateEngine
+from agents.core.outlier_trap import OutlierTrap
+from hlf.hlb_format import HlbFormatError, HlbInstruction, HlbReader, HlbWriter
+from hlf.similarity_gate import SemanticSimilarityGate, _normalize, cosine_similarity
 
 # ─── Semantic Similarity Gate ───────────────────────────────────────────────
-
-from hlf.similarity_gate import SemanticSimilarityGate, cosine_similarity, _normalize, _char_ngrams, _word_tokens
 
 
 class TestSimilarityGate:
@@ -62,7 +67,6 @@ class TestSimilarityGate:
 
 # ─── HLB Format ────────────────────────────────────────────────────────────
 
-from hlf.hlb_format import HlbWriter, HlbReader, HlbInstruction, HlbFormatError
 
 
 class TestHlbFormat:
@@ -128,7 +132,6 @@ class TestHlbFormat:
 
 # ─── Outlier Trap ───────────────────────────────────────────────────────────
 
-from agents.core.outlier_trap import OutlierTrap
 
 
 class TestOutlierTrap:
@@ -158,7 +161,6 @@ class TestOutlierTrap:
 
 # ─── Dead Man's Switch ─────────────────────────────────────────────────────
 
-from agents.core.dead_man_switch import DeadManSwitch
 
 
 class TestDeadManSwitch:
@@ -211,7 +213,6 @@ class TestDeadManSwitch:
 
 # ─── Dream State Engine ────────────────────────────────────────────────────
 
-from agents.core.dream_state import DreamStateEngine
 
 
 class TestDreamStateEngine:
@@ -248,7 +249,6 @@ class TestDreamStateEngine:
 
 # ─── Context Pruner ─────────────────────────────────────────────────────────
 
-from agents.core.context_pruner import ContextPruner
 
 
 class TestContextPruner:

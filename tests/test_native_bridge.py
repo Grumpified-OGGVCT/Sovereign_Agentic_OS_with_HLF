@@ -24,11 +24,11 @@ import sys
 import threading
 import time
 from dataclasses import asdict
-from unittest.mock import MagicMock, patch, patch
+from unittest.mock import patch
 
 import pytest
 
-from agents.core.native import PLATFORM, detect_platform, check_dependencies, reset_bridge
+from agents.core.native import PLATFORM, detect_platform, reset_bridge
 from agents.core.native.bridge import (
     ACFSViolationError,
     ClipboardContent,
@@ -65,7 +65,7 @@ class TestPlatformDetection:
         assert detect_platform() in ("windows", "darwin", "linux")
 
     def test_constant_matches_detect(self) -> None:
-        assert PLATFORM == detect_platform()
+        assert detect_platform() == PLATFORM
 
     def test_platform_not_empty(self) -> None:
         assert len(PLATFORM) > 0
@@ -395,7 +395,7 @@ class TestTrayMenu:
         tray = SovereignTray()
         menu = tray._create_default_menu()
         labels = [item.label for item in menu]
-        assert any("Sovereign" in l for l in labels)
+        assert any("Sovereign" in lbl for lbl in labels)
         assert "Quit" in labels
         assert "System Info" in labels
 
@@ -428,7 +428,10 @@ class TestUserToolValidation:
 
     def test_validates_reserved_prefix(self) -> None:
         from agents.core.native.user_tools import _validate_tool_entry
-        errors = _validate_tool_entry({"name": "native.exploit", "description": "x", "transport": "http", "url": "http://x"}, 0)
+        errors = _validate_tool_entry(
+            {"name": "native.exploit", "description": "x", "transport": "http", "url": "http://x"},
+            0
+        )
         assert any("reserved" in e.lower() for e in errors)
 
     def test_validates_transport(self) -> None:
