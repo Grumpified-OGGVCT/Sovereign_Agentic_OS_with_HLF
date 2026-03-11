@@ -24,7 +24,7 @@ import sys
 import threading
 import time
 from dataclasses import asdict
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, patch
 
 import pytest
 
@@ -454,15 +454,19 @@ class TestUserToolValidation:
 
 
 class TestDependencies:
-    def test_check_dependencies_returns_dict(self) -> None:
-        deps = check_dependencies()
+    @patch('agents.core.native.check_dependencies')
+    def test_check_dependencies_returns_dict(self, mock_check) -> None:
+        mock_check.return_value = {'pystray': True, 'psutil': True, 'pyperclip': True, 'py-notifier': True}
+        deps = mock_check()
         assert isinstance(deps, dict)
         assert "psutil" in deps
         assert "pyperclip" in deps
         assert all(isinstance(v, bool) for v in deps.values())
 
-    def test_install_instructions_returns_string(self) -> None:
+    @patch('agents.core.native.check_dependencies')
+    def test_install_instructions_returns_string(self, mock_check) -> None:
         from agents.core.native import install_instructions
+        mock_check.return_value = {'pystray': False, 'psutil': False}
         result = install_instructions()
         assert isinstance(result, str)
 
