@@ -275,6 +275,7 @@ class ScribeDaemon:
                         "prose": entry.prose,
                         "token_count": entry.token_count,
                         "source": entry.source,
+                        "metadata": entry.metadata,
                     }) + "\n")
         except OSError as e:
             _logger.error("Failed to flush Scribe log: %s", e)
