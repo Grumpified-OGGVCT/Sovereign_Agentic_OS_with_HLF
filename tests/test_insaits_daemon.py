@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import time
 from unittest.mock import MagicMock
-
-import pytest
 
 from agents.core.daemons.insaits_daemon import (
     AnalysisCategory,
@@ -17,7 +14,6 @@ from agents.core.daemons.insaits_daemon import (
     _generate_prose,
     _severity_for_event,
 )
-
 
 # ─── AuditEntry Tests ───────────────────────────────────────────────────────
 
@@ -128,7 +124,7 @@ class TestAnomalyDetector:
     def test_no_anomaly_with_few_samples(self):
         detector = AnomalyDetector()
         # First 4 samples: no anomaly possible (need 5 for stats)
-        for i in range(4):
+        for _i in range(4):
             result = detector.record_gas("agent-a", 100)
             assert result is None
 

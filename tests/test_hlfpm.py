@@ -8,13 +8,13 @@ lockfile persistence, and CLI. All OCI calls are mocked.
 from __future__ import annotations
 
 import json
-import pytest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from hlf.hlfpm import HLFPackageManager, InstalledModule, _cli_main
-from hlf.oci_client import OCIModuleRef, OCIPullResult, OCIRegistryError
+import pytest
 
+from hlf.hlfpm import HLFPackageManager, _cli_main
+from hlf.oci_client import OCIPullResult, OCIRegistryError
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -76,7 +76,7 @@ class TestInstall:
         mock_client.pull.return_value = pull_result
 
         pm.install("math@v1.0.0")
-        rec2 = pm.install("math@v1.0.0")  # should skip
+        pm.install("math@v1.0.0")  # should skip
         assert mock_client.pull.call_count == 1  # only called once
 
     def test_install_force_repulls(self, pm, mock_client, tmp_path):

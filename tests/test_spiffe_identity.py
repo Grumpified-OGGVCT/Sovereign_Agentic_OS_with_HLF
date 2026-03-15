@@ -2,21 +2,18 @@
 
 from __future__ import annotations
 
-import json
 import time
-from pathlib import Path
 
 import pytest
 
 from agents.core.spiffe_identity import (
-    IdentityStatus,
     SVID,
+    IdentityStatus,
     SpiffeRegistry,
     TrustBundle,
     TrustDomain,
     WorkloadIdentity,
 )
-
 
 # ─── TrustDomain Tests ──────────────────────────────────────────────────────
 
