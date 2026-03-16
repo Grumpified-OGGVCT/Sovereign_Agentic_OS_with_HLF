@@ -504,7 +504,6 @@ def _get_class_snippet(text: str, cls_name: str) -> str:
 
 # ── Strategy 4: YAML/TOML role definitions ───────────────────────────────────
 
-_YAML_ROLE_KEYS = {"role", "persona", "agent", "name", "description", "hat", "model"}
 _YAML_TASK_KEYS = {"steps", "jobs", "tasks", "pipeline", "workflow"}
 
 
