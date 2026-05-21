@@ -163,8 +163,7 @@ class TestRequestRouter:
 
     def test_route_with_vault(self, config: GatewayConfig, registry: ModelRegistry) -> None:
         mock_vault = MagicMock()
-        mock_vault.find_by_provider.return_value = [MagicMock(key_hash="abc")]
-        mock_vault.get_key.return_value = "AIzaFakeKey"
+        mock_vault.get_best_for_capability.return_value = ("AIzaFakeKey", MagicMock(key_hash="abc"))
         router = RequestRouter(config, registry, vault=mock_vault)
         decision = router.route("gemini/gemini-3-pro")
         assert decision.api_key == "AIzaFakeKey"

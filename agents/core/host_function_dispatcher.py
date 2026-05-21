@@ -149,6 +149,10 @@ def _dispatch_backend_inner(backend: str, name: str, args: list, meta: dict) -> 
         return _anythingllm_api(name, args, meta)
     if backend == "msty_bridge":
         return _msty_bridge(name, args, meta)
+    if backend == "searxng":
+        return _searxng(name, args, meta)
+    if backend == "apikeeper":
+        return _apikeeper(name, args, meta)
     raise RuntimeError(f"Unknown backend: {backend}")
 
 
@@ -772,3 +776,161 @@ def _msty_bridge(name: str, args: list, meta: dict) -> Any:
             anomaly_score=0.4,
         )
         return f"MSTY_UNAVAILABLE: {exc}"
+
+
+# ─── SearXng Backend ──────────────────────────────────────────────────────────
+
+def _searxng(name: str, args: list, meta: dict) -> Any:
+    """SearXng search and crawl backend.
+
+    Supports:
+      - searxng.search  : Search the web via SearXng
+      - searxng.crawl   : Crawl a URL via SearXng
+    """
+    searxng_host = os.environ.get("SEARXNG_HOST", "http://localhost:8888")
+    timeout = float(os.environ.get("SEARXNG_TIMEOUT", "15"))
+
+    try:
+        if name == "searxng.search":
+            query = str(args[0]) if args else ""
+            num_results = int(args[1]) if len(args) > 1 else 5
+            if not query:
+                return json.dumps({"error": "query is required for searxng.search"})
+
+            resp = httpx.get(
+                f"{searxng_host}/search",
+                params={"q": query, "format": "json", "categories": "general", "pageno": 1},
+                timeout=timeout,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            results = data.get("results", [])[:num_results]
+            return json.dumps({
+                "results": [
+                    {"title": r.get("title", ""), "url": r.get("url", ""),
+                     "snippet": r.get("content", "")[:300]}
+                    for r in results
+                ],
+                "count": len(results),
+            })
+
+        if name == "searxng.crawl":
+            url = str(args[0]) if args else ""
+            depth = int(args[1]) if len(args) > 1 else 1
+            if not url:
+                return json.dumps({"error": "url is required for crawl"})
+
+            pages = []
+            try:
+                resp = httpx.get(url, timeout=timeout, follow_redirects=True)
+                resp.raise_for_status()
+                pages.append({
+                    "url": url,
+                    "status": resp.status_code,
+                    "size": len(resp.text),
+                    "preview": resp.text[:1000],
+                })
+            except (httpx.RequestError, httpx.HTTPStatusError) as crawl_exc:
+                pages.append({"url": url, "error": str(crawl_exc)})
+
+            return json.dumps({"pages": pages, "depth": depth})
+
+        raise RuntimeError(f"Unknown searxng function: {name}")
+
+    except (httpx.RequestError, httpx.HTTPStatusError) as exc:
+        _logger.log(
+            "SEARXNG_UNAVAILABLE",
+            {"name": name, "error": str(exc)[:120]},
+            anomaly_score=0.3,
+        )
+        return json.dumps({"error": str(exc)[:200]})
+
+
+# ─── API-Keeper Backend ───────────────────────────────────────────────────────
+
+def _apikeeper(name: str, args: list, meta: dict) -> Any:
+    """API-Keeper credential vault backend.
+
+    Supports:
+      - apikeeper.store  : Store a credential (label, key, provider_metadata)
+      - apikeeper.rotate : Rotate a credential
+      - apikeeper.audit  : Audit credential trail
+    """
+    from agents.core.credential_vault import CredentialVault
+
+    vault = CredentialVault()
+
+    try:
+        if name == "apikeeper.store":
+            label = str(args[0]) if args else ""
+            api_key = str(args[1]) if len(args) > 1 else ""
+            metadata = args[2] if len(args) > 2 else {}
+            provider = metadata.get("provider", "custom") if isinstance(metadata, dict) else "custom"
+
+            if not label or not api_key:
+                return json.dumps({"error": "label and api_key are required for apikeeper.store"})
+
+            entry = vault.add_key(api_key=api_key, label=label, provider=provider)
+            return json.dumps({
+                "key_hash": entry.key_hash,
+                "provider": entry.provider.value,
+                "label": entry.label,
+                "capabilities": sorted(c.value for c in entry.capabilities),
+                "is_valid": entry.is_valid,
+            })
+
+        if name == "apikeeper.rotate":
+            cred_label = str(args[0]) if args else ""
+            if not cred_label:
+                return json.dumps({"error": "credential label/id is required"})
+
+            # Find existing entry by label
+            entries = vault.list_entries()
+            matching = [e for e in entries if e["label"] == cred_label]
+            if not matching:
+                return json.dumps({"error": f"No credential found with label '{cred_label}'"})
+
+            old_hash = matching[0]["key_hash"]
+            old_key = vault.get_key(old_hash)
+            vault.remove_key(old_hash)
+
+            # Generate a new key (in production this would call an actual rotation API)
+            new_entry = vault.add_key(
+                api_key=old_key + "-rotated" if old_key else "rotated-key-fallback",
+                label=cred_label,
+                provider=matching[0]["provider"],
+            )
+            return json.dumps({
+                "old_hash": old_hash,
+                "new_hash": new_entry.key_hash,
+                "label": new_entry.label,
+                "rotated": True,
+            })
+
+        if name == "apikeeper.audit":
+            cred_label = str(args[0]) if args else ""
+            entries = vault.list_entries()
+
+            if cred_label:
+                matching = [e for e in entries if e["label"] == cred_label]
+                return json.dumps({
+                    "credential_id": cred_label,
+                    "entries": matching,
+                    "found": len(matching) > 0,
+                })
+
+            return json.dumps({
+                "credential_id": "*",
+                "entries": entries,
+                "total_count": len(entries),
+            })
+
+        raise RuntimeError(f"Unknown apikeeper function: {name}")
+
+    except Exception as exc:
+        _logger.log(
+            "APIKEEPER_ERROR",
+            {"name": name, "error": str(exc)[:120]},
+            anomaly_score=0.5,
+        )
+        return json.dumps({"error": str(exc)[:200]})

@@ -1,36 +1,629 @@
 {
-  "version": "1.4.0",
+  "version": "1.5.0",
   "functions": [
-    { "name": "READ", "args": [{"name":"path","type":"path"}], "returns": "string", "tier": ["hearth","forge","sovereign"], "gas": 1, "backend": "dapr_file_read", "sensitive": false },
-    { "name": "WRITE", "args": [{"name":"path","type":"path"},{"name":"data","type":"string"}], "returns": "bool", "tier": ["hearth","forge","sovereign"], "gas": 2, "backend": "dapr_file_write", "sensitive": false },
-    { "name": "SPAWN", "args": [{"name":"image","type":"string"},{"name":"env","type":"map"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "docker_orchestrator", "sensitive": false },
-    { "name": "SLEEP", "args": [{"name":"ms","type":"int"}], "returns": "bool", "tier": ["hearth","forge","sovereign"], "gas": 0, "backend": "builtin", "sensitive": false },
-    { "name": "HTTP_GET", "args": [{"name":"url","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 3, "backend": "dapr_http_proxy", "sensitive": false },
-    { "name": "WEB_SEARCH", "args": [{"name":"query","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "dapr_http_proxy", "sensitive": true },
-    { "name": "OPENCLAW_SUMMARIZE", "args": [{"name":"path","type":"path"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 7, "backend": "dapr_container_spawn", "sensitive": true, "binary_path": "/opt/openclaw/bin/openclaw_summarize", "binary_sha256": "" },
-    { "name": "FORGE_TOOL", "args": [{"name":"task","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 10, "backend": "tool_forge", "sensitive": false },
-    { "name": "ZAI_COMPLETE", "args": [{"name":"prompt","type":"string"},{"name":"model","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "zai_client", "sensitive": true },
-    { "name": "ZAI_VISION", "args": [{"name":"image_path","type":"path"},{"name":"prompt","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "zai_client", "sensitive": true },
-    { "name": "ZAI_IMAGE", "args": [{"name":"prompt","type":"string"}], "returns": "path", "tier": ["sovereign"], "gas": 8, "backend": "zai_client", "sensitive": true },
-    { "name": "ZAI_OCR", "args": [{"name":"image_path","type":"path"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 3, "backend": "zai_client", "sensitive": false },
-
-    { "name": "SYS_INFO", "args": [], "returns": "string", "tier": ["hearth","forge","sovereign"], "gas": 1, "backend": "native_bridge", "sensitive": false },
-    { "name": "CLIPBOARD_READ", "args": [], "returns": "string", "tier": ["forge","sovereign"], "gas": 1, "backend": "native_bridge", "sensitive": true },
-    { "name": "CLIPBOARD_WRITE", "args": [{"name":"text","type":"string"}], "returns": "bool", "tier": ["forge","sovereign"], "gas": 2, "backend": "native_bridge", "sensitive": true },
-    { "name": "NOTIFY", "args": [{"name":"title","type":"string"},{"name":"body","type":"string"}], "returns": "bool", "tier": ["hearth","forge","sovereign"], "gas": 1, "backend": "native_bridge", "sensitive": false },
-    { "name": "SHELL_EXEC", "args": [{"name":"command","type":"string"},{"name":"args","type":"list"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 8, "backend": "native_bridge", "sensitive": true },
-    { "name": "APP_LAUNCH", "args": [{"name":"app_name","type":"string"},{"name":"args","type":"list"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "native_bridge", "sensitive": false },
-    { "name": "PROCESS_LIST", "args": [{"name":"filter","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 2, "backend": "native_bridge", "sensitive": false },
-
-    { "name": "ALLM_WORKSPACE_CHAT", "args": [{"name":"workspace_slug","type":"string"},{"name":"message","type":"string"},{"name":"mode","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "anythingllm_api", "sensitive": true },
-    { "name": "ALLM_VECTOR_SEARCH", "args": [{"name":"workspace_slug","type":"string"},{"name":"query","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 3, "backend": "anythingllm_api", "sensitive": false },
-    { "name": "ALLM_LIST_WORKSPACES", "args": [], "returns": "string", "tier": ["hearth","forge","sovereign"], "gas": 1, "backend": "anythingllm_api", "sensitive": false },
-    { "name": "ALLM_ADD_DOCUMENT", "args": [{"name":"workspace_slug","type":"string"},{"name":"title","type":"string"},{"name":"content","type":"string"}], "returns": "bool", "tier": ["forge","sovereign"], "gas": 4, "backend": "anythingllm_api", "sensitive": false },
-
-    { "name": "MSTY_KNOWLEDGE_QUERY", "args": [{"name":"stack_name","type":"string"},{"name":"query","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "msty_bridge", "sensitive": true },
-    { "name": "MSTY_PERSONA_RUN", "args": [{"name":"persona_name","type":"string"},{"name":"prompt","type":"string"}], "returns": "string", "tier": ["forge","sovereign"], "gas": 5, "backend": "msty_bridge", "sensitive": true },
-    { "name": "MSTY_LIST_MODELS", "args": [], "returns": "string", "tier": ["hearth","forge","sovereign"], "gas": 1, "backend": "msty_bridge", "sensitive": false },
-    { "name": "MSTY_SPLIT_CHAT", "args": [{"name":"models","type":"list"},{"name":"prompt","type":"string"}], "returns": "string", "tier": ["sovereign"], "gas": 8, "backend": "msty_bridge", "sensitive": true },
-    { "name": "MSTY_VIBE_CATALOG", "args": [{"name":"force_refresh","type":"bool"}], "returns": "string", "tier": ["hearth","forge","sovereign"], "gas": 2, "backend": "msty_bridge", "sensitive": false }
+    {
+      "name": "READ",
+      "args": [
+        {
+          "name": "path",
+          "type": "path"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "hearth",
+        "forge",
+        "sovereign"
+      ],
+      "gas": 1,
+      "backend": "dapr_file_read",
+      "sensitive": false
+    },
+    {
+      "name": "WRITE",
+      "args": [
+        {
+          "name": "path",
+          "type": "path"
+        },
+        {
+          "name": "data",
+          "type": "string"
+        }
+      ],
+      "returns": "bool",
+      "tier": [
+        "hearth",
+        "forge",
+        "sovereign"
+      ],
+      "gas": 2,
+      "backend": "dapr_file_write",
+      "sensitive": false
+    },
+    {
+      "name": "SPAWN",
+      "args": [
+        {
+          "name": "image",
+          "type": "string"
+        },
+        {
+          "name": "env",
+          "type": "map"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 5,
+      "backend": "docker_orchestrator",
+      "sensitive": false
+    },
+    {
+      "name": "SLEEP",
+      "args": [
+        {
+          "name": "ms",
+          "type": "int"
+        }
+      ],
+      "returns": "bool",
+      "tier": [
+        "hearth",
+        "forge",
+        "sovereign"
+      ],
+      "gas": 0,
+      "backend": "builtin",
+      "sensitive": false
+    },
+    {
+      "name": "HTTP_GET",
+      "args": [
+        {
+          "name": "url",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 3,
+      "backend": "dapr_http_proxy",
+      "sensitive": false
+    },
+    {
+      "name": "WEB_SEARCH",
+      "args": [
+        {
+          "name": "query",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 5,
+      "backend": "searxng",
+      "sensitive": true
+    },
+    {
+      "name": "OPENCLAW_SUMMARIZE",
+      "args": [
+        {
+          "name": "path",
+          "type": "path"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 7,
+      "backend": "dapr_container_spawn",
+      "sensitive": true,
+      "binary_path": "/opt/openclaw/bin/openclaw_summarize",
+      "binary_sha256": ""
+    },
+    {
+      "name": "FORGE_TOOL",
+      "args": [
+        {
+          "name": "task",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 10,
+      "backend": "tool_forge",
+      "sensitive": false
+    },
+    {
+      "name": "ZAI_COMPLETE",
+      "args": [
+        {
+          "name": "prompt",
+          "type": "string"
+        },
+        {
+          "name": "model",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 5,
+      "backend": "zai_client",
+      "sensitive": true
+    },
+    {
+      "name": "ZAI_VISION",
+      "args": [
+        {
+          "name": "image_path",
+          "type": "path"
+        },
+        {
+          "name": "prompt",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 5,
+      "backend": "zai_client",
+      "sensitive": true
+    },
+    {
+      "name": "ZAI_IMAGE",
+      "args": [
+        {
+          "name": "prompt",
+          "type": "string"
+        }
+      ],
+      "returns": "path",
+      "tier": [
+        "sovereign"
+      ],
+      "gas": 8,
+      "backend": "zai_client",
+      "sensitive": true
+    },
+    {
+      "name": "ZAI_OCR",
+      "args": [
+        {
+          "name": "image_path",
+          "type": "path"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 3,
+      "backend": "zai_client",
+      "sensitive": false
+    },
+    {
+      "name": "SYS_INFO",
+      "args": [],
+      "returns": "string",
+      "tier": [
+        "hearth",
+        "forge",
+        "sovereign"
+      ],
+      "gas": 1,
+      "backend": "native_bridge",
+      "sensitive": false
+    },
+    {
+      "name": "CLIPBOARD_READ",
+      "args": [],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 1,
+      "backend": "native_bridge",
+      "sensitive": true
+    },
+    {
+      "name": "CLIPBOARD_WRITE",
+      "args": [
+        {
+          "name": "text",
+          "type": "string"
+        }
+      ],
+      "returns": "bool",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 2,
+      "backend": "native_bridge",
+      "sensitive": true
+    },
+    {
+      "name": "NOTIFY",
+      "args": [
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "body",
+          "type": "string"
+        }
+      ],
+      "returns": "bool",
+      "tier": [
+        "hearth",
+        "forge",
+        "sovereign"
+      ],
+      "gas": 1,
+      "backend": "native_bridge",
+      "sensitive": false
+    },
+    {
+      "name": "SHELL_EXEC",
+      "args": [
+        {
+          "name": "command",
+          "type": "string"
+        },
+        {
+          "name": "args",
+          "type": "list"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 8,
+      "backend": "native_bridge",
+      "sensitive": true
+    },
+    {
+      "name": "APP_LAUNCH",
+      "args": [
+        {
+          "name": "app_name",
+          "type": "string"
+        },
+        {
+          "name": "args",
+          "type": "list"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 5,
+      "backend": "native_bridge",
+      "sensitive": false
+    },
+    {
+      "name": "PROCESS_LIST",
+      "args": [
+        {
+          "name": "filter",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 2,
+      "backend": "native_bridge",
+      "sensitive": false
+    },
+    {
+      "name": "ALLM_WORKSPACE_CHAT",
+      "args": [
+        {
+          "name": "workspace_slug",
+          "type": "string"
+        },
+        {
+          "name": "message",
+          "type": "string"
+        },
+        {
+          "name": "mode",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 5,
+      "backend": "anythingllm_api",
+      "sensitive": true
+    },
+    {
+      "name": "ALLM_VECTOR_SEARCH",
+      "args": [
+        {
+          "name": "workspace_slug",
+          "type": "string"
+        },
+        {
+          "name": "query",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 3,
+      "backend": "anythingllm_api",
+      "sensitive": false
+    },
+    {
+      "name": "ALLM_LIST_WORKSPACES",
+      "args": [],
+      "returns": "string",
+      "tier": [
+        "hearth",
+        "forge",
+        "sovereign"
+      ],
+      "gas": 1,
+      "backend": "anythingllm_api",
+      "sensitive": false
+    },
+    {
+      "name": "ALLM_ADD_DOCUMENT",
+      "args": [
+        {
+          "name": "workspace_slug",
+          "type": "string"
+        },
+        {
+          "name": "title",
+          "type": "string"
+        },
+        {
+          "name": "content",
+          "type": "string"
+        }
+      ],
+      "returns": "bool",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 4,
+      "backend": "anythingllm_api",
+      "sensitive": false
+    },
+    {
+      "name": "MSTY_KNOWLEDGE_QUERY",
+      "args": [
+        {
+          "name": "stack_name",
+          "type": "string"
+        },
+        {
+          "name": "query",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 5,
+      "backend": "msty_bridge",
+      "sensitive": true
+    },
+    {
+      "name": "MSTY_PERSONA_RUN",
+      "args": [
+        {
+          "name": "persona_name",
+          "type": "string"
+        },
+        {
+          "name": "prompt",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 5,
+      "backend": "msty_bridge",
+      "sensitive": true
+    },
+    {
+      "name": "MSTY_LIST_MODELS",
+      "args": [],
+      "returns": "string",
+      "tier": [
+        "hearth",
+        "forge",
+        "sovereign"
+      ],
+      "gas": 1,
+      "backend": "msty_bridge",
+      "sensitive": false
+    },
+    {
+      "name": "MSTY_SPLIT_CHAT",
+      "args": [
+        {
+          "name": "models",
+          "type": "list"
+        },
+        {
+          "name": "prompt",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "sovereign"
+      ],
+      "gas": 8,
+      "backend": "msty_bridge",
+      "sensitive": true
+    },
+    {
+      "name": "MSTY_VIBE_CATALOG",
+      "args": [
+        {
+          "name": "force_refresh",
+          "type": "bool"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "hearth",
+        "forge",
+        "sovereign"
+      ],
+      "gas": 2,
+      "backend": "msty_bridge",
+      "sensitive": false
+    },
+    {
+      "name": "apikeeper.store",
+      "args": [
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "api_key",
+          "type": "string"
+        },
+        {
+          "name": "metadata",
+          "type": "dict"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 2,
+      "backend": "apikeeper",
+      "sensitive": true
+    },
+    {
+      "name": "apikeeper.rotate",
+      "args": [
+        {
+          "name": "credential_id",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "sovereign"
+      ],
+      "gas": 3,
+      "backend": "apikeeper",
+      "sensitive": true
+    },
+    {
+      "name": "apikeeper.audit",
+      "args": [
+        {
+          "name": "credential_id",
+          "type": "string"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 1,
+      "backend": "apikeeper",
+      "sensitive": true
+    },
+    {
+      "name": "searxng.search",
+      "args": [
+        {
+          "name": "query",
+          "type": "string"
+        },
+        {
+          "name": "num_results",
+          "type": "int"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 5,
+      "backend": "searxng",
+      "sensitive": false
+    },
+    {
+      "name": "searxng.crawl",
+      "args": [
+        {
+          "name": "url",
+          "type": "string"
+        },
+        {
+          "name": "depth",
+          "type": "int"
+        }
+      ],
+      "returns": "string",
+      "tier": [
+        "forge",
+        "sovereign"
+      ],
+      "gas": 8,
+      "backend": "searxng",
+      "sensitive": false
+    }
   ]
 }

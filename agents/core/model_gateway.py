@@ -274,19 +274,23 @@ class RequestRouter:
                 provider = "ollama-cloud"  # Cloud-first default
             base_url = self._config.providers.get(provider, {}).get("base_url", "https://ollama.com/")
 
-        # Get API key — use rotator for Ollama Cloud, vault for others
+        # Get API key — vault first (best-for-capability), then env fallback
         api_key = ""
-        if provider == "ollama-cloud" and _ollama_key_rotator.key_count > 0:
-            api_key = _ollama_key_rotator.next_key()
-        elif self._vault:
+        if self._vault:
             try:
-                from agents.core.credential_vault import ProviderType
-                prov_type = ProviderType(provider)
-                entries = self._vault.find_by_provider(prov_type)
-                if entries:
-                    api_key = self._vault.get_key(entries[0].key_hash) or ""
+                from agents.core.credential_vault import Capability
+                api_key, _ = self._vault.get_best_for_capability(Capability.CHAT)
             except (ValueError, ImportError):
                 pass
+
+        # Fallback to Ollama Cloud key rotator
+        if not api_key and provider == "ollama-cloud" and _ollama_key_rotator.key_count > 0:
+            api_key = _ollama_key_rotator.next_key()
+
+        # Last-resort env var fallback
+        if not api_key:
+            env_key = os.environ.get(f"{provider.upper().replace('-', '_')}_API_KEY", "")
+            api_key = env_key or os.environ.get("OPENAI_API_KEY", "")
 
         return RoutingDecision(
             model_id=target,

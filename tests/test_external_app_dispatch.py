@@ -54,10 +54,10 @@ class TestRegistryCompleteness:
             assert fn_name in names, f"{fn_name} missing from host_functions.json"
 
     def test_registry_version_bumped(self) -> None:
-        """Version should be at least 1.4.0."""
+        """Version should be at least 1.5.0."""
         with open("governance/host_functions.json") as f:
             registry = json.load(f)
-        assert registry["version"] == "1.4.0"
+        assert registry["version"] == "1.5.0"
 
     def test_all_new_functions_have_required_fields(self) -> None:
         """Each new function has name, args, returns, tier, gas, backend, sensitive."""
