@@ -229,3 +229,88 @@ class TestDataStructures:
         assert trace.success is True
         assert trace.total_tool_calls == 0
         assert trace.steps == []
+
+
+# --------------------------------------------------------------------------- #
+# Bridge Clear + Summary Tests
+# --------------------------------------------------------------------------- #
+
+
+class TestBridgeClearAndSummary:
+    def test_clear_traces(self):
+        bridge, tmp = _make_bridge()
+        bridge.execute_node("n1", "a1", "developer", tmp, _execute_fn_reads_file, {})
+        assert len(bridge.traces) == 1
+        bridge.clear_traces()
+        assert bridge.traces == []
+
+    def test_clear_sandboxes(self):
+        bridge, tmp = _make_bridge()
+        bridge.get_or_create_sandbox("agent-01", "developer", tmp)
+        assert bridge.sandbox_count == 1
+        bridge.clear_sandboxes()
+        assert bridge.sandbox_count == 0
+
+    def test_summary_empty(self):
+        bridge, _ = _make_bridge()
+        s = bridge.summary()
+        assert s["trace_count"] == 0
+        assert s["total_tool_calls"] == 0
+        assert s["success_rate"] is None  # undefined when no traces collected
+        assert s["agents"] == {}
+
+    def test_summary_after_execution(self):
+        bridge, tmp = _make_bridge()
+        bridge.execute_node("n1", "a1", "developer", tmp, _execute_fn_reads_file, {})
+        bridge.execute_node("n2", "a1", "developer", tmp, _execute_fn_uses_tools, {})
+        s = bridge.summary()
+        assert s["trace_count"] == 2
+        assert s["total_tool_calls"] >= 5  # ≥2 + ≥3
+        assert s["success_rate"] == 1.0
+        assert "a1" in s["agents"]
+
+    def test_summary_with_failures(self):
+        bridge, tmp = _make_bridge()
+        bridge.execute_node("n1", "a1", "developer", tmp, _execute_fn_reads_file, {})
+        bridge.execute_node("n2", "a2", "developer", tmp, _execute_fn_raises, {})
+        s = bridge.summary()
+        assert s["trace_count"] == 2
+        assert s["success_rate"] == 0.5
+
+    def test_summary_total_duration_positive(self):
+        bridge, tmp = _make_bridge()
+        bridge.execute_node("n1", "a1", "developer", tmp, _execute_fn_reads_file, {})
+        s = bridge.summary()
+        assert s["total_duration"] >= 0.0
+
+
+# --------------------------------------------------------------------------- #
+# Event Type Mapping Tests
+# --------------------------------------------------------------------------- #
+
+
+class TestEventTypeMapping:
+    """Verify _publish_event maps string event keys to typed EventType values."""
+
+    def test_start_event_triggers_node_started(self):
+        """NODE_START string should resolve to EventType.NODE_STARTED."""
+        mock_bus = MagicMock()
+        bridge, tmp = _make_bridge(event_bus=mock_bus)
+        bridge.execute_node("n1", "a1", "developer", tmp, _execute_fn_reads_file, {})
+
+        # The first publish call must be the start event → node_started
+        first_call = mock_bus.publish.call_args_list[0]
+        event = first_call[0][0]  # first positional arg
+        assert event.event_type.value == "node_started"
+
+    def test_complete_event_triggers_node_completed(self):
+        """NODE_COMPLETE string should resolve to EventType.NODE_COMPLETED."""
+        mock_bus = MagicMock()
+        bridge, tmp = _make_bridge(event_bus=mock_bus)
+        bridge.execute_node("n1", "a1", "developer", tmp, _execute_fn_reads_file, {})
+
+        # There should be at least 2 publish calls (start + complete)
+        assert mock_bus.publish.call_count >= 2
+        last_call = mock_bus.publish.call_args_list[-1]
+        event = last_call[0][0]
+        assert event.event_type.value == "node_completed"

@@ -308,3 +308,349 @@ class TestEnsureCrewTables:
         )
         conn.commit()
         conn.close()
+
+
+# ===========================================================================
+# SDD Session Tests
+# ===========================================================================
+
+
+class TestSDDSession:
+    """Verify Spec-Driven Development session lifecycle."""
+
+    def test_initial_state(self) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession
+
+        session = SDDSession(topic="auth upgrade")
+        assert session.phase == SDDPhase.SPECIFY
+        assert session.sealed is False
+        assert session.realignment_events == []
+        assert session.phase_history == []
+
+    def test_advance_sequential(self) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession
+
+        session = SDDSession(topic="test mission")
+        session.advance_to(SDDPhase.PLAN)
+        assert session.phase == SDDPhase.PLAN
+        session.advance_to(SDDPhase.EXECUTE)
+        assert session.phase == SDDPhase.EXECUTE
+
+    def test_advance_skip_blocked(self) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession
+
+        session = SDDSession(topic="skip test")
+        with pytest.raises(ValueError, match="phase skip"):
+            session.advance_to(SDDPhase.EXECUTE)  # Skip PLAN
+
+    def test_advance_backward_blocked(self) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession
+
+        session = SDDSession(topic="backward test")
+        session.advance_to(SDDPhase.PLAN)
+        session.advance_to(SDDPhase.EXECUTE)
+        with pytest.raises(ValueError, match="backward transition"):
+            session.advance_to(SDDPhase.PLAN)
+
+    def test_advance_override_allows_skip(self) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession
+
+        session = SDDSession(topic="override test")
+        session.advance_to(SDDPhase.EXECUTE, override=True)
+        assert session.phase == SDDPhase.EXECUTE
+
+    def test_merge_seals_session(self) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession
+
+        session = SDDSession(topic="merge test")
+        for phase in [SDDPhase.PLAN, SDDPhase.EXECUTE, SDDPhase.VERIFY, SDDPhase.MERGE]:
+            session.advance_to(phase)
+        assert session.sealed is True
+
+    def test_cannot_advance_sealed_session(self) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession
+
+        session = SDDSession(topic="sealed test")
+        for phase in [SDDPhase.PLAN, SDDPhase.EXECUTE, SDDPhase.VERIFY, SDDPhase.MERGE]:
+            session.advance_to(phase)
+        with pytest.raises(ValueError, match="sealed"):
+            session.advance_to(SDDPhase.SPECIFY, override=True)
+
+    def test_phase_history_populated(self) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession
+
+        session = SDDSession(topic="history test")
+        session.advance_to(SDDPhase.PLAN, notes="planning")
+        assert len(session.phase_history) == 1
+        entry = session.phase_history[0]
+        assert entry["from"] == "SPECIFY"
+        assert entry["to"] == "PLAN"
+        assert entry["notes"] == "planning"
+
+    def test_to_dict_roundtrip(self) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession
+
+        session = SDDSession(topic="roundtrip test")
+        session.advance_to(SDDPhase.PLAN, notes="round-trip")
+        d = session.to_dict()
+        assert d["phase"] == "PLAN"
+        assert d["topic"] == "roundtrip test"
+
+        restored = SDDSession.from_dict(d)
+        assert restored.phase == SDDPhase.PLAN
+        assert restored.topic == "roundtrip test"
+        assert restored.sealed is False
+
+
+class TestSDDRealignment:
+    """Verify SDDSession realignment records events correctly."""
+
+    def test_realign_records_event(self) -> None:
+        from agents.core.crew_orchestrator import (
+            SDDPhase,
+            SDDRealignmentEvent,
+            SDDSession,
+        )
+
+        session = SDDSession(topic="realign test")
+        session.advance_to(SDDPhase.PLAN)
+        event = SDDRealignmentEvent(
+            triggered_by="sentinel",
+            change_type="deprecated_api",
+            change_description="requests 2.x removed",
+            affected_nodes=["node-1"],
+        )
+        session.realign(event)
+
+        assert len(session.realignment_events) == 1
+        rec = session.realignment_events[0]
+        assert rec["triggered_by"] == "sentinel"
+        assert rec["change_type"] == "deprecated_api"
+
+    def test_realign_blocked_on_sealed(self) -> None:
+        from agents.core.crew_orchestrator import (
+            SDDPhase,
+            SDDRealignmentEvent,
+            SDDSession,
+        )
+
+        session = SDDSession(topic="sealed realign test")
+        for phase in [SDDPhase.PLAN, SDDPhase.EXECUTE, SDDPhase.VERIFY, SDDPhase.MERGE]:
+            session.advance_to(phase)
+        event = SDDRealignmentEvent(
+            triggered_by="catalyst", change_type="perf", change_description="slow path"
+        )
+        with pytest.raises(ValueError, match="sealed"):
+            session.realign(event)
+
+    def test_realign_updates_spec(self) -> None:
+        from agents.core.crew_orchestrator import (
+            SDDPhase,
+            SDDRealignmentEvent,
+            SDDSession,
+        )
+
+        session = SDDSession(topic="spec realign test")
+        session.spec = {"topic": "test"}
+        session.advance_to(SDDPhase.PLAN)
+        event = SDDRealignmentEvent(
+            triggered_by="herald",
+            change_type="doc_drift",
+            change_description="README outdated",
+        )
+        session.realign(event)
+        assert "_realignments" in session.spec
+        assert len(session.spec["_realignments"]) == 1
+
+
+class TestValidationToken:
+    """Verify the cryptographic validation gate token."""
+
+    def test_sign_and_verify(self) -> None:
+        from agents.core.crew_orchestrator import ValidationToken
+
+        token = ValidationToken(
+            session_id="abc123",
+            spec_hash="deadbeef",
+            tests_passed=True,
+            lint_clean=True,
+            cove_approved=True,
+        )
+        token.sign()
+        assert token.signature != ""
+        assert token.verify() is True
+
+    def test_is_valid_all_pass(self) -> None:
+        from agents.core.crew_orchestrator import ValidationToken
+
+        token = ValidationToken(
+            session_id="s1",
+            spec_hash="h1",
+            tests_passed=True,
+            lint_clean=True,
+            cove_approved=True,
+        )
+        token.sign()
+        assert token.is_valid() is True
+
+    def test_is_valid_fails_if_tests_not_passed(self) -> None:
+        from agents.core.crew_orchestrator import ValidationToken
+
+        token = ValidationToken(
+            session_id="s2",
+            spec_hash="h2",
+            tests_passed=False,
+            lint_clean=True,
+            cove_approved=True,
+        )
+        token.sign()
+        assert token.is_valid() is False
+
+    def test_tampered_token_fails_verify(self) -> None:
+        from agents.core.crew_orchestrator import ValidationToken
+
+        token = ValidationToken(
+            session_id="s3",
+            spec_hash="h3",
+            tests_passed=True,
+            lint_clean=True,
+            cove_approved=True,
+        )
+        token.sign()
+        token.tests_passed = False  # Tamper
+        assert token.verify() is False
+
+    def test_to_dict_roundtrip(self) -> None:
+        from agents.core.crew_orchestrator import ValidationToken
+
+        token = ValidationToken(
+            session_id="s4",
+            spec_hash="h4",
+            tests_passed=True,
+            lint_clean=True,
+            cove_approved=True,
+        )
+        token.sign()
+        d = token.to_dict()
+        restored = ValidationToken.from_dict(d)
+        assert restored.verify() is True
+        assert restored.session_id == "s4"
+
+
+class TestSDDSessionStore:
+    """Verify SQLite persistence of SDD sessions."""
+
+    def test_save_and_load(self, tmp_path: Path) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession, SDDSessionStore
+
+        store = SDDSessionStore(tmp_path / "sdd.db")
+        store.init_schema()
+
+        session = SDDSession(topic="persist test")
+        session.advance_to(SDDPhase.PLAN, notes="step 1")
+        store.save(session)
+
+        loaded = store.load(session.session_id)
+        assert loaded is not None
+        assert loaded.topic == "persist test"
+        assert loaded.phase == SDDPhase.PLAN
+
+        store.close()
+
+    def test_load_missing_returns_none(self, tmp_path: Path) -> None:
+        from agents.core.crew_orchestrator import SDDSessionStore
+
+        store = SDDSessionStore(tmp_path / "missing.db")
+        store.init_schema()
+        assert store.load("nonexistent-id") is None
+        store.close()
+
+    def test_list_active_excludes_sealed(self, tmp_path: Path) -> None:
+        from agents.core.crew_orchestrator import (
+            SDDPhase,
+            SDDSession,
+            SDDSessionStore,
+        )
+
+        store = SDDSessionStore(tmp_path / "active.db")
+        store.init_schema()
+
+        active = SDDSession(topic="active mission")
+        active.advance_to(SDDPhase.PLAN)
+        store.save(active)
+
+        sealed = SDDSession(topic="sealed mission")
+        for phase in [SDDPhase.PLAN, SDDPhase.EXECUTE, SDDPhase.VERIFY, SDDPhase.MERGE]:
+            sealed.advance_to(phase)
+        store.save(sealed)
+
+        active_list = store.list_active()
+        ids = [r["session_id"] for r in active_list]
+        assert active.session_id in ids
+        assert sealed.session_id not in ids
+
+        store.close()
+
+    def test_delete_session(self, tmp_path: Path) -> None:
+        from agents.core.crew_orchestrator import SDDSession, SDDSessionStore
+
+        store = SDDSessionStore(tmp_path / "del.db")
+        store.init_schema()
+
+        session = SDDSession(topic="delete me")
+        store.save(session)
+        assert store.load(session.session_id) is not None
+
+        deleted = store.delete(session.session_id)
+        assert deleted is True
+        assert store.load(session.session_id) is None
+
+        store.close()
+
+    def test_upsert_updates_existing(self, tmp_path: Path) -> None:
+        from agents.core.crew_orchestrator import SDDPhase, SDDSession, SDDSessionStore
+
+        store = SDDSessionStore(tmp_path / "upsert.db")
+        store.init_schema()
+
+        session = SDDSession(topic="upsert test")
+        store.save(session)
+        session.advance_to(SDDPhase.PLAN, notes="updated")
+        store.save(session)  # Should upsert, not duplicate
+
+        all_sessions = store.list_all()
+        assert sum(1 for s in all_sessions if s["session_id"] == session.session_id) == 1
+        loaded = store.load(session.session_id)
+        assert loaded.phase == SDDPhase.PLAN
+
+        store.close()
+
+
+class TestGetSystemStatus:
+    """Verify get_system_status returns a complete observability snapshot."""
+
+    def test_system_status_keys(self) -> None:
+        from agents.core.crew_orchestrator import get_system_status
+
+        status = get_system_status()
+        required_keys = {
+            "persona_roster",
+            "cross_awareness_graph",
+            "default_persona_order",
+            "hat_to_persona_map",
+            "registry_hash",
+            "total_personas",
+        }
+        assert required_keys.issubset(status.keys())
+
+    def test_default_persona_order_contains_weaver(self) -> None:
+        from agents.core.crew_orchestrator import get_system_status
+
+        status = get_system_status()
+        assert "weaver" in status["default_persona_order"]
+
+    def test_total_personas_positive(self) -> None:
+        from agents.core.crew_orchestrator import get_system_status
+
+        status = get_system_status()
+        assert status["total_personas"] > 0

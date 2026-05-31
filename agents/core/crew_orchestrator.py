@@ -225,14 +225,16 @@ class SDDSession:
 
         self.phase_history.append({
             "from": self.phase.name,
+            # Realignment does NOT change phase — from == to is intentional
             "to": self.phase.name,
             "timestamp": event.timestamp,
             "notes": f"REALIGNMENT: {event.change_type} — {event.change_description}",
             "override": False,
         })
 
+        # from_phase == to_phase: realignment stays within the current phase
         _sdd_log_transition(
-            self.topic, self.phase.name, self.phase.name,
+            self, self.phase.name, self.phase.name,
             f"realignment: {event.change_type}",
         )
 
@@ -1009,7 +1011,7 @@ def _sdd_log_transition(
 ) -> None:
     """Log an SDD phase transition to the ALIGN ledger."""
     try:
-        from agents.core.als_logger import ALSLogger
+        from agents.core.logger import ALSLogger
         als = ALSLogger()
         als.log("SDD_PHASE_TRANSITION", {
             "topic": session.topic,
