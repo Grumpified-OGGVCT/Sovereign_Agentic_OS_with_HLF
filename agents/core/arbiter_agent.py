@@ -144,6 +144,37 @@ def adjudicate(event_type: str, payload: str | dict[str, Any]) -> ArbiterVerdict
             event_type=event_type,
         )
 
+    if event_type == "DEAD_LETTER":
+        # Agent message exhausted all retries — mandatory quarantine for human review
+        data = payload if isinstance(payload, dict) else {}
+        origin = data.get("origin", "unknown")
+        _logger.log(
+            "ARBITER_DEAD_LETTER",
+            {"origin": origin, "event_type": event_type},
+            anomaly_score=0.8,
+        )
+        return ArbiterVerdict(
+            verdict=VERDICT_QUARANTINE,
+            justification=f"Dead-letter from {origin}: exhausted retries, requires human review",
+            event_type=event_type,
+        )
+
+    if event_type == "GAS_SPIKE":
+        # Sentinel-detected anomalous gas consumption — escalate for investigation
+        data = payload if isinstance(payload, dict) else {}
+        agent = data.get("agent", "unknown")
+        ratio = data.get("ratio", 0.0)
+        _logger.log(
+            "ARBITER_GAS_SPIKE",
+            {"agent": agent, "ratio": ratio},
+            anomaly_score=0.6,
+        )
+        return ArbiterVerdict(
+            verdict=VERDICT_ESCALATE,
+            justification=f"Gas spike detected for {agent}: {ratio:.1f}x above baseline",
+            event_type=event_type,
+        )
+
     # Unknown event type — fail-safe escalation
     _logger.log(
         "ARBITER_UNKNOWN_EVENT",

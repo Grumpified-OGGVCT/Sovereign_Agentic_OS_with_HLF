@@ -90,11 +90,13 @@ class ArbiterDaemon:
 
     name = "arbiter"
 
-    # ALIGN rules that always take precedence (cannot be overridden by vote)
+    # ALIGN rules that always take precedence (cannot be overridden by vote).
+    # These map to DROP_AND_QUARANTINE or ROUTE_TO_HUMAN_APPROVAL actions in
+    # governance/ALIGN_LEDGER.yaml and can never be relaxed by agent consensus.
     _IMMUTABLE_RULES = frozenset({
-        "R-001",  # Sovereign-context actions require human approval
-        "R-002",  # ALIGN Ledger modifications require dual approval
-        "R-003",  # Sensitive data redaction in logs
+        "R-001",  # ACFS Confinement — shell escape / rm -rf / curl|bash
+        "R-002",  # Self-Modification Freeze — sentinel_gate.py write attempts
+        "R-003",  # Docker Socket Block — /var/run/docker access
     })
 
     def __init__(
@@ -117,6 +119,7 @@ class ArbiterDaemon:
         self._active_disputes: dict[str, DisputeRecord] = {}
         self._resolved_disputes: list[DisputeRecord] = []
         self._dispute_counter: int = 0
+        self._flushed_count: int = 0  # tracks how many resolved disputes have been written
 
     @property
     def status(self):
@@ -290,6 +293,10 @@ class ArbiterDaemon:
                 return record
         return None
 
+    def list_active_disputes(self) -> list[DisputeRecord]:
+        """Return a snapshot of all currently open disputes."""
+        return list(self._active_disputes.values())
+
     def get_stats(self) -> dict[str, Any]:
         """Get Arbiter statistics."""
         return {
@@ -409,13 +416,20 @@ class ArbiterDaemon:
         _logger.warning("Dispute %s escalated: %s", dispute_id, reason)
 
     def _flush_rulings(self) -> None:
-        """Write resolved disputes to the rulings log."""
+        """Write newly resolved disputes to the rulings log.
+
+        Only records not yet persisted (past ``_flushed_count``) are written,
+        preventing duplicate entries when ``stop()`` is called multiple times.
+        """
         if not self._rulings_path:
+            return
+        unflushed = self._resolved_disputes[self._flushed_count:]
+        if not unflushed:
             return
         try:
             self._rulings_path.parent.mkdir(parents=True, exist_ok=True)
             with open(self._rulings_path, "a", encoding="utf-8") as f:
-                for record in self._resolved_disputes:
+                for record in unflushed:
                     f.write(json.dumps({
                         "dispute_id": record.dispute_id,
                         "rule": record.rule,
@@ -430,5 +444,6 @@ class ArbiterDaemon:
                         "timestamp": record.timestamp,
                         "resolution_time_ms": round(record.resolution_time_ms, 2),
                     }) + "\n")
+            self._flushed_count += len(unflushed)
         except OSError as e:
             _logger.error("Failed to flush Arbiter rulings: %s", e)
