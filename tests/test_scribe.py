@@ -8,6 +8,7 @@ entry retrieval, log persistence, and daemon lifecycle.
 from __future__ import annotations
 
 import json
+import sqlite3
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -284,3 +285,144 @@ class TestEventBusIntegration:
         assert len(received) == 1
         assert received[0].source == "scribe"
         assert received[0].event_type == "prose"
+
+
+# ─── Log Metadata Tests ──────────────────────────────────────────────────────
+
+
+class TestLogMetadata:
+    """Tests that metadata is written to the JSONL log (fix for data-loss bug)."""
+
+    def test_flush_writes_metadata_field(self, tmp_path):
+        log_file = tmp_path / "scribe_meta.jsonl"
+        d = ScribeDaemon(log_path=log_file)
+        d.start()
+        d.translate({"type": "host_function_call", "name": "READ", "extra": "audit123"})
+        d.stop()
+
+        record = json.loads(log_file.read_text().strip())
+        assert "metadata" in record
+        # The extra field should be preserved in metadata
+        assert record["metadata"].get("extra") == "audit123"
+
+    def test_flush_metadata_is_dict(self, tmp_path):
+        log_file = tmp_path / "scribe_meta2.jsonl"
+        d = ScribeDaemon(log_path=log_file)
+        d.start()
+        d.translate({"type": "align_check", "name": "R-001"})
+        d.stop()
+
+        record = json.loads(log_file.read_text().strip())
+        assert isinstance(record["metadata"], dict)
+
+    def test_flush_metadata_preserved_across_multiple_events(self, tmp_path):
+        """Metadata preservation holds for every entry in a multi-event batch."""
+        log_file = tmp_path / "scribe_multi.jsonl"
+        d = ScribeDaemon(log_path=log_file)
+        d.start()
+        d.translate({"type": "intent_execution", "name": "op1", "tag": "T1"})
+        d.translate({"type": "gas_consumed", "name": "op2", "gas_cost": 3})
+        d.translate({"type": "security_gate", "name": "gate1", "result": "passed"})
+        d.stop()
+
+        lines = log_file.read_text().strip().split("\n")
+        assert len(lines) == 3
+        for raw in lines:
+            rec = json.loads(raw)
+            assert "metadata" in rec, "metadata field missing from flush record"
+            assert isinstance(rec["metadata"], dict)
+        # Spot-check specific metadata values
+        records = [json.loads(line) for line in lines]
+        assert records[0]["metadata"].get("tag") == "T1"
+        assert records[1]["metadata"].get("gas_cost") == 3
+        assert records[2]["metadata"].get("result") == "passed"
+
+
+# ─── Scribe Agent Tests ──────────────────────────────────────────────────────
+
+
+class TestScribeAgent:
+    """Tests for agents/core/scribe_agent.py (budget audit & rolling context stats)."""
+
+    @pytest.fixture
+    def mock_db(self):
+        conn = sqlite3.connect(":memory:")
+        conn.execute(
+            "CREATE TABLE rolling_context "
+            "(id INTEGER PRIMARY KEY, session_id TEXT, content TEXT, token_count INTEGER)"
+        )
+        yield conn
+        conn.close()
+
+    def test_get_agent_profile_lists_get_rolling_context_stats(self):
+        from agents.core.scribe_agent import get_agent_profile
+        profile = get_agent_profile()
+        assert "get_rolling_context_stats" in profile["tools"]
+
+    def test_get_rolling_context_stats_empty_db(self, mock_db):
+        from agents.core.scribe_agent import get_rolling_context_stats
+        stats = get_rolling_context_stats(conn=mock_db)
+        assert stats["total_tokens"] == 0
+        assert stats["session_count"] == 0
+        assert stats["sessions"] == []
+
+    def test_get_rolling_context_stats_with_sessions(self, mock_db):
+        from agents.core.scribe_agent import get_rolling_context_stats
+        mock_db.executemany(
+            "INSERT INTO rolling_context (session_id, content, token_count) VALUES (?, ?, ?)",
+            [("sess-A", "hello", 100), ("sess-A", "world", 50), ("sess-B", "foo", 200)],
+        )
+        mock_db.commit()
+        stats = get_rolling_context_stats(conn=mock_db)
+        assert stats["total_tokens"] == 350
+        assert stats["session_count"] == 2
+        # Most-used session first
+        assert stats["sessions"][0]["session_id"] == "sess-B"
+        assert stats["sessions"][0]["token_count"] == 200
+
+    def test_get_rolling_context_stats_no_session_column(self):
+        """Gracefully handles tables without session_id column using __ungrouped__ sentinel."""
+        from agents.core.scribe_agent import get_rolling_context_stats
+        conn = sqlite3.connect(":memory:")
+        conn.execute(
+            "CREATE TABLE rolling_context (id INTEGER PRIMARY KEY, content TEXT, token_count INTEGER)"
+        )
+        conn.execute("INSERT INTO rolling_context (content, token_count) VALUES ('x', 77)")
+        conn.commit()
+        stats = get_rolling_context_stats(conn=conn)
+        assert stats["total_tokens"] == 77
+        assert stats["session_count"] == 1
+        assert stats["sessions"][0]["session_id"] == "__ungrouped__"
+        conn.close()
+
+    def test_get_rolling_context_stats_nonexistent_path(self, tmp_path):
+        from agents.core.scribe_agent import get_rolling_context_stats
+        missing = tmp_path / "nonexistent.db"
+        stats = get_rolling_context_stats(db_path=missing)
+        assert stats == {"sessions": [], "total_tokens": 0, "session_count": 0}
+
+
+# ─── Logger ISO-8601 Timestamp Tests ────────────────────────────────────────
+
+
+class TestALSLoggerTimestamp:
+    """Tests that the ALS logger emits ISO-8601 UTC timestamps."""
+
+    def test_timestamp_ends_with_z(self):
+        from agents.core.logger import ALSLogger
+        logger = ALSLogger(agent_role="test", goal_id="ts-test")
+        entry = logger.log("TIMESTAMP_TEST", {})
+        assert entry["timestamp"].endswith("Z"), (
+            f"Expected UTC 'Z' suffix on timestamp, got: {entry['timestamp']!r}"
+        )
+
+    def test_timestamp_is_iso8601_format(self):
+        import re
+        from agents.core.logger import ALSLogger
+        logger = ALSLogger(agent_role="test", goal_id="ts-fmt")
+        entry = logger.log("FORMAT_TEST", {})
+        pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+        assert re.match(pattern, entry["timestamp"]), (
+            f"Timestamp does not match ISO-8601 UTC pattern: {entry['timestamp']!r}"
+        )
+
