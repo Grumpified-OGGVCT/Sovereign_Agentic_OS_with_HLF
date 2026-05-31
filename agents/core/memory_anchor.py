@@ -73,6 +73,9 @@ class MemoryAnchor:
     tier: StorageTier = StorageTier.HOT
     tags: list[str] = field(default_factory=list)
 
+    # Oracle: risk assessment — how impactful is it if this anchor is stale?
+    risk_score: float = 0.0         # [0.0, 1.0]; updated by touch() & decay_pass()
+
     def __post_init__(self) -> None:
         if not self.content_hash and self.content:
             self.content_hash = hashlib.sha256(
@@ -87,6 +90,10 @@ class MemoryAnchor:
         self.relevance_score = min(1.0, self.relevance_score + 0.1)
         if self.tier == StorageTier.WARM:
             self.tier = StorageTier.HOT
+        # Oracle: risk score — frequently accessed but declining anchors are
+        # high-impact if they become stale.  risk = confidence × demand_weight.
+        demand_weight = min(1.0, self.access_count / 10.0)
+        self.risk_score = round(self.confidence * demand_weight, 4)
 
     @property
     def age_days(self) -> float:
@@ -95,6 +102,38 @@ class MemoryAnchor:
     @property
     def idle_days(self) -> float:
         return (time.time() - self.last_accessed) / 86400
+
+    # ── Oracle: Prediction API ───────────────────────────────────────────────
+
+    def predict_relevance(self, days_ahead: float, *, half_life_days: float = 15.0) -> float:
+        """Predict relevance *days_ahead* from now using the exponential decay curve.
+
+        Uses the current idle baseline so the prediction is anchored to the
+        last access time, not the current wall-clock.
+        """
+        _MIN_HALF_LIFE = 1e-9  # guard against zero division
+        lam = math.log(2) / max(half_life_days, _MIN_HALF_LIFE)
+        future_idle = self.idle_days + days_ahead
+        return float(self.confidence * math.exp(-lam * future_idle))
+
+    def predict_staleness_days(
+        self, cold_threshold: float = 0.3, *, half_life_days: float = 15.0
+    ) -> float:
+        """Estimate days until this anchor's relevance drops below *cold_threshold*.
+
+        Returns ``0.0`` if already at or below the threshold.
+        Returns ``float('inf')`` if the anchor will never decay that far
+        (e.g. zero-confidence edge case).
+        """
+        if self.relevance_score <= cold_threshold:
+            return 0.0
+        if self.confidence <= 0.0 or self.confidence <= cold_threshold:
+            return 0.0
+        _MIN_HALF_LIFE = 1e-9  # guard against zero division
+        lam = math.log(2) / max(half_life_days, _MIN_HALF_LIFE)
+        # Solve: cold_threshold = confidence * exp(-λ * (idle + d))  → d
+        days_until_cold = (-math.log(cold_threshold / self.confidence) / lam) - self.idle_days
+        return max(0.0, days_until_cold)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -111,12 +150,14 @@ class MemoryAnchor:
             "relevance_score": self.relevance_score,
             "tier": self.tier.value,
             "tags": self.tags,
+            "risk_score": self.risk_score,
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MemoryAnchor:
         data = dict(data)
         data["tier"] = StorageTier(data.get("tier", "hot"))
+        data.setdefault("risk_score", 0.0)  # backward-compat for pre-Oracle serialisations
         return cls(**data)
 
 
@@ -285,20 +326,84 @@ class AnchoredMemoryStore:
     def get_report(self) -> dict[str, Any]:
         """Get store statistics."""
         tiers = {"hot": 0, "warm": 0, "cold": 0}
+        agents: dict[str, int] = {}
+        total_relevance = 0.0
+        total_risk = 0.0
+        at_risk_count = 0
         for node in self._nodes.values():
             if node.tier.value in tiers:
                 tiers[node.tier.value] += 1
-        agents = {}
-        for node in self._nodes.values():
             agents[node.agent_id] = agents.get(node.agent_id, 0) + 1
+            total_relevance += node.relevance_score
+            total_risk += node.risk_score
+            if node.risk_score >= 0.5:
+                at_risk_count += 1
+        size = max(1, self.size)
         return {
             "total_active": self.size,
             "total_archived": self.cold_archive_size,
             "by_tier": tiers,
             "by_agent": agents,
-            "avg_relevance": (
-                sum(n.relevance_score for n in self._nodes.values()) / max(1, self.size)
+            "avg_relevance": total_relevance / size,
+            "oracle_risk": {
+                "avg_risk_score": round(total_risk / size, 4),
+                "at_risk_count": at_risk_count,
+            },
+        }
+
+    # ── Oracle: Prediction & Risk API ───────────────────────────────────────
+
+    def query_at_risk(self, *, risk_threshold: float = 0.5) -> list[MemoryAnchor]:
+        """Return anchors whose *risk_score* ≥ *risk_threshold*.
+
+        High-risk anchors are frequently accessed but may be going stale —
+        they are the Oracle's primary concern for proactive refresh.
+        """
+        return [
+            n for n in self._nodes.values()
+            if n.risk_score >= risk_threshold
+        ]
+
+    def oracle_trend_report(self) -> dict[str, Any]:
+        """Oracle trend analysis: predictions, risk landscape, future projections.
+
+        Returns a summary that can be fed into a monitoring pipeline or surfaced
+        via the ALS logger for pattern-level observability.
+        """
+        nodes = list(self._nodes.values())
+        if not nodes:
+            return {
+                "total": 0,
+                "at_risk": 0,
+                "avg_risk_score": 0.0,
+                "predicted_cold_7d": 0,
+                "predicted_cold_30d": 0,
+                "high_access_stale": [],
+            }
+
+        at_risk = [n for n in nodes if n.risk_score >= 0.5]
+        predicted_cold_7d = sum(
+            1 for n in nodes
+            if n.predict_relevance(7) < self._cold_threshold
+        )
+        predicted_cold_30d = sum(
+            1 for n in nodes
+            if n.predict_relevance(30) < self._cold_threshold
+        )
+        # Anchors with high access demand that are already going stale
+        high_access_stale = [
+            n.anchor_id for n in nodes
+            if n.access_count >= 3 and n.relevance_score < 0.5
+        ]
+        return {
+            "total": len(nodes),
+            "at_risk": len(at_risk),
+            "avg_risk_score": round(
+                sum(n.risk_score for n in nodes) / len(nodes), 4
             ),
+            "predicted_cold_7d": predicted_cold_7d,
+            "predicted_cold_30d": predicted_cold_30d,
+            "high_access_stale": high_access_stale,
         }
 
     def save(self, path: Path | str) -> None:

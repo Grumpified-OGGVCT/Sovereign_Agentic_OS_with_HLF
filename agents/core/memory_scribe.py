@@ -65,7 +65,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
             entity_id TEXT NOT NULL,
             vector_embedding TEXT,
             semantic_relationship TEXT,
-            confidence_score REAL NOT NULL DEFAULT 0.0
+            confidence_score REAL NOT NULL DEFAULT 0.0,
+            last_accessed REAL,
+            risk_tag TEXT NOT NULL DEFAULT 'normal'
         );
         -- Vector Search Table using sqlite-vec
         CREATE VIRTUAL TABLE IF NOT EXISTS vec_facts USING vec0(
@@ -97,10 +99,37 @@ def _init_schema(conn: sqlite3.Connection) -> None:
         );
     """)
     conn.commit()
+    _migrate_schema(conn)
 
 
 def _sha256_cache_key(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+# ── Oracle: Schema Migration ─────────────────────────────────────────────────
+
+def _migrate_schema(conn: sqlite3.Connection) -> None:
+    """Oracle: apply incremental column additions to *fact_store* for durability.
+
+    ``CREATE TABLE IF NOT EXISTS`` does not add new columns to pre-existing
+    tables, so we use ``ALTER TABLE ADD COLUMN`` (silenced when already present)
+    to ensure every installation is up-to-date regardless of creation order.
+    """
+    # last_accessed: temporal anchor for per-fact freshness tracking
+    # contextlib.suppress(OperationalError) is intentional here: SQLite raises
+    # OperationalError("duplicate column name") when the column already exists.
+    # There is no portable IF NOT EXISTS syntax for ALTER TABLE in SQLite, so
+    # broad suppression of the *single* expected error class is the idiomatic
+    # approach.  Any other OperationalError during the migration would surface
+    # at the next schema access (e.g. INSERT) rather than being silently lost.
+    with contextlib.suppress(sqlite3.OperationalError):
+        conn.execute("ALTER TABLE fact_store ADD COLUMN last_accessed REAL")
+    # risk_tag: Oracle-assigned risk classification label
+    with contextlib.suppress(sqlite3.OperationalError):
+        conn.execute(
+            "ALTER TABLE fact_store ADD COLUMN risk_tag TEXT NOT NULL DEFAULT 'normal'"
+        )
+    conn.commit()
 
 
 def write_fact(
@@ -109,13 +138,24 @@ def write_fact(
     vector_embedding: list[float] | None,
     semantic_relationship: str,
     confidence_score: float,
+    *,
+    risk_tag: str = "normal",
 ) -> None:
+    """Write a fact to *fact_store*.
+
+    Parameters
+    ----------
+    risk_tag:
+        Oracle risk classification.  One of ``'normal'``, ``'high'``,
+        ``'critical'``, or any custom label.  Defaults to ``'normal'``.
+    """
     vec_json = json.dumps(vector_embedding) if vector_embedding else None
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO fact_store (entity_id, vector_embedding, semantic_relationship, confidence_score) "
-        "VALUES (?, ?, ?, ?)",
-        (entity_id, vec_json, semantic_relationship, confidence_score),
+        "INSERT INTO fact_store "
+        "(entity_id, vector_embedding, semantic_relationship, confidence_score, last_accessed, risk_tag) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (entity_id, vec_json, semantic_relationship, confidence_score, time.time(), risk_tag),
     )
     if vec_json is not None:
         row_id = cur.lastrowid
@@ -207,6 +247,101 @@ def prune_old_facts(conn: sqlite3.Connection) -> int:
         conn.execute(f"DELETE FROM vec_facts WHERE rowid IN {_sql_in(rowids)}", rowids)
     conn.commit()
     return len(rows)
+
+
+# ── Oracle: Durability & Risk Assessment ─────────────────────────────────────
+
+def check_durability(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Oracle: verify memory durability — WAL mode, index coverage, orphaned rows.
+
+    Returns a report dict with a ``durability_ok`` flag that is ``True`` only
+    when the database is in WAL mode *and* there are no orphaned vec_facts rows.
+    """
+    wal_row = conn.execute("PRAGMA journal_mode").fetchone()
+    wal_mode = wal_row[0] if wal_row else "unknown"
+
+    fact_count: int = conn.execute("SELECT COUNT(*) FROM fact_store").fetchone()[0]
+
+    # Orphaned vec_facts rows — entries in the index without a backing fact row
+    orphaned_vec: int = 0
+    with contextlib.suppress(Exception):
+        orphaned_vec = conn.execute(
+            "SELECT COUNT(*) FROM vec_facts v "
+            "LEFT JOIN fact_store f ON v.rowid = f.rowid "
+            "WHERE f.rowid IS NULL"
+        ).fetchone()[0]
+
+    # Facts with no vector embedding — stored but not indexed for similarity search
+    unindexed: int = conn.execute(
+        "SELECT COUNT(*) FROM fact_store WHERE vector_embedding IS NULL"
+    ).fetchone()[0]
+
+    return {
+        "wal_mode": wal_mode == "wal",
+        "fact_count": fact_count,
+        "orphaned_vec_entries": orphaned_vec,
+        "unindexed_facts": unindexed,
+        "durability_ok": wal_mode == "wal" and orphaned_vec == 0,
+    }
+
+
+def risk_assessment_facts(conn: sqlite3.Connection) -> dict[str, Any]:
+    """Oracle: assess risk indicators in the *fact_store*.
+
+    Identifies three classes of risk:
+
+    * **high_conf_unvectorized** — high-confidence facts with no embedding
+      (trusted but unverifiable via similarity search).
+    * **duplicate_entities** — entity IDs with more than one row
+      (potential conflicting beliefs).
+    * **low_confidence_ratio** — fraction of facts below the 0.3 confidence
+      floor (noise accumulation).
+
+    The returned ``risk_level`` is ``'high'`` when any of the first two
+    indicators are non-zero or the noise ratio exceeds 50 %, ``'medium'``
+    when noise is 20–50 %, and ``'low'`` otherwise.
+    """
+    fact_count: int = conn.execute("SELECT COUNT(*) FROM fact_store").fetchone()[0]
+    if fact_count == 0:
+        return {
+            "fact_count": 0,
+            "high_conf_unvectorized": 0,
+            "duplicate_entities": 0,
+            "low_confidence_ratio": 0.0,
+            "risk_level": "none",
+        }
+
+    high_conf_unvec: int = conn.execute(
+        "SELECT COUNT(*) FROM fact_store "
+        "WHERE vector_embedding IS NULL AND confidence_score >= 0.8"
+    ).fetchone()[0]
+
+    dup_entities: int = conn.execute(
+        "SELECT COUNT(*) FROM ("
+        "  SELECT entity_id FROM fact_store GROUP BY entity_id HAVING COUNT(*) > 1"
+        ")"
+    ).fetchone()[0]
+
+    low_conf: int = conn.execute(
+        "SELECT COUNT(*) FROM fact_store WHERE confidence_score < 0.3"
+    ).fetchone()[0]
+
+    low_conf_ratio = low_conf / fact_count
+
+    if high_conf_unvec > 0 or dup_entities > 0 or low_conf_ratio > 0.5:
+        risk_level = "high"
+    elif low_conf_ratio > 0.2:
+        risk_level = "medium"
+    else:
+        risk_level = "low"
+
+    return {
+        "fact_count": fact_count,
+        "high_conf_unvectorized": high_conf_unvec,
+        "duplicate_entities": dup_entities,
+        "low_confidence_ratio": round(low_conf_ratio, 4),
+        "risk_level": risk_level,
+    }
 
 
 def run() -> None:
