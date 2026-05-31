@@ -23,6 +23,8 @@ from typing import Any
 import httpx
 
 from agents.core.logger import ALSLogger
+from agents.core.model_utils import is_cloud_model, strip_cloud_suffix
+from agents.core.ollama_config import get_ollama_endpoints
 
 _logger = ALSLogger(agent_role="agent-executor", goal_id="boot")
 
@@ -58,37 +60,11 @@ if hasattr(signal, "SIGUSR1"):
 
 
 # --------------------------------------------------------------------------- #
-# Ollama dual-endpoint helpers
+# Ollama dual-endpoint helpers  (shared via agents.core.ollama_config)
 # --------------------------------------------------------------------------- #
 
-_OLLAMA_PRIMARY = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
-_OLLAMA_SECONDARY = os.environ.get("OLLAMA_HOST_SECONDARY", "")
-_OLLAMA_SECONDARY_KEY = os.environ.get("OLLAMA_API_KEY_SECONDARY", "")
-_OLLAMA_STRATEGY = os.environ.get("OLLAMA_LOAD_STRATEGY", "failover")
-_ollama_rr_counter = 0  # round-robin counter
-
-
-def _get_ollama_endpoints() -> list[tuple[str, dict[str, str]]]:
-    """Return ordered list of (host, headers) tuples based on load strategy."""
-    global _ollama_rr_counter
-    primary = (_OLLAMA_PRIMARY, {})
-    if not _OLLAMA_SECONDARY:
-        return [primary]
-
-    sec_headers = {}
-    if _OLLAMA_SECONDARY_KEY:
-        sec_headers["Authorization"] = f"Bearer {_OLLAMA_SECONDARY_KEY}"
-    secondary = (_OLLAMA_SECONDARY, sec_headers)
-
-    if _OLLAMA_STRATEGY == "round_robin":
-        _ollama_rr_counter += 1
-        if _ollama_rr_counter % 2 == 0:
-            return [primary, secondary]
-        return [secondary, primary]
-    elif _OLLAMA_STRATEGY == "primary_only":
-        return [primary]
-    # default: failover (primary first, secondary if primary fails)
-    return [primary, secondary]
+# Expose module-level alias so callers inside this file keep the same name.
+_get_ollama_endpoints = get_ollama_endpoints
 
 
 # --------------------------------------------------------------------------- #
@@ -106,9 +82,7 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
     # 1. Cloud Provider Fallback (OpenRouter/Ollama Cloud)
     openrouter_api = os.environ.get("OPENROUTER_API")
     ollama_api_key = os.environ.get("OLLAMA_API_KEY")
-    is_cloud = (
-        effective_model.endswith(":cloud") or effective_model.endswith("-cloud") or openrouter_api or ollama_api_key
-    )
+    is_cloud = is_cloud_model(effective_model) or bool(openrouter_api) or bool(ollama_api_key)
 
     if is_cloud and openrouter_api:
         # Use OpenRouter as primary cloud bridge if available
@@ -121,7 +95,7 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
                     "X-Title": "Sovereign OS Autonomous Runner",
                 },
                 json={
-                    "model": effective_model.removesuffix(":cloud").removesuffix("-cloud"),
+                    "model": strip_cloud_suffix(effective_model),
                     "messages": [
                         {
                             "role": "system",
@@ -145,7 +119,7 @@ def _ollama_generate(text: str, model: str | None = None) -> str:
         system_prompt = _SYSTEM_PROMPT_PATH.read_text().strip()
 
     payload = {
-        "model": effective_model.removesuffix(":cloud").removesuffix("-cloud"),
+        "model": strip_cloud_suffix(effective_model),
         "system": system_prompt,
         "prompt": text,
         "stream": False,
@@ -229,7 +203,7 @@ def _ollama_generate_v2(text: str, profile: Any) -> str:
 
     # --- Local Ollama path (default) — dual-endpoint failover ---
     payload = {
-        "model": model.removesuffix(":cloud").removesuffix("-cloud"),
+        "model": strip_cloud_suffix(model),
         "system": system_prompt,
         "prompt": text,
         "stream": False,
