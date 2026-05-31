@@ -289,6 +289,56 @@ class DreamStateEngine:
             "baseline_success_rate": self._baseline_success_rate,
         }
 
+    # ------------------------------------------------------------------
+    # Catalyst additions — additive enhancements only
+    # ------------------------------------------------------------------
+
+    @property
+    def experience_tag_frequency(self) -> "Counter[str]":
+        """Return a Counter of tag occurrences across all pending experiences.
+
+        Useful for discovering which topics dominate the current experience
+        buffer before running a full dream cycle.
+        """
+        freq: Counter[str] = Counter()
+        for exp in self._experiences:
+            freq.update(exp.tags)
+        return freq
+
+    def rule_lookup(self, keyword: str) -> list[SynthesizedRule]:
+        """Search synthesized rules by keyword (case-insensitive substring match).
+
+        Returns every rule whose summary contains *keyword*.  Enables fast
+        retrieval of relevant rules without iterating the full rule list
+        in calling code.
+        """
+        kw = keyword.lower()
+        return [r for r in self._rules if kw in r.summary.lower()]
+
+    def prune_low_confidence_rules(self, threshold: float = 0.3) -> int:
+        """Remove synthesized rules whose confidence has fallen below *threshold*.
+
+        Returns the number of rules pruned.  Keeps the rule set lean and
+        prevents stale low-quality rules from polluting future reasoning.
+        """
+        before = len(self._rules)
+        self._rules = [r for r in self._rules if r.confidence >= threshold]
+        return before - len(self._rules)
+
+    def decay_rule_confidence(self, decay_factor: float = 0.01) -> None:
+        """Apply linear confidence decay to all synthesized rules.
+
+        Reduces each rule's confidence by *decay_factor* (clamped to 0.0).
+        Mimics biological forgetting: rules that are not reinforced by fresh
+        experiences gradually lose their weight, making them candidates for
+        subsequent :meth:`prune_low_confidence_rules` sweeps.
+
+        Note: :class:`SynthesizedRule` is a plain (non-frozen) dataclass so
+        in-place mutation of ``confidence`` is intentional and safe here.
+        """
+        for rule in self._rules:
+            rule.confidence = max(0.0, rule.confidence - decay_factor)
+
 
 # ---------------------------------------------------------------------------
 # Module-level utility: cold archive old rolling_context rows
