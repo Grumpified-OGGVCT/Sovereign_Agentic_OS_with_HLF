@@ -74,6 +74,16 @@ def reload_registry() -> None:
     _load_registry()
 
 
+def reset_mandates_cache() -> None:
+    """Reset the shared-mandates cache so it is reloaded from disk on next access.
+
+    Intended for use in tests only — clears the module-level ``_SHARED_MANDATES``
+    cache without touching the ``_REGISTRY`` cache.
+    """
+    global _SHARED_MANDATES
+    _SHARED_MANDATES = None
+
+
 # ---------------------------------------------------------------------------
 # Data structures
 # ---------------------------------------------------------------------------
