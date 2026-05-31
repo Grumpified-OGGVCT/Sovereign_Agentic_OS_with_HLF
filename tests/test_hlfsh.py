@@ -8,11 +8,10 @@ without launching an interactive terminal.
 from __future__ import annotations
 
 import json
+
 import pytest
-from pathlib import Path
 
-from hlf.hlfsh import HLFShell, HELP_TEXT
-
+from hlf.hlfsh import HELP_TEXT, HLFShell
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 

@@ -16,18 +16,17 @@ Tests cover:
 from __future__ import annotations
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+
+import pytest
 
 from agents.core.gateway_bridge import (
-    GatewayHFRBridge,
-    GatewayHostFunction,
     GATEWAY_HOST_FUNCTIONS,
     GOOGLE_SUITE_APPS,
+    GatewayHFRBridge,
     PWAApp,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -38,8 +37,10 @@ def hf_path(tmp_path: Path) -> Path:
     data = {
         "version": "1.2.0",
         "functions": [
-            {"name": "READ", "args": [], "returns": "string", "tier": ["hearth"], "gas": 1, "backend": "dapr_file_read"},
-            {"name": "WRITE", "args": [], "returns": "bool", "tier": ["hearth"], "gas": 2, "backend": "dapr_file_write"},
+            {"name": "READ", "args": [], "returns": "string", "tier": ["hearth"], "gas": 1,
+             "backend": "dapr_file_read"},
+            {"name": "WRITE", "args": [], "returns": "bool", "tier": ["hearth"], "gas": 2,
+             "backend": "dapr_file_write"},
         ],
     }
     path.write_text(json.dumps(data), encoding="utf-8")

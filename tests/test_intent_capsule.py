@@ -13,8 +13,6 @@ All tests are mock-based — no real runtime execution.
 
 from __future__ import annotations
 
-import pytest
-
 from hlf import (
     CapsuleViolation,
     IntentCapsule,
@@ -22,14 +20,12 @@ from hlf import (
     hearth_capsule,
     sovereign_capsule,
 )
+from hlf.hlfc import compile as hlfc_compile
 from hlf.intent_capsule import (
     DEFAULT_TAGS,
     DEFAULT_TOOLS,
     STRUCTURAL_TAGS,
-    CapsuleInterpreter,
 )
-from hlf.hlfc import compile as hlfc_compile
-
 
 # ── Tier Factory Tests ───────────────────────────────────────────────────────
 
@@ -189,12 +185,12 @@ class TestPackageExports:
     """Verify intent capsule types are exported from hlf package."""
 
     def test_import_from_hlf(self) -> None:
-        from hlf import IntentCapsule, CapsuleViolation
+        from hlf import CapsuleViolation, IntentCapsule
         assert IntentCapsule is not None
         assert CapsuleViolation is not None
 
     def test_factory_imports(self) -> None:
-        from hlf import hearth_capsule, forge_capsule, sovereign_capsule
+        from hlf import hearth_capsule
         cap = hearth_capsule("test")
         assert cap.agent == "test"
 

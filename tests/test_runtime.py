@@ -81,7 +81,7 @@ class TestHostFunctionRegistry:
         assert "WEB_SEARCH" in host_registry.functions
 
     def test_registry_version(self, host_registry: HostFunctionRegistry) -> None:
-        assert host_registry.version == "1.2.0"
+        assert host_registry.version == "1.4.0"
 
     def test_function_attributes(self, host_registry: HostFunctionRegistry) -> None:
         read_fn = host_registry.functions["READ"]
@@ -438,8 +438,8 @@ class TestExprEvaluator:
         assert _eval_expr(node, {}) is None
 
     def test_division_by_zero_raises(self) -> None:
-        from hlf.hlfrun import _eval_expr
         from hlf.hlfc import HlfRuntimeError
+        from hlf.hlfrun import _eval_expr
         node = {"op": "MATH", "operator": "/", "left": 10, "right": 0}
         with pytest.raises(HlfRuntimeError, match="Division by zero"):
             _eval_expr(node, {})
@@ -476,7 +476,6 @@ class TestRuntimeAssert:
         assert result.code == 0
 
     def test_assert_fail_raises(self) -> None:
-        from hlf.hlfc import HlfRuntimeError
         ast = {
             "program": [
                 {"tag": "ASSERT", "args": [False, "should_fail"], "human_readable": "Assert"},

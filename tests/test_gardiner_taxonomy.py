@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
 from hlf.gardiner_taxonomy import (
-    GARDINER_CATEGORIES,
     GardinerRegistry,
     GardinerSign,
 )

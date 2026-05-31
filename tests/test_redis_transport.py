@@ -17,20 +17,18 @@ Tests cover:
 from __future__ import annotations
 
 import json
-import pytest
-import time
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
-from typing import Any
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from agents.core.event_bus import EventType, SpindleEvent, SpindleEventBus
 from agents.core.redis_transport import (
     RedisTransport,
     RedisTransportConfig,
-    _event_to_redis,
     _event_from_redis,
+    _event_to_redis,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 

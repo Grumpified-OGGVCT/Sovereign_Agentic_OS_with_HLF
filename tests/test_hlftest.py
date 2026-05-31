@@ -8,18 +8,15 @@ and CLI entry point.
 from __future__ import annotations
 
 import pytest
-from pathlib import Path
 
 from hlf.hlftest import (
-    HLFTestResult,
     HLFTestReport,
+    HLFTestResult,
     HLFTestRunner,
-    assert_compiles,
-    assert_lints_clean,
-    assert_gas_under,
     _cli_main,
+    assert_compiles,
+    assert_gas_under,
 )
-
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 

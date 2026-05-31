@@ -3,7 +3,6 @@ Tests for agents.core.task_classifier — full taxonomy, micro-task fast-path,
 natural-language classification, launcher provenance, and vocabulary introspection.
 """
 
-import pytest
 
 from agents.core.task_classifier import (
     FAST_PATH_TYPES,
@@ -18,7 +17,6 @@ from agents.core.task_classifier import (
     get_task_types_for_category,
     get_vocabulary_summary,
 )
-
 
 # ─── Registry & Vocabulary ──────────────────────────────────────────────────
 

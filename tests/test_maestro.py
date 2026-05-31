@@ -15,19 +15,17 @@ Tests cover:
 from __future__ import annotations
 
 import json
-import pytest
 from pathlib import Path
-from typing import Any
 from unittest.mock import MagicMock
 
-from agents.core.maestro import (
-    MAESTROClassifier,
-    IntentCategory,
-    ClassificationResult,
-    INTENT_TO_TIER,
-    _classify_by_rules,
-)
+import pytest
 
+from agents.core.maestro import (
+    INTENT_TO_TIER,
+    ClassificationResult,
+    IntentCategory,
+    MAESTROClassifier,
+)
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 

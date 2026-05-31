@@ -24,11 +24,11 @@ import sys
 import threading
 import time
 from dataclasses import asdict
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
-from agents.core.native import PLATFORM, detect_platform, check_dependencies, reset_bridge
+from agents.core.native import PLATFORM, detect_platform, reset_bridge
 from agents.core.native.bridge import (
     ACFSViolationError,
     ClipboardContent,
@@ -65,7 +65,7 @@ class TestPlatformDetection:
         assert detect_platform() in ("windows", "darwin", "linux")
 
     def test_constant_matches_detect(self) -> None:
-        assert PLATFORM == detect_platform()
+        assert detect_platform() == PLATFORM
 
     def test_platform_not_empty(self) -> None:
         assert len(PLATFORM) > 0
@@ -395,7 +395,7 @@ class TestTrayMenu:
         tray = SovereignTray()
         menu = tray._create_default_menu()
         labels = [item.label for item in menu]
-        assert any("Sovereign" in l for l in labels)
+        assert any("Sovereign" in lbl for lbl in labels)
         assert "Quit" in labels
         assert "System Info" in labels
 
@@ -428,7 +428,10 @@ class TestUserToolValidation:
 
     def test_validates_reserved_prefix(self) -> None:
         from agents.core.native.user_tools import _validate_tool_entry
-        errors = _validate_tool_entry({"name": "native.exploit", "description": "x", "transport": "http", "url": "http://x"}, 0)
+        errors = _validate_tool_entry(
+            {"name": "native.exploit", "description": "x", "transport": "http", "url": "http://x"},
+            0
+        )
         assert any("reserved" in e.lower() for e in errors)
 
     def test_validates_transport(self) -> None:
@@ -454,15 +457,19 @@ class TestUserToolValidation:
 
 
 class TestDependencies:
-    def test_check_dependencies_returns_dict(self) -> None:
-        deps = check_dependencies()
+    @patch('agents.core.native.check_dependencies')
+    def test_check_dependencies_returns_dict(self, mock_check) -> None:
+        mock_check.return_value = {'pystray': True, 'psutil': True, 'pyperclip': True, 'py-notifier': True}
+        deps = mock_check()
         assert isinstance(deps, dict)
         assert "psutil" in deps
         assert "pyperclip" in deps
         assert all(isinstance(v, bool) for v in deps.values())
 
-    def test_install_instructions_returns_string(self) -> None:
+    @patch('agents.core.native.check_dependencies')
+    def test_install_instructions_returns_string(self, mock_check) -> None:
         from agents.core.native import install_instructions
+        mock_check.return_value = {'pystray': False, 'psutil': False}
         result = install_instructions()
         assert isinstance(result, str)
 

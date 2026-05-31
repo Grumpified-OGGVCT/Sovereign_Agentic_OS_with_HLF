@@ -8,15 +8,12 @@ gas spike detection, ALIGN violation checking, alerts, and lifecycle.
 from __future__ import annotations
 
 import pytest
-from unittest.mock import MagicMock
 
 from agents.core.daemons import DaemonEventBus, DaemonStatus
 from agents.core.daemons.sentinel import (
     AlertSeverity,
-    SentinelAlert,
     SentinelDaemon,
 )
-
 
 # ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -181,7 +178,7 @@ class TestGasAnomaly:
 
     def test_needs_baseline_before_detection(self, running_daemon):
         """First 5 events build baseline — no alerts."""
-        for i in range(5):
+        for _i in range(5):
             alerts = running_daemon.check({"gas_used": 10})
             gas_alerts = [a for a in alerts if a.pattern == "gas_spike"]
             assert len(gas_alerts) == 0

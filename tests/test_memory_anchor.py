@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import time
 
-import pytest
-
 from agents.core.memory_anchor import (
     AnchoredMemoryStore,
     MemoryAnchor,

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from agents.core.formal_verifier import (
     ConstraintKind,
     FallbackSolver,
@@ -14,7 +12,6 @@ from agents.core.formal_verifier import (
     extract_constraints,
     z3_available,
 )
-
 
 # ─── VerificationResult Tests ───────────────────────────────────────────────
 

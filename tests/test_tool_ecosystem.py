@@ -16,9 +16,8 @@ from pathlib import Path
 
 from hlf.tool_dispatch import ToolDispatchBridge, ToolDispatchResult
 from hlf.tool_lockfile import LockEntry, ToolLockfile
-from hlf.tool_monitor import ToolMonitor, ToolHealthReport, ToolGasReport, ToolAuditReport
+from hlf.tool_monitor import ToolAuditReport, ToolGasReport, ToolHealthReport, ToolMonitor
 from hlf.tool_scaffold import scaffold_tool
-
 
 # ─── ToolDispatchBridge ──────────────────────────────────────────────────────
 

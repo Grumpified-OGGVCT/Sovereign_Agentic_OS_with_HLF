@@ -12,7 +12,6 @@ from lsprotocol import types as lsp
 
 from hlf.hlflsp import HLFLanguageServer, _extract_set_bindings
 
-
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _prog(body: str) -> str:

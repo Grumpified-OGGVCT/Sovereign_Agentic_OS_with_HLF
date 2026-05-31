@@ -15,24 +15,18 @@ All tests are mock-based — no real API calls.
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
-
+from agents.core.tool_registry import ToolCategory, ToolRegistry
 from agents.core.zai_client import (
-    ZAIClient,
-    ZAIResponse,
-    ZAIImageResult,
-    ZAIVideoResult,
     ZAI_BASE_URL,
     ZAI_ENV_KEY,
-    ZAI_MODELS,
-    ZAI_RATE_LIMITS,
+    ZAIClient,
+    ZAIImageResult,
+    ZAIResponse,
+    ZAIVideoResult,
 )
-from agents.core.tool_registry import ToolCategory, ToolRegistry
-from agents.core.zai_tools import register_zai_tools, list_zai_models
-
+from agents.core.zai_tools import list_zai_models, register_zai_tools
 
 # ── ZAIClient Tests ──────────────────────────────────────────────────────────
 
